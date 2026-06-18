@@ -9,6 +9,7 @@ interface HeaderProps {
   saveStatus: 'idle' | 'saving' | 'saved';
   onOpenEventsModal: () => void;
   savedEventsCount: number;
+  isPublicView?: boolean;
 }
 
 export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser: string | null }> = ({
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   savedEventsCount,
   onLogout,
   currentUser,
+  isPublicView = false,
 }) => {
   return (
     <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
@@ -49,13 +51,18 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
             placeholder="Type tournament name..."
             value={tournamentName}
             onChange={(e) => setTournamentName(e.target.value)}
-            disabled={!currentUser}
+            disabled={!currentUser || isPublicView}
           />
         </div>
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 md:gap-3">
-          {currentUser && (
+          {isPublicView && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-extrabold font-mono tracking-wider">
+              <span>🌎 PUBLIC REPORT VIEW</span>
+            </div>
+          )}
+          {currentUser && !isPublicView && (
             <>
               <div className="hidden lg:flex items-center gap-2 px-3 mr-1">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>

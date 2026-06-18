@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download } from 'lucide-react';
+import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download, Share2, Copy, Check } from 'lucide-react';
 import { Athlete, WeightCategory, BracketModel } from '../types';
+import { compressToGzipBase64 } from '../utils/compression';
 
 interface ClubReportPanelProps {
   categories: Record<string, WeightCategory>;
   brackets: Record<string, BracketModel>;
   roster: Athlete[];
   ringLabelFormat: 'number' | 'letter';
+  tournamentName?: string;
+  isPublicView?: boolean;
 }
 
 interface PlayerFightInfo {
@@ -29,12 +32,76 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   brackets,
   roster,
   ringLabelFormat,
+  tournamentName = '',
+  isPublicView = false,
 }) => {
   const [selectedClub, setSelectedClub] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // Choose between 'photo-matrix' (current tabular grid) or 'classic-cards' (previous layout)
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards'>('photo-matrix');
+
+  const [shareStatus, setShareStatus] = useState<'silent' | 'loading' | 'copied' | 'error'>('silent');
+  const [shareUrl, setShareUrl] = useState('');
+
+  const generateAndCopyShareLink = () => {
+    try {
+      setShareStatus('loading');
+      
+      const payload = {
+        t: tournamentName || 'Tournament',
+        r: roster,
+        c: categories,
+        b: brackets,
+        rl: ringLabelFormat
+      };
+      
+      fetch('/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('API failed');
+        return res.json();
+      })
+      .then(resData => {
+        if (resData && resData.id) {
+          const baseUrl = window.location.origin + window.location.pathname;
+          const shareLink = `${baseUrl}?view=club-report&id=${resData.id}`;
+          
+          setShareUrl(shareLink);
+          navigator.clipboard.writeText(shareLink);
+          setShareStatus('copied');
+        } else {
+          throw new Error('No ID returned');
+        }
+      })
+      .catch(err => {
+        console.log('Using native GZIP client compressed URL format', err);
+        // Fallback to high-compression gzip base64 if server request fails
+        const jsonStr = JSON.stringify(payload);
+        compressToGzipBase64(jsonStr)
+          .then(base64Str => {
+            const baseUrl = window.location.origin + window.location.pathname;
+            const shareLink = `${baseUrl}?view=club-report&data=${base64Str}`;
+            
+            setShareUrl(shareLink);
+            navigator.clipboard.writeText(shareLink);
+            setShareStatus('copied');
+          })
+          .catch(fbErr => {
+            console.error('Fallback compression failed', fbErr);
+            setShareStatus('error');
+          });
+      });
+    } catch (e) {
+      console.error('Failed to generate shareable link', e);
+      setShareStatus('error');
+    }
+  };
 
   // 1. Label formatting helper for rings
   const getRingLabel = (ringNum: number | string) => {
@@ -392,6 +459,18 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
         {/* Action controls */}
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={generateAndCopyShareLink}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title="Generate a unique, read-only URL for this report to share with coaches"
+            >
+              <Share2 className="w-4 h-4 text-indigo-100" />
+              <span>{shareStatus === 'copied' ? 'Link Copied!' : 'Share Public Link'}</span>
+            </button>
+          )}
+
           {/* Download button */}
           <button
             type="button"
@@ -414,6 +493,41 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           </button>
         </div>
       </div>
+
+      {shareStatus === 'copied' && (
+        <div className="bg-emerald-50 border border-emerald-250 p-4.5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 mt-5 animate-in fade-in slide-in-from-top-2 duration-305 no-print">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-emerald-800">
+              <Check className="w-4 h-4 text-emerald-600 font-bold" />
+              <h4 className="text-sm font-black">Share Link Copied! Ready for Vercel/Public</h4>
+            </div>
+            <p className="text-xs text-slate-650 leading-relaxed max-w-2xl">
+              Coaches can open this read-only report on their own phones or computers to check their players, fight numbers, and rings instantly!
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 w-full md:w-auto shrink-0 md:max-w-md">
+            <input
+              type="text"
+              readOnly
+              value={shareUrl}
+              className="bg-white border border-slate-200 text-xs text-slate-650 rounded-xl px-3 py-2 w-full outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(shareUrl);
+                setShareStatus('copied');
+              }}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 p-2.5 rounded-xl cursor-pointer active:scale-95 flex items-center justify-center shrink-0 border border-slate-250"
+              title="Copy link to clipboard again"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {athleteList.length === 0 ? (
         <div className="text-center py-12 text-slate-400 font-medium my-2">

@@ -629,7 +629,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                                 className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight truncate whitespace-nowrap min-w-0 ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
-                                placeholder="W..."
+                                placeholder=""
                                 value={node.name || ''}
                                 onChange={(e) => onTextChange(k, i, e.target.value)}
                               />
@@ -645,7 +645,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 tracking-tight uppercase mt-0.5 ${
                             isLeft ? 'text-left' : 'text-right'
                           }`}
-                          placeholder="Winner advances..."
+                          placeholder=""
                           value={node.name || ''}
                           onChange={(e) => onTextChange(k, i, e.target.value)}
                         />

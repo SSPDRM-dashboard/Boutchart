@@ -77,6 +77,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('modern');
+  const [isPublicReportOnly, setIsPublicReportOnly] = useState(false);
 
   const refreshSystemUsers = () => {
     const usersStr = localStorage.getItem('bracket_builder_users_db');
@@ -140,10 +141,87 @@ export default function App() {
 
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Initial State Hydration from LocalStorage
+  // 1. Initial State Hydration from LocalStorage with URL sharing support
   useEffect(() => {
     try {
       refreshSystemUsers();
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const viewType = urlParams.get('view');
+      const dataParam = urlParams.get('data');
+      const idParam = urlParams.get('id');
+      
+      if (viewType === 'club-report') {
+        setIsPublicReportOnly(true);
+        setActiveTab('club-report');
+        
+        if (idParam) {
+          setStatusMessage({
+            text: 'Retrieving secure club report...',
+            type: 'ok',
+          });
+          fetch(`/api/reports/${idParam}`)
+            .then(res => {
+              if (!res.ok) throw new Error('Failed to find report.');
+              return res.json();
+            })
+            .then(parsed => {
+              if (parsed) {
+                if (parsed.t) setTournamentName(parsed.t);
+                if (parsed.r) setRoster(parsed.r);
+                if (parsed.c) setCategories(parsed.c);
+                if (parsed.b) setBrackets(parsed.b);
+                if (parsed.rl) setRingLabelFormat(parsed.rl);
+                
+                setStatusMessage({
+                  text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
+                  type: 'ok',
+                });
+              }
+            })
+            .catch(err => {
+              console.error('Failed to parse shareable data', err);
+              setStatusMessage({
+                text: 'Could not load public report: URL may be expired or invalid.',
+                type: 'err',
+              });
+            });
+          return; // Bypass loading from localStorage
+        } else if (dataParam) {
+          import('./utils/compression')
+            .then(({ decompressFromGzipBase64 }) => decompressFromGzipBase64(dataParam))
+            .then(decompressed => JSON.parse(decompressed))
+            .catch(() => {
+              // Fallback to standard raw base64 if it is an old format URL
+              const decodedJsonStr = decodeURIComponent(escape(atob(dataParam)));
+              return JSON.parse(decodedJsonStr);
+            })
+            .then(parsed => {
+              if (parsed) {
+                if (parsed.t) setTournamentName(parsed.t);
+                if (parsed.r) setRoster(parsed.r);
+                if (parsed.c) setCategories(parsed.c);
+                if (parsed.b) setBrackets(parsed.b);
+                if (parsed.rl) setRingLabelFormat(parsed.rl);
+                
+                setStatusMessage({
+                  text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
+                  type: 'ok',
+                });
+              }
+            })
+            .catch(err => {
+              console.error('Failed to parse shareable data', err);
+              setStatusMessage({
+                text: 'Could not load public report data: invalid shared link.',
+                type: 'err',
+              });
+            });
+          return; // Bypass loading from localStorage
+        }
+      }
+
+      // Standard fallback load
       const storedUser = localStorage.getItem('bracket_builder_current_user_v1');
       if (storedUser) {
         setCurrentUser(storedUser);
@@ -185,6 +263,7 @@ export default function App() {
 
   // 2. Automatic State Persistence Debouncer
   useEffect(() => {
+    if (isPublicReportOnly) return; // Skip saving in public view to avoid overwriting local admin state
     // Skip saving first render where roster is empty
     if (roster.length === 0 && Object.keys(brackets).length === 0 && !tournamentName) return;
 
@@ -221,7 +300,7 @@ export default function App() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, shuffleSeed, dismissedDuplicates]);
+  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
 
   // 3. Import Core Roster Handler
   const handleLoadRoster = (text: string, source: string) => {
@@ -933,9 +1012,10 @@ export default function App() {
           savedEventsCount={savedEvents.length}
           onLogout={handleLogout}
           currentUser={currentUser}
+          isPublicView={isPublicReportOnly}
         />
 
-        {!currentUser ? (
+        {!currentUser && !isPublicReportOnly ? (
           <div className="py-10">
             <AuthScreen onLogin={handleLogin} mode="login" />
           </div>
@@ -943,170 +1023,172 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
           
           {/* LEFT SIDEBAR NAVIGATION & QUICK CONTROL CENTER */}
-          <div className="lg:col-span-3 space-y-6 no-print print:hidden flex flex-col">
-            {/* View Switching Tab Selector */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-sm space-y-3.5">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
-                Master Navigation
-              </h3>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('brackets')}
-                  className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
-                    activeTab === 'brackets'
-                      ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
-                      : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="text-base">🥋</span>
-                  <span className="text-left flex-1 font-extrabold text-sm">Draws &amp; Matches</span>
-                  {bracketKeys.length > 0 && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
-                      activeTab === 'brackets' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      {bracketKeys.length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (bracketKeys.length > 0) {
-                      setActiveTab('club-report');
-                    }
-                  }}
-                  disabled={bracketKeys.length === 0}
-                  className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                    bracketKeys.length === 0
-                      ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
-                      : activeTab === 'club-report'
-                      ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
-                      : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
-                  }`}
-                  title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
-                >
-                  <span className="text-base">📋</span>
-                  <span className="text-left flex-1 font-extrabold text-sm">Club Reports</span>
-                  {bracketKeys.length > 0 ? (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
-                      activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      {Array.from(new Set(roster.map(a => a.club).filter(Boolean))).length}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('account')}
-                  className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
-                    activeTab === 'account'
-                      ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
-                      : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="text-base">👤</span>
-                  <span className="text-left flex-1 font-extrabold text-sm">Account &amp; Admin</span>
-                  {!currentUser ? (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
-                      activeTab === 'account' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      Login
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
-                      activeTab === 'account' ? 'bg-emerald-500 text-slate-900' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      Active
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Live Tournament Statistics summary card */}
-            {hasData && (
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-800 text-[10px] tracking-wider uppercase flex items-center gap-1.5 pb-2 border-b border-slate-100 font-mono">
-                  <Layers className="w-4 h-4 text-amber-500" />
-                  <span>Tournament Stats</span>
+          {!isPublicReportOnly && (
+            <div className="lg:col-span-3 space-y-6 no-print print:hidden flex flex-col">
+              {/* View Switching Tab Selector */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-sm space-y-3.5">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
+                  Master Navigation
                 </h3>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('brackets')}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
+                      activeTab === 'brackets'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="text-base">🥋</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Draws &amp; Matches</span>
+                    {bracketKeys.length > 0 && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
+                        activeTab === 'brackets' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {bracketKeys.length}
+                      </span>
+                    )}
+                  </button>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-center">
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Fighters</p>
-                    <p className="text-base font-black text-slate-900 mt-0.5">{roster.length}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (bracketKeys.length > 0) {
+                        setActiveTab('club-report');
+                      }
+                    }}
+                    disabled={bracketKeys.length === 0}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
+                      bracketKeys.length === 0
+                        ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
+                        : activeTab === 'club-report'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
+                    }`}
+                    title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
+                  >
+                    <span className="text-base">📋</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Club Reports</span>
+                    {bracketKeys.length > 0 ? (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
+                        activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {Array.from(new Set(roster.map(a => a.club).filter(Boolean))).length}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
+                    )}
+                  </button>
 
-                  <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-center">
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Classes</p>
-                    <p className="text-base font-black text-slate-900 mt-0.5">{Object.keys(categories).length}</p>
-                  </div>
-
-                  <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-center">
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Draws</p>
-                    <p className="text-base font-black text-slate-900 mt-0.5 text-emerald-600">
-                      {bracketKeys.length}
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('account')}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
+                      activeTab === 'account'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="text-base">👤</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Account &amp; Admin</span>
+                    {!currentUser ? (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
+                        activeTab === 'account' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        Login
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
+                        activeTab === 'account' ? 'bg-emerald-500 text-slate-900' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        Active
+                      </span>
+                    )}
+                  </button>
                 </div>
+              </div>
 
-                {/* Ring status indicators */}
-                {bracketKeys.length > 0 && (
-                  <div className="space-y-2 pt-1">
-                    <h4 className="text-[10px] font-bold text-slate-450 uppercase tracking-widest font-mono">Ring Layout Allocations</h4>
-                    <div className="max-h-[160px] overflow-y-auto pr-1 divide-y divide-slate-100 scrollbar-thin">
-                      {Object.entries(ringStats).map(([rng, data]) => {
-                        const label = getRingLabel(rng);
-                        return (
-                          <div key={rng} className="flex justify-between items-center py-2 text-xs font-medium">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded bg-slate-900 text-[8px] text-white flex items-center justify-center font-bold">
-                                {label}
-                              </span>
-                              <span className="text-slate-700 font-extrabold text-[11px]">Ring {label}</span>
-                            </div>
-                            <div className="text-slate-500 font-mono text-right flex items-center gap-2 text-[11px]">
-                              <span>{data.count} Pl</span>
-                              <span className="bg-amber-100 text-amber-900 font-black px-1.5 py-0.5 rounded text-[10px]">
-                                {data.bouts} Bouts
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
+              {/* Live Tournament Statistics summary card */}
+              {hasData && (
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-sm space-y-4">
+                  <h3 className="font-bold text-slate-800 text-[10px] tracking-wider uppercase flex items-center gap-1.5 pb-2 border-b border-slate-100 font-mono">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    <span>Tournament Stats</span>
+                  </h3>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-center">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Fighters</p>
+                      <p className="text-base font-black text-slate-900 mt-0.5">{roster.length}</p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-center">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Classes</p>
+                      <p className="text-base font-black text-slate-900 mt-0.5">{Object.keys(categories).length}</p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-center">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Draws</p>
+                      <p className="text-base font-black text-slate-900 mt-0.5 text-emerald-600">
+                        {bracketKeys.length}
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* Premium quick ref guide inside left column */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl text-slate-300">
-              <h3 className="font-bold text-amber-400 text-xs flex items-center gap-2 pb-2 border-b border-slate-800 font-mono uppercase tracking-wider">
-                <HelpCircle className="w-4 h-4 text-amber-400" />
-                <span>Coach Quick Assist</span>
-              </h3>
-              <ul className="space-y-3 mt-3.5 text-[11px] text-slate-300 leading-relaxed list-disc list-inside">
-                <li>
-                  Click target athlete <strong className="text-white font-bold">checkboxes</strong> in bracket cards to advance seeds.
-                </li>
-                <li>
-                  Roster imports configure bracket draws directly to standard <strong className="text-amber-400">2, 4, 8, 16, 32 or 64</strong> tiers.
-                </li>
-                <li>
-                  Click individual competitor names inside draws to dynamically <strong className="text-white">swap them</strong> or rewrite details!
-                </li>
-              </ul>
+                  {/* Ring status indicators */}
+                  {bracketKeys.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <h4 className="text-[10px] font-bold text-slate-450 uppercase tracking-widest font-mono">Ring Layout Allocations</h4>
+                      <div className="max-h-[160px] overflow-y-auto pr-1 divide-y divide-slate-100 scrollbar-thin">
+                        {Object.entries(ringStats).map(([rng, data]) => {
+                          const label = getRingLabel(rng);
+                          return (
+                            <div key={rng} className="flex justify-between items-center py-2 text-xs font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded bg-slate-900 text-[8px] text-white flex items-center justify-center font-bold">
+                                  {label}
+                                </span>
+                                <span className="text-slate-700 font-extrabold text-[11px]">Ring {label}</span>
+                              </div>
+                              <div className="text-slate-500 font-mono text-right flex items-center gap-2 text-[11px]">
+                                <span>{data.count} Pl</span>
+                                <span className="bg-amber-100 text-amber-900 font-black px-1.5 py-0.5 rounded text-[10px]">
+                                  {data.bouts} Bouts
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Premium quick ref guide inside left column */}
+              <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl text-slate-300">
+                <h3 className="font-bold text-amber-400 text-xs flex items-center gap-2 pb-2 border-b border-slate-800 font-mono uppercase tracking-wider">
+                  <HelpCircle className="w-4 h-4 text-amber-400" />
+                  <span>Coach Quick Assist</span>
+                </h3>
+                <ul className="space-y-3 mt-3.5 text-[11px] text-slate-300 leading-relaxed list-disc list-inside">
+                  <li>
+                    Click target athlete <strong className="text-white font-bold">checkboxes</strong> in bracket cards to advance seeds.
+                  </li>
+                  <li>
+                    Roster imports configure bracket draws directly to standard <strong className="text-amber-400">2, 4, 8, 16, 32 or 64</strong> tiers.
+                  </li>
+                  <li>
+                    Click individual competitor names inside draws to dynamically <strong className="text-white">swap them</strong> or rewrite details!
+                  </li>
+                </ul>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* RIGHT MASTER CONTENT VIEW AREA */}
-          <div className="lg:col-span-9 space-y-6 print:w-full print:p-0">
+          <div className={`${isPublicReportOnly ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-6 print:w-full print:p-0`}>
             {activeTab === 'account' ? (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
@@ -1369,6 +1451,8 @@ export default function App() {
                   brackets={brackets}
                   roster={roster}
                   ringLabelFormat={ringLabelFormat}
+                  tournamentName={tournamentName}
+                  isPublicView={isPublicReportOnly}
                 />
               </div>
             )}
