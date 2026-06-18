@@ -5,6 +5,7 @@ import { CategoriesPanel } from './components/CategoriesPanel';
 import { BracketCanvas } from './components/BracketCanvas';
 import { ClubReportPanel } from './components/ClubReportPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
+import { AuthScreen } from './components/AuthScreen';
 import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent } from './types';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -27,7 +28,7 @@ const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
 const CURRENT_ID_STORAGE_KEY = 'bracket_builder_current_event_id_v1';
 
-const DEMO_DATA = `Name,Club,Weight
+const DEMO_DATA = `Name,Club,Category
 John Tan,Eagle Judo Club,-60kg
 Ali bin Hassan,Tiger Gym,-60kg
 Lim Wei Jian,Eagle Judo Club,-60kg
@@ -53,7 +54,7 @@ export default function App() {
   const [ringCount, setRingCount] = useState(4);
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('number');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report'>('brackets');
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'account'>('brackets');
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
@@ -68,6 +69,17 @@ export default function App() {
   const [savedEvents, setSavedEvents] = useState<SavedEvent[]>([]);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('bracket_builder_current_user_v1');
+  };
+
+  const handleLogin = (username: string) => {
+    setCurrentUser(username);
+    localStorage.setItem('bracket_builder_current_user_v1', username);
+  };
 
   const [confirmConfig, setConfirmConfig] = useState<{
     title: string;
@@ -94,6 +106,11 @@ export default function App() {
   // 1. Initial State Hydration from LocalStorage
   useEffect(() => {
     try {
+      const storedUser = localStorage.getItem('bracket_builder_current_user_v1');
+      if (storedUser) {
+        setCurrentUser(storedUser);
+      }
+
       const storedEvents = localStorage.getItem(EVENTS_STORAGE_KEY);
       if (storedEvents) {
         setSavedEvents(JSON.parse(storedEvents));
@@ -844,95 +861,13 @@ export default function App() {
           saveStatus={saveStatus}
           onOpenEventsModal={() => setIsEventsModalOpen(true)}
           savedEventsCount={savedEvents.length}
+          onLogout={handleLogout}
+          currentUser={currentUser}
         />
 
-        {!tournamentName || !currentEventId ? (
-          <div className="max-w-2xl mx-auto my-12 bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
-            <div className="text-center space-y-3">
-              <div className="inline-flex bg-amber-500/10 p-5 rounded-full border border-amber-500/20 text-amber-500 mb-2">
-                <Trophy className="w-10 h-10" />
-              </div>
-              <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Create your Bracket Event</h2>
-              <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-                Before uploading rosters or generating interactive brackets, you must name and initialize your tournament event.
-              </p>
-            </div>
-
-            <div className="border border-slate-100 bg-slate-50/50 p-6 md:p-8 rounded-2xl space-y-5">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider font-mono">Option A: New Event Setup</h3>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const nameInput = (document.getElementById('startupTournamentName') as HTMLInputElement)?.value;
-                if (nameInput) {
-                  handleCreateNewEvent(nameInput, false);
-                }
-              }} className="space-y-4">
-                <div>
-                  <label htmlFor="startupTournamentName" className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Tournament / Event Name
-                  </label>
-                  <input
-                    id="startupTournamentName"
-                    type="text"
-                    required
-                    placeholder="E.g., 2026 Judo Summer Championships"
-                    className="w-full bg-white border border-slate-250 hover:border-slate-350 focus:border-amber-500 text-slate-950 placeholder-slate-400 rounded-xl px-4 py-3 text-sm transition-all outline-none focus:ring-1 focus:ring-amber-500/30"
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                  <button
-                    type="submit"
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-amber-400 text-sm font-black rounded-xl cursor-pointer shadow-md transition-all active:scale-98 font-bold"
-                  >
-                    <span>Create Fresh Event</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleCreateNewEvent('Judo Winter Open 2026', true);
-                    }}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-emerald-50 text-emerald-900 hover:bg-emerald-100/75 border border-emerald-200 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-98 font-bold"
-                  >
-                    <span>Use Demo Event with Sandbox Data</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {savedEvents.length > 0 && (
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between border-t border-slate-100 pt-6">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider font-mono">Option B: Load a History Snapshot</h3>
-                  <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-bold">
-                    {savedEvents.length} Saved Event{savedEvents.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                <div className="grid gap-3 max-h-[220px] overflow-y-auto pr-1">
-                  {savedEvents.map((ev) => (
-                    <button
-                      key={ev.id}
-                      onClick={() => handleLoadSavedEvent(ev.id)}
-                      className="w-full text-left p-4 rounded-xl border border-slate-150 hover:border-slate-300 hover:bg-slate-50 transition-all flex items-center justify-between gap-4 group cursor-pointer"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-900 text-sm truncate group-hover:text-amber-600 transition-colors">
-                          {ev.tournamentName || 'Untitled Event'}
-                        </p>
-                        <p className="text-[10px] font-mono text-slate-450 mt-1 font-medium pb-0.5">
-                          {ev.athleteCount} athletes · {ev.bracketCount} divisions · {new Date(ev.timestamp).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <span className="text-xs font-mono bg-slate-100 group-hover:bg-amber-500 group-hover:text-slate-950 font-bold px-2.5 py-1 rounded-lg text-slate-600 transition-all">
-                        Load →
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        {!currentUser ? (
+          <div className="py-10">
+            <AuthScreen onLogin={handleLogin} mode="login" />
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
@@ -992,6 +927,32 @@ export default function App() {
                     </span>
                   ) : (
                     <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('account')}
+                  className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
+                    activeTab === 'account'
+                      ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
+                      : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="text-base">👤</span>
+                  <span className="text-left flex-1 font-extrabold text-sm">Account &amp; Admin</span>
+                  {!currentUser ? (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
+                      activeTab === 'account' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-600'
+                    }`}>
+                      Login
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
+                      activeTab === 'account' ? 'bg-emerald-500 text-slate-900' : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      Active
+                    </span>
                   )}
                 </button>
               </div>
@@ -1076,8 +1037,123 @@ export default function App() {
 
           {/* RIGHT MASTER CONTENT VIEW AREA */}
           <div className="lg:col-span-9 space-y-6 print:w-full print:p-0">
-            {/* 1. SETUP PANELS (Only rendered on the active Brackets tab) */}
-            {activeTab === 'brackets' && (
+            {activeTab === 'account' ? (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
+                  <div className="flex items-start gap-4">
+                    <div className="inline-flex bg-emerald-500/10 p-3 rounded-full border border-emerald-500/20 text-emerald-500 shrink-0">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-800 tracking-tight">Active Admin: {currentUser}</h3>
+                      <p className="text-sm font-semibold text-slate-500 mt-1">You are logged into the administration console.</p>
+                      <button
+                        onClick={handleLogout}
+                        className="mt-4 px-5 py-2 bg-slate-900 border border-slate-800 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print">
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight mb-4 border-b border-slate-100 pb-4">Register New System Users</h3>
+                  <AuthScreen onLogin={() => {}} mode="register" />
+                </div>
+              </div>
+            ) : !tournamentName || !currentEventId ? (
+              <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
+                <div className="text-center space-y-3">
+                  <div className="inline-flex bg-amber-500/10 p-5 rounded-full border border-amber-500/20 text-amber-500 mb-2">
+                    <Trophy className="w-10 h-10" />
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Create your Bracket Event</h2>
+                  <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Before uploading rosters or generating interactive brackets, you must name and initialize your tournament event.
+                  </p>
+                </div>
+
+                <div className="border border-slate-100 bg-slate-50/50 p-6 md:p-8 rounded-2xl space-y-5">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider font-mono">Option A: New Event Setup</h3>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const nameInput = (document.getElementById('startupTournamentName') as HTMLInputElement)?.value;
+                    if (nameInput) {
+                      handleCreateNewEvent(nameInput, false);
+                    }
+                  }} className="space-y-4">
+                    <div>
+                      <label htmlFor="startupTournamentName" className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Tournament / Event Name
+                      </label>
+                      <input
+                        id="startupTournamentName"
+                        type="text"
+                        required
+                        placeholder="E.g., 2026 Judo Summer Championships"
+                        className="w-full bg-white border border-slate-250 hover:border-slate-350 focus:border-amber-500 text-slate-950 placeholder-slate-400 rounded-xl px-4 py-3 text-sm transition-all outline-none focus:ring-1 focus:ring-amber-500/30"
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                      <button
+                        type="submit"
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-amber-400 text-sm font-black rounded-xl cursor-pointer shadow-md transition-all active:scale-98 font-bold"
+                      >
+                        <span>Create Fresh Event</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleCreateNewEvent('Judo Winter Open 2026', true);
+                        }}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-emerald-50 text-emerald-900 hover:bg-emerald-100/75 border border-emerald-200 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-98 font-bold"
+                      >
+                        <span>Use Demo Event with Sandbox Data</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {savedEvents.length > 0 && (
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-6">
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider font-mono">Option B: Load a History Snapshot</h3>
+                      <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-bold">
+                        {savedEvents.length} Saved Event{savedEvents.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-3 max-h-[220px] overflow-y-auto pr-1">
+                      {savedEvents.map((ev) => (
+                        <button
+                          key={ev.id}
+                          onClick={() => handleLoadSavedEvent(ev.id)}
+                          className="w-full text-left p-4 rounded-xl border border-slate-150 hover:border-slate-300 hover:bg-slate-50 transition-all flex items-center justify-between gap-4 group cursor-pointer"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 text-sm truncate group-hover:text-amber-600 transition-colors">
+                              {ev.tournamentName || 'Untitled Event'}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-450 mt-1 font-medium pb-0.5">
+                              {ev.athleteCount} athletes · {ev.bracketCount} divisions · {new Date(ev.timestamp).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span className="text-xs font-mono bg-slate-100 group-hover:bg-amber-500 group-hover:text-slate-950 font-bold px-2.5 py-1 rounded-lg text-slate-600 transition-all">
+                            Load →
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* 1. SETUP PANELS (Only rendered on the active Brackets tab) */}
+                {activeTab === 'brackets' && (
               <div className="space-y-6">
                 {/* Athletes roster input card */}
                 <RosterPanel
@@ -1193,6 +1269,32 @@ export default function App() {
               </div>
             )}
 
+            {/* 3. ACCOUNT / AUTHENTICATION VIEW */}
+            {activeTab === 'account' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print">
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight mb-6">User Account Settings</h2>
+                  {!currentUser ? (
+                    <AuthScreen onLogin={handleLogin} />
+                  ) : (
+                    <div className="text-center py-10 space-y-4">
+                      <div className="inline-flex bg-emerald-500/10 p-5 rounded-full border border-emerald-500/20 text-emerald-500 mb-2">
+                        <Users className="w-10 h-10" />
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800">Hello, {currentUser}</h3>
+                      <p className="text-sm text-slate-500">You are currently logged in to the admin dashboard.</p>
+                      <button
+                        onClick={handleLogout}
+                        className="mt-6 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Brackets generation grid assembly inside right master column */}
             {activeTab === 'brackets' && bracketKeys.length > 0 && (
               <div className="mt-8 pt-6 border-t border-slate-200">
@@ -1246,9 +1348,11 @@ export default function App() {
                 💡 <strong>Print Tip:</strong> Multi-layer sheets (16, 32, or 64 draws) can be quite dense. Choose <strong>A3</strong> dimensions or <strong>Landscape</strong> orientation inside the browser printer layout dialog to achieve superior legibility.
               </p>
             )}
+              </>
+            )}
           </div>
         </div>
-      )}
+        )}
       </div>
 
       {/* EXPORT OPTIONS MODAL */}

@@ -77,7 +77,7 @@ export const RosterPanel: React.FC<RosterPanelProps> = ({
             Bring in your roster
           </h2>
           <p className="text-sm text-slate-500 mt-1 leading-relaxed max-w-3xl">
-            Supported columns: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs font-semibold">Name</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs font-semibold">Club</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs font-semibold">Weight</code> (order doesn't matter). Header row is detected automatically. Drag in a spreadsheet save, or paste copied cells directly.
+            Supported columns: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs font-semibold">Name</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs font-semibold">Club</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-xs font-semibold">Category</code> (order doesn't matter). Header row is detected automatically. Drag in a spreadsheet save, or paste copied cells directly.
           </p>
         </div>
       </div>
@@ -121,7 +121,7 @@ export const RosterPanel: React.FC<RosterPanelProps> = ({
             <textarea
               id="pasteArea"
               className="w-full h-full min-h-[140px] bg-slate-50/55 border border-slate-200 focus:border-amber-500 text-slate-800 placeholder-slate-400 rounded-xl p-3.5 text-xs font-mono transition-all outline-none focus:bg-white resize-vertical"
-              placeholder={'John Tan\tEagle Judo Club\t60\nAli Hassan\tTiger Gym\t60\nSarah Connor\tIron Academy\t66'}
+              placeholder={'John Tan\tEagle Judo Club\tU60\nAli Hassan\tTiger Gym\tU60\nSarah Connor\tIron Academy\tU66'}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
             />

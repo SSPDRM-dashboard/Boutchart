@@ -197,8 +197,26 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       id={`page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')}`}
       data-canvas-width={canvasWidth}
       data-canvas-height={canvasHeight}
-      className="bracket-page-card bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
+      className="bracket-page-card bracket-page bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
     >
+      <style>{`
+        @media print {
+          #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
+            zoom: min(1, calc(1050 / ${canvasWidth})) !important;
+          }
+          /* Fallback for firefox which doesn't support zoom well */
+          @-moz-document url-prefix() {
+             #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
+                 transform: scale(min(1, calc(1050 / ${canvasWidth}))) !important;
+                 transform-origin: top center;
+             }
+             #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
+                 width: ${Math.min(canvasWidth, 1050)}px !important;
+                 height: ${canvasHeight * Math.min(1, 1050 / canvasWidth)}px !important;
+             }
+          }
+        }
+      `}</style>
       {/* Centered Heading Layout precisely mimicking the PDF layout */}
       <div className="text-center pb-5 mb-6 border-b border-slate-100 max-w-2xl mx-auto">
         <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight uppercase">
@@ -259,7 +277,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       </div>
 
       {/* Symmetrical split bracket workspace container */}
-      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-visible">
+      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
         <div
           className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none"
           style={{
@@ -269,7 +287,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
           }}
         >
           <div
-            className="absolute top-0 left-0 origin-top-left print:transform-none"
+            className="absolute top-0 left-0 origin-top-left print-scale-wrapper"
             style={{ transform: `scale(${scale})` }}
           >
             {/* Symmetrical line connectors svg layer */}
