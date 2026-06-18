@@ -1,0 +1,6 @@
+{
+  "name": "Tournament Bracket Builder",
+  "description": "A clean, responsive single-screen tournament bracket manager that supports CSV or spreadsheet copy-paste roster imports, weight-class grouping, ring layout assignments, auto-advancing interactive matches, and high-quality landscape bracket printing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

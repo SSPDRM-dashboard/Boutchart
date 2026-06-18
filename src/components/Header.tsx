@@ -1,0 +1,99 @@
+import React from 'react';
+import { Trophy, Trash2, Printer, Cloud, Archive } from 'lucide-react';
+
+interface HeaderProps {
+  tournamentName: string;
+  setTournamentName: (name: string) => void;
+  onClearAll: () => void;
+  onExportPdf: () => void;
+  hasData: boolean;
+  saveStatus: 'idle' | 'saving' | 'saved';
+  onOpenEventsModal: () => void;
+  savedEventsCount: number;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  tournamentName,
+  setTournamentName,
+  onClearAll,
+  onExportPdf,
+  hasData,
+  saveStatus,
+  onOpenEventsModal,
+  savedEventsCount,
+}) => {
+  return (
+    <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/25">
+            <Trophy className="w-6 h-6 text-amber-400" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-amber-200 to-amber-400 bg-clip-text text-transparent">
+              Bracket Builder
+            </h1>
+            <p className="text-xs text-slate-400 font-mono tracking-wider uppercase mt-0.5">
+              Name · Club · Weight class
+            </p>
+          </div>
+        </div>
+
+        {/* Live Input Field */}
+        <div className="flex-1 max-w-sm md:mx-6">
+          <input
+            id="tournamentName"
+            type="text"
+            className="w-full bg-slate-800/80 border border-slate-700 hover:border-slate-600 focus:border-amber-500 text-white placeholder-slate-500 rounded-xl px-4 py-2.5 text-sm transition-all outline-none focus:ring-1 focus:ring-amber-500/50 shadow-inner"
+            placeholder="Type tournament name..."
+            value={tournamentName}
+            onChange={(e) => setTournamentName(e.target.value)}
+          />
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {saveStatus !== 'idle' && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300 font-medium">
+              <Cloud className={`w-4 h-4 ${saveStatus === 'saving' ? 'animate-pulse text-amber-400' : 'text-emerald-400'}`} />
+              <span>{saveStatus === 'saving' ? 'Saving...' : 'Saved'}</span>
+            </div>
+          )}
+
+          <button
+            onClick={onOpenEventsModal}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 hover:border-slate-600 rounded-xl transition-all cursor-pointer active:scale-95"
+            title="Manage saved tournaments & previous events"
+          >
+            <Archive className="w-4 h-4 text-emerald-400" />
+            <span className="hidden sm:inline">Event Archives</span>
+            {savedEventsCount > 0 && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 font-mono text-[10px] font-black text-slate-950 shrink-0">
+                {savedEventsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={onClearAll}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-rose-200 border border-slate-700 hover:border-rose-900/30 rounded-xl transition-all cursor-pointer active:scale-95"
+            title="Reset roster, categories, and matches"
+          >
+            <Trash2 className="w-4 h-4 text-rose-400" />
+            <span className="hidden sm:inline">Clear All</span>
+          </button>
+
+          <button
+            onClick={onExportPdf}
+            disabled={!hasData}
+            className="flex items-center gap-2 px-5 py-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Export / Print</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};

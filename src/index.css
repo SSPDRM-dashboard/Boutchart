@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Print CSS Configurations to automatically split page and isolate canvas blocks */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm 6mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .bracket-page {
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 0 2cm 0 !important;
+    box-shadow: none !important;
+  }
+  .bracket-page:last-child {
+    page-break-after: auto;
+  }
+  .scale-wrap {
+    overflow: visible !important;
+  }
+}
