@@ -57,6 +57,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'account'>('brackets');
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
   const [pdfError, setPdfError] = useState('');
@@ -65,6 +66,10 @@ export default function App() {
     text: '',
     type: 'idle',
   });
+  const [pendingRosterImport, setPendingRosterImport] = useState<{
+    parsed: Athlete[];
+    source: string;
+  } | null>(null);
 
   const [savedEvents, setSavedEvents] = useState<SavedEvent[]>([]);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
@@ -232,19 +237,40 @@ export default function App() {
         return;
       }
 
-      setRoster(parsed);
-      setDismissedDuplicates([]);
-      const grouped = groupRoster(parsed, categories);
-      setCategories(grouped);
-      setBrackets({}); // Flush existing match trees in favor of new structure
-
-      setStatusMessage({
-        text: `Successfully imported ${parsed.length} athletes from ${source} across ${Object.keys(grouped).length} weight divisions.`,
-        type: 'ok',
-      });
+      if (roster.length > 0) {
+        // Roster already contains entries. Let user choose to merge/append or replace.
+        setPendingRosterImport({ parsed, source });
+      } else {
+        // Direct replacement
+        executeLoadRoster(parsed, source, 'replace');
+      }
     } catch (e) {
+      console.error(e);
       setStatusMessage({ text: 'CSV/TSV formulation syntax error. Check document format.', type: 'err' });
     }
+  };
+
+  const executeLoadRoster = (newAthletes: Athlete[], source: string, mode: 'replace' | 'append') => {
+    let nextRoster = newAthletes;
+    if (mode === 'append') {
+      nextRoster = [...roster, ...newAthletes];
+    }
+
+    setRoster(nextRoster);
+    setDismissedDuplicates([]);
+    
+    // Maintain existing configured rings when grouping
+    const grouped = groupRoster(nextRoster, categories);
+    setCategories(grouped);
+    setBrackets({}); // Flush existing match trees in favor of new structure
+
+    setStatusMessage({
+      text: mode === 'append'
+        ? `Successfully appended ${newAthletes.length} athletes from ${source}. Total active headcount is now ${nextRoster.length} across ${Object.keys(grouped).length} divisions.`
+        : `Successfully imported ${newAthletes.length} athletes from ${source} across ${Object.keys(grouped).length} weight divisions.`,
+      type: 'ok',
+    });
+    setPendingRosterImport(null);
   };
 
   const handleUseSample = () => {
@@ -663,14 +689,35 @@ export default function App() {
     const TARGET_W = 1500;
     const TARGET_H = 980;
 
+    const restoreStates: Array<() => void> = [];
+
+    // Temporarily add 'no-print' class to non-matching bracket pages so browser print ignores them
+    if (selectedRingFilter !== 'all') {
+      const allCards = document.querySelectorAll('.bracket-page-card');
+      allCards.forEach((c) => {
+        const ringAttr = c.getAttribute('data-ring');
+        const match = String(ringAttr) === String(selectedRingFilter) || 
+                      String(ringAttr) === String(getRingLabel(selectedRingFilter));
+        if (!match) {
+          const cardEl = c as HTMLElement;
+          cardEl.classList.add('no-print');
+          restoreStates.push(() => {
+            cardEl.classList.remove('no-print');
+          });
+        }
+      });
+    }
+
     // Direct selection of generated canvas wrapper nodes
     const canv = document.querySelectorAll('.bracket-canvas');
-    const restoreStates: Array<() => void> = [];
 
     canv.forEach((el) => {
       const canvas = el as HTMLElement;
       const wrap = canvas.parentElement as HTMLElement;
       if (!canvas || !wrap) return;
+
+      // Skip scaling if container is filtered out
+      if (wrap.closest('.no-print')) return;
 
       const w = canvas.offsetWidth;
       const h = canvas.offsetHeight;
@@ -717,9 +764,17 @@ export default function App() {
     setPdfProgress({ current: 0, total: 0 });
 
     try {
-      const elements = document.querySelectorAll('.bracket-page-card');
+      let elements = Array.from(document.querySelectorAll('.bracket-page-card')) as HTMLElement[];
+      if (selectedRingFilter !== 'all') {
+        elements = elements.filter((el) => {
+          const ringAttr = el.getAttribute('data-ring');
+          return String(ringAttr) === String(selectedRingFilter) || 
+                 String(ringAttr) === String(getRingLabel(selectedRingFilter));
+        });
+      }
+
       if (elements.length === 0) {
-        throw new Error('No brackets found to export. Please generate brackets first.');
+        throw new Error(`No brackets found for Ring ${getRingLabel(selectedRingFilter)} to export. Please verify allocation setup.`);
       }
 
       setPdfProgress({ current: 0, total: elements.length });
@@ -738,7 +793,7 @@ export default function App() {
 
       for (let i = 0; i < elements.length; i++) {
         setPdfProgress({ current: i + 1, total: elements.length });
-        const element = elements[i] as HTMLElement;
+        const element = elements[i];
 
         const canvasWidthAttr = element.getAttribute('data-canvas-width');
         const canvasHeightAttr = element.getAttribute('data-canvas-height');
@@ -802,7 +857,8 @@ export default function App() {
 
       document.body.classList.remove('exporting-pdf');
 
-      const filename = `${tournamentName ? tournamentName.toLowerCase().replace(/[^a-z0-9_]+/g, '_') : 'tournament_brackets'}.pdf`;
+      const ringSuffix = selectedRingFilter !== 'all' ? `_ring_${getRingLabel(selectedRingFilter).toLowerCase()}` : '';
+      const filename = `${tournamentName ? tournamentName.toLowerCase().replace(/[^a-z0-9_]+/g, '_') : 'tournament_brackets'}${ringSuffix}.pdf`;
       pdf.save(filename);
       setPdfExportLoading(false);
       setShowExportModal(false);
@@ -871,7 +927,6 @@ export default function App() {
           tournamentName={tournamentName}
           setTournamentName={setTournamentName}
           onClearAll={handleClearAll}
-          onExportPdf={() => setShowExportModal(true)}
           hasData={bracketKeys.length > 0}
           saveStatus={saveStatus}
           onOpenEventsModal={() => setIsEventsModalOpen(true)}
@@ -1299,6 +1354,8 @@ export default function App() {
                     onGenerateBrackets={handleGenerateBrackets}
                     ringLabelFormat={ringLabelFormat}
                     setRingLabelFormat={setRingLabelFormat}
+                    onExportPdf={() => setShowExportModal(true)}
+                    hasBrackets={bracketKeys.length > 0}
                   />
                 )}
               </div>
@@ -1491,6 +1548,50 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Select Ring Filter */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest font-mono">
+                      Filter by Ring Allocation
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRingFilter('all')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
+                          selectedRingFilter === 'all'
+                            ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        All Rings
+                      </button>
+                      {Array.from({ length: ringCount }, (_, idx) => {
+                        const rNum = idx + 1;
+                        const rLabel = getRingLabel(rNum);
+                        const isSelected = selectedRingFilter === rNum;
+                        return (
+                          <button
+                            key={`export-ring-btn-${rNum}`}
+                            type="button"
+                            onClick={() => setSelectedRingFilter(rNum)}
+                            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
+                              isSelected
+                                ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-sm'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            }`}
+                          >
+                            Ring {rLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-semibold italic">
+                      {selectedRingFilter === 'all' 
+                        ? 'Export includes all bracket sheets sequentially.' 
+                        : `Only bracket sheets allocated to Ring ${getRingLabel(selectedRingFilter)} will be exported.`}
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* OPTION 1: PROGRAMMATIC PDF DOWNLOAD */}
                     <button
@@ -1574,6 +1675,84 @@ export default function App() {
         tournamentName={tournamentName}
         hasData={roster.length > 0}
       />
+
+      {/* Multiple CSV Upload / Append vs Replace Choice Modal */}
+      {pendingRosterImport && (
+        <div className="fixed inset-0 z-[200] overflow-y-auto no-print">
+          <div 
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            onClick={() => setPendingRosterImport(null)}
+          />
+
+          <div className="flex min-h-full items-center justify-center p-4 text-center animate-fade-in">
+            <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full max-w-md border border-slate-100 p-6 space-y-5">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl shrink-0 bg-amber-50 text-amber-600 border border-amber-100">
+                  <Users className="w-5 h-5 animate-pulse" />
+                </div>
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <h4 className="text-base font-black text-slate-900 tracking-tight leading-snug">
+                    Incoming Athletes File Detected
+                  </h4>
+                  <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                    You uploaded <span className="text-amber-600 font-bold">"{pendingRosterImport.source}"</span> containing <span className="text-slate-900 font-extrabold">{pendingRosterImport.parsed.length} athletes</span>.
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    There are already <span className="text-slate-900 font-extrabold">{roster.length} athletes</span> in the active roster. Choose how to merge this data:
+                  </p>
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="space-y-3 pt-1">
+                {/* Option 1: Append & Merge */}
+                <button
+                  type="button"
+                  onClick={() => executeLoadRoster(pendingRosterImport.parsed, pendingRosterImport.source, 'append')}
+                  className="w-full text-left p-4 rounded-xl border border-amber-200/60 bg-amber-50/20 hover:bg-amber-50/50 transition-all group flex items-start gap-3 cursor-pointer"
+                >
+                  <div className="p-1.5 rounded-lg bg-amber-100 text-amber-600 font-bold text-xs shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                    +
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-slate-900 uppercase tracking-tight">Append & Merge Athletes</h5>
+                    <p className="text-[10.5px] text-slate-500 font-medium mt-0.5 leading-normal">
+                      Combine new students into the current event. Ideal when running multi-stage registrations or adding last-minute fighters sequentially.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Option 2: Overwrite and Replace */}
+                <button
+                  type="button"
+                  onClick={() => executeLoadRoster(pendingRosterImport.parsed, pendingRosterImport.source, 'replace')}
+                  className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-rose-200 bg-white hover:bg-rose-50/10 transition-all group flex items-start gap-3 cursor-pointer"
+                >
+                  <div className="p-1.5 rounded-lg bg-slate-100 group-hover:bg-rose-100 text-slate-600 group-hover:text-rose-600 font-bold text-xs shrink-0 mt-0.5 transition-colors">
+                    ↺
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-slate-900 group-hover:text-rose-950 uppercase tracking-tight transition-colors">Overwrite Entire Event</h5>
+                    <p className="text-[10.5px] text-slate-500 font-medium mt-0.5 leading-normal">
+                      Discard the current roster of {roster.length} fighters and replace it completely with the new list of {pendingRosterImport.parsed.length} fighters.
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingRosterImport(null)}
+                  className="w-full py-2.5 border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 text-center"
+                >
+                  Cancel Import
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Custom Confirmation Dialog */}
       {confirmConfig && (

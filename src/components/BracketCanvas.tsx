@@ -228,6 +228,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       id={`page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')}`}
       data-canvas-width={canvasWidth}
       data-canvas-height={canvasHeight}
+      data-ring={ring}
       className="bracket-page-card bracket-page bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
     >
       <style>{`

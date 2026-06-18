@@ -1,11 +1,10 @@
 import React from 'react';
-import { Trophy, Trash2, Printer, Cloud, Archive } from 'lucide-react';
+import { Trophy, Trash2, Cloud, Archive } from 'lucide-react';
 
 interface HeaderProps {
   tournamentName: string;
   setTournamentName: (name: string) => void;
   onClearAll: () => void;
-  onExportPdf: () => void;
   hasData: boolean;
   saveStatus: 'idle' | 'saving' | 'saved';
   onOpenEventsModal: () => void;
@@ -16,7 +15,6 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   tournamentName,
   setTournamentName,
   onClearAll,
-  onExportPdf,
   hasData,
   saveStatus,
   onOpenEventsModal,
@@ -102,15 +100,6 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               >
                 <Trash2 className="w-4 h-4 text-rose-400" />
                 <span className="hidden sm:inline">Clear All</span>
-              </button>
-
-              <button
-                onClick={onExportPdf}
-                disabled={!hasData}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Export / Print</span>
               </button>
             </>
           )}

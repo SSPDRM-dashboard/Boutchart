@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle } from 'lucide-react';
+import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Printer } from 'lucide-react';
 import { WeightCategory } from '../types';
 
 interface CategoriesPanelProps {
@@ -13,6 +13,8 @@ interface CategoriesPanelProps {
   onGenerateBrackets: () => void;
   ringLabelFormat: 'number' | 'letter';
   setRingLabelFormat: (format: 'number' | 'letter') => void;
+  onExportPdf: () => void;
+  hasBrackets: boolean;
 }
 
 export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
@@ -26,6 +28,8 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   onGenerateBrackets,
   ringLabelFormat,
   setRingLabelFormat,
+  onExportPdf,
+  hasBrackets,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
@@ -445,14 +449,25 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
             </label>
 
             {/* Build buttons */}
-            <button
-              onClick={onGenerateBrackets}
-              disabled={eligibleKeys.length === 0}
-              className="w-full sm:w-auto px-8 py-3 text-sm font-extrabold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Layers className="w-4 h-4" />
-              <span>Generate Brackets</span>
-            </button>
+            <div className="flex flex-col gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+              <button
+                onClick={onGenerateBrackets}
+                disabled={eligibleKeys.length === 0}
+                className="w-full sm:w-auto px-8 py-3 text-sm font-extrabold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Layers className="w-4 h-4" />
+                <span>Generate Brackets</span>
+              </button>
+              
+              <button
+                onClick={onExportPdf}
+                disabled={!hasBrackets}
+                className="w-full sm:w-auto px-8 py-3 text-sm font-bold bg-slate-800 border border-slate-700 hover:bg-slate-700 text-white rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4 text-emerald-400" />
+                <span>Export / Print Data</span>
+              </button>
+            </div>
           </div>
         </>
       )}

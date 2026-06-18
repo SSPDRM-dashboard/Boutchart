@@ -60,11 +60,26 @@ export function buildRosterFromText(text: string): Athlete[] {
   let weightIdx = -1;
   let headerRow = false;
 
+  // 1. Exact list matching
   firstCells.forEach((c, idx) => {
     if (NAME_KEYS.includes(c)) { nameIdx = idx; headerRow = true; }
     if (CLUB_KEYS.includes(c)) { clubIdx = idx; headerRow = true; }
     if (WEIGHT_KEYS.includes(c)) { weightIdx = idx; headerRow = true; }
   });
+
+  // 2. Substring fallback matching for rich/expanded headers (e.g., 'Student Name', 'Registered Gym', etc.)
+  if (nameIdx === -1) {
+    nameIdx = firstCells.findIndex(c => c.includes('name') || c.includes('athlete') || c.includes('player') || c.includes('competitor'));
+    if (nameIdx !== -1) headerRow = true;
+  }
+  if (clubIdx === -1) {
+    clubIdx = firstCells.findIndex(c => c.includes('club') || c.includes('team') || c.includes('school') || c.includes('academy') || c.includes('gym') || c.includes('dojo') || c.includes('affiliation') || c.includes('organisation') || c.includes('organization'));
+    if (clubIdx !== -1) headerRow = true;
+  }
+  if (weightIdx === -1) {
+    weightIdx = firstCells.findIndex(c => c.includes('weight') || c.includes('wt') || c.includes('class') || c.includes('category') || c.includes('division') || c.includes('kg'));
+    if (weightIdx !== -1) headerRow = true;
+  }
 
   let dataLines = lines;
   if (headerRow) {
