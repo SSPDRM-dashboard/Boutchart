@@ -848,8 +848,8 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50/70 text-slate-950 font-sans tracking-tight antialiased">
-      <div className="max-w-[1400px] mx-auto px-4 py-6 md:py-10">
+    <div className="min-h-screen bg-slate-50/70 text-slate-950 font-sans tracking-tight antialiased print:bg-white">
+      <div className="max-w-[1400px] mx-auto px-4 py-6 md:py-10 print:max-w-none print:px-0 print:py-0 print:mx-0">
         
         {/* Header Navigation Area */}
         <Header
@@ -1297,8 +1297,8 @@ export default function App() {
 
             {/* Brackets generation grid assembly inside right master column */}
             {activeTab === 'brackets' && bracketKeys.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-slate-200">
-                <div className="flex items-baseline justify-between mb-6">
+              <div className="mt-8 pt-6 border-t border-slate-200 print:mt-0 print:pt-0 print:border-none">
+                <div className="flex items-baseline justify-between mb-6 print:hidden">
                   <h2 id="bracketsSectionTitle" className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                     🥋 Generated Tournament Brackets
                   </h2>
@@ -1307,7 +1307,7 @@ export default function App() {
                   </span>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-6 print:space-y-0">
                   {bracketKeys.map((key) => {
                     const model = brackets[key];
                     const cat = categories[key];

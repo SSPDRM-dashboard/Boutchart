@@ -25,7 +25,7 @@
     break-inside: avoid;
     border: none !important;
     padding: 0 !important;
-    margin: 0 0 2cm 0 !important;
+    margin: 0 !important;
     box-shadow: none !important;
   }
   .bracket-page:last-child {

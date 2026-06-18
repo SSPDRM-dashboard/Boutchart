@@ -150,6 +150,12 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const canvasWidth = PAD * 2 + 2 * numRounds * gap + BOX_W;
   const canvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
 
+  const MAX_PRINT_WIDTH = 1050; // landscape width inside margins
+  const MAX_PRINT_HEIGHT = 400; // landscape height leaving room for headers and podium
+  const scaleWidth = MAX_PRINT_WIDTH / canvasWidth;
+  const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
+  const printScale = Math.min(1, scaleWidth, scaleHeight);
+
   // Compile high-fidelity connector line commands in split-bracket mode
   const connectorLines: string[] = [];
   for (let k = 1; k <= numRounds; k++) {
@@ -202,17 +208,17 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       <style>{`
         @media print {
           #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
-            zoom: min(1, calc(1050 / ${canvasWidth})) !important;
+            zoom: ${printScale} !important;
           }
           /* Fallback for firefox which doesn't support zoom well */
           @-moz-document url-prefix() {
              #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
-                 transform: scale(min(1, calc(1050 / ${canvasWidth}))) !important;
+                 transform: scale(${printScale}) !important;
                  transform-origin: top center;
              }
              #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
-                 width: ${Math.min(canvasWidth, 1050)}px !important;
-                 height: ${canvasHeight * Math.min(1, 1050 / canvasWidth)}px !important;
+                 width: ${canvasWidth * printScale}px !important;
+                 height: ${canvasHeight * printScale}px !important;
              }
           }
         }
