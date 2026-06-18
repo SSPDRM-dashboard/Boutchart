@@ -28,6 +28,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
     const usersStr = localStorage.getItem('bracket_builder_users_db');
     const usersDb: Record<string, string> = usersStr ? JSON.parse(usersStr) : {};
 
+    // Auto-seed an admin account if the database is completely empty
+    if (Object.keys(usersDb).length === 0) {
+      usersDb['admin'] = 'admin';
+      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
+    }
+
     if (isRegister) {
       // Registration Flow
       if (usersDb[cleanUsername]) {
@@ -69,6 +75,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
               <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-100/50 text-rose-600 text-sm font-semibold flex items-start gap-2">
                 <div className="mt-0.5">⚠️</div>
                 <p>{error}</p>
+              </div>
+            )}
+
+            {!isRegister && !error && !success && (
+              <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-100/50 text-blue-700 text-sm font-semibold">
+                <p>💡 First time? Use default login: <strong>admin</strong> / <strong>admin</strong></p>
               </div>
             )}
 
