@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award } from 'lucide-react';
+import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download } from 'lucide-react';
 import { Athlete, WeightCategory, BracketModel } from '../types';
 
 interface ClubReportPanelProps {
@@ -279,6 +279,67 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     };
   });
 
+  const downloadClubReportCSV = (clubName?: string) => {
+    // Generate CSV content
+    const headers = [
+      "Ring/Mat",
+      "Division",
+      "Club",
+      "Competitor Name",
+      "Fight 1",
+      "Fight 2",
+      "Fight 3",
+      "Fight 4",
+      "Fight 5",
+      "Fight 6",
+      "Fight 7"
+    ];
+
+    // Determine target athletes array based on club filter
+    const targetAthletes = clubName
+      ? athleteList.filter(a => a.club === clubName)
+      : sortedAthletes;
+
+    const rows = targetAthletes.map(ath => {
+      const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+      const fightInfo = playersMap[athKey];
+      const athleteBouts = fightInfo?.bouts || [];
+
+      const boutColumns = Array.from({ length: 7 }).map((_, colIndex) => {
+        const bout = athleteBouts[colIndex];
+        if (bout) {
+          const cornerLabel = bout.corner === 'H' ? 'Hong (Red)' : 'Chung (Blue)';
+          return `Bout ${bout.formattedId} (${cornerLabel}) vs ${bout.opponentName}${bout.opponentClub ? ' [' + bout.opponentClub + ']' : ''}`;
+        }
+        return '-';
+      });
+
+      return [
+        `Ring ${fightInfo?.ringLabel || 'A'}`,
+        ath.weight,
+        ath.club,
+        ath.name,
+        ...boutColumns
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    
+    const filePrefix = clubName ? clubName.replace(/[^a-zA-Z0-9_\-]/g, '_') : 'Tournament_Active';
+    link.setAttribute("download", `${filePrefix}_Club_Fight_Report.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const triggerPrintReport = () => {
     window.print();
   };
@@ -331,6 +392,17 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
         {/* Action controls */}
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {/* Download button */}
+          <button
+            type="button"
+            onClick={() => downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            title="Download fight schedules for current filtered selection as a CSV spreadsheet"
+          >
+            <Download className="w-4 h-4 text-emerald-100" />
+            <span>Export CSV Report</span>
+          </button>
+
           {/* Print button */}
           <button
             type="button"
@@ -586,6 +658,15 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2 text-xs font-mono shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => downloadClubReportCSV(clubName)}
+                            className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase transition-all flex items-center gap-1.5 active:scale-95 print:hidden cursor-pointer"
+                            title={`Download schedules specifically for ${clubName}`}
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Download CSV</span>
+                          </button>
                           <span className="bg-slate-800 text-slate-200 px-2 rounded-md py-0.5 font-bold print:border print:border-slate-400 print:text-black print:bg-white">
                             {stats.athleteCount} Athlete{stats.athleteCount === 1 ? '' : 's'}
                           </span>
