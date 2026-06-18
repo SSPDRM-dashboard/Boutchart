@@ -472,25 +472,29 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           )}
 
           {/* Download button */}
-          <button
-            type="button"
-            onClick={() => downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            title="Download fight schedules for current filtered selection as a CSV spreadsheet"
-          >
-            <Download className="w-4 h-4 text-emerald-100" />
-            <span>Export CSV Report</span>
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={() => downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title="Download fight schedules for current filtered selection as a CSV spreadsheet"
+            >
+              <Download className="w-4 h-4 text-emerald-100" />
+              <span>Export CSV Report</span>
+            </button>
+          )}
 
           {/* Print button */}
-          <button
-            type="button"
-            onClick={triggerPrintReport}
-            className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-          >
-            <Printer className="w-4 h-4 text-amber-400" />
-            <span>Print Active View</span>
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={triggerPrintReport}
+              className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            >
+              <Printer className="w-4 h-4 text-amber-400" />
+              <span>Print Active View</span>
+            </button>
+          )}
         </div>
       </div>
 

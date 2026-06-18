@@ -1189,7 +1189,21 @@ export default function App() {
 
           {/* RIGHT MASTER CONTENT VIEW AREA */}
           <div className={`${isPublicReportOnly ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-6 print:w-full print:p-0`}>
-            {activeTab === 'account' ? (
+            {isPublicReportOnly && bracketKeys.length === 0 ? (
+              <div className="max-w-md mx-auto bg-white border border-slate-200/80 rounded-2xl p-8 shadow-md text-center space-y-4 animate-pulse">
+                <div className="inline-flex bg-amber-500/10 p-4 rounded-full text-amber-500 border border-amber-500/25">
+                  <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h3 className="font-extrabold text-slate-800 text-base">
+                  {statusMessage.text || 'Loading Club Report...'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {statusMessage.type === 'err' 
+                    ? 'Failed to load report. Please verify the URL or ensure the server is running.' 
+                    : 'Fetching real-time bracket draws, rings, and schedules...'}
+                </p>
+              </div>
+            ) : activeTab === 'account' ? (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
                   <div className="flex items-start gap-4">
@@ -1246,7 +1260,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            ) : !tournamentName || !currentEventId ? (
+            ) : (!tournamentName || !currentEventId) && !isPublicReportOnly ? (
               <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
                 <div className="text-center space-y-3">
                   <div className="inline-flex bg-amber-500/10 p-5 rounded-full border border-amber-500/20 text-amber-500 mb-2">
