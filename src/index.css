@@ -6,7 +6,20 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Print CSS Configurations to automatically split page and isolate canvas blocks */
+/* Reset styles when html-to-image captures the layout */
+.exporting-pdf .print-scale-wrapper {
+   transform: scale(1) !important;
+}
+.exporting-pdf .bracket-canvas {
+   width: 1400px !important;
+   height: 900px !important;
+}
+.exporting-pdf .bracket-page-card {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 24px !important;
+  background: white !important;
+}
 @media print {
   @page {
     size: landscape;

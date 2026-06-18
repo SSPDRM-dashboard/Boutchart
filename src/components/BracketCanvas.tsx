@@ -11,6 +11,7 @@ interface BracketCanvasProps {
   bracket: BracketModel;
   ring: number | string;
   entrantCount: number;
+  layout?: 'modern' | 'classic';
   onReshuffle: () => void;
   onCheckboxToggle: (k: number, i: number, checked: boolean) => void;
   onTextChange: (k: number, i: number, text: string) => void;
@@ -32,6 +33,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   bracket,
   ring,
   entrantCount,
+  layout = 'modern',
   onReshuffle,
   onCheckboxToggle,
   onTextChange,
@@ -156,8 +158,23 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
   const printScale = Math.min(1, scaleWidth, scaleHeight);
 
+  const isClassic = layout === 'classic';
+
   // Compile high-fidelity connector line commands in split-bracket mode
   const connectorLines: string[] = [];
+
+  if (isClassic) {
+     // Draw the horizonal line under EVERY node
+     for (let k = 0; k <= numRounds; k++) {
+         if (k === numRounds) continue; // Champion node handled via vertical tick
+         const count = positions[k].length;
+         for (let i = 0; i < count; i++) {
+             const pos = positions[k][i];
+             connectorLines.push(`M ${pos.x} ${pos.y} L ${pos.x + BOX_W} ${pos.y}`);
+         }
+     }
+  }
+
   for (let k = 1; k <= numRounds; k++) {
     const count = positions[k].length;
     for (let m = 0; m < count; m++) {
@@ -166,9 +183,17 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       const parent = positions[k][m];
 
       if (k === numRounds) {
-        // Final match: LHS and RHS meet perfectly horizontal at the center node
-        connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${parent.x} ${parent.y}`);
-        connectorLines.push(`M ${c2.x} ${c2.y} L ${parent.x + BOX_W} ${parent.y}`);
+        if (isClassic) {
+           const riserX = (c1.x + BOX_W + c2.x) / 2;
+           // Straight horizontal line joining the two sides
+           connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${c2.x} ${c2.y}`);
+           // Short vertical tick for the champion slot
+           connectorLines.push(`M ${riserX} ${c1.y} L ${riserX} ${c1.y - 12}`);
+        } else {
+           // Final match: LHS and RHS meet perfectly horizontal at the center node
+           connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${parent.x} ${parent.y}`);
+           connectorLines.push(`M ${c2.x} ${c2.y} L ${parent.x + BOX_W} ${parent.y}`);
+        }
       } else {
         const isLeftParent = m < count / 2;
         if (isLeftParent) {
@@ -302,19 +327,45 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 d={connectorLines.join(' ')}
                 fill="none"
                 stroke="#1e293b"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                strokeWidth="1.2"
+                strokeLinecap="square"
+                strokeLinejoin="miter"
               />
             </svg>
 
             {/* Symmetrical riser bout number boxes */}
             {positions.map((roundPositions, k) => {
-              if (k < 1 || k === numRounds) return null;
+              if (k < 1) return null;
+              if (k === numRounds && !isClassic) return null;
+              
               return roundPositions.map((pos, m) => {
                 const node = nodes[k][m];
                 const hasBout = typeof node.bout === 'number';
                 if (!hasBout) return null;
+
+                const BOUT_BOX_W = 34;
+                const BOUT_BOX_H = 18;
+
+                if (k === numRounds) {
+                   const c1 = positions[k - 1][0];
+                   const c2 = positions[k - 1][1];
+                   const riserX = (c1.x + BOX_W + c2.x) / 2;
+                   const riserY = pos.y;
+                   return (
+                     <div
+                        key={`riser-bout-final`}
+                        className="absolute bg-white border border-slate-900 flex items-center justify-center font-sans text-[11px] font-medium tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white"
+                        style={{
+                          left: `${riserX - BOUT_BOX_W / 2}px`,
+                          top: `${riserY - BOUT_BOX_H / 2}px`,
+                          width: `${BOUT_BOX_W}px`,
+                          height: `${BOUT_BOX_H}px`,
+                        }}
+                      >
+                        {getFormattedBout(ring, node.bout)}
+                      </div>
+                   )
+                }
 
                 const c1 = positions[k - 1][2 * m];
                 const isLeftParent = m < roundPositions.length / 2;
@@ -323,13 +374,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   : (c1.x + pos.x + BOX_W) / 2;
                 const riserY = pos.y;
 
-                const BOUT_BOX_W = 42;
-                const BOUT_BOX_H = 20;
-
                 return (
                   <div
                     key={`riser-bout-${k}-${m}`}
-                    className="absolute bg-white border border-slate-900 rounded-sm flex items-center justify-center font-mono text-[10px] font-extrabold tracking-tight text-slate-900 shadow-sm z-10 select-none print:border-slate-950"
+                    className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans text-[11px] font-medium tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white ${isClassic ? '' : 'rounded-sm shadow-sm font-extrabold font-mono text-[10px]'}`}
                     style={{
                       left: `${riserX - BOUT_BOX_W / 2}px`,
                       top: `${riserY - BOUT_BOX_H / 2}px`,
@@ -382,7 +430,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           setSwapTargetIndex('');
                           setShowModal(true);
                         }}
-                        className={`absolute flex items-center px-2 bg-slate-50 border border-slate-200 border-dashed rounded text-[10px] text-slate-400 font-mono italic hover:border-amber-500 hover:bg-amber-50/10 cursor-grab active:cursor-grabbing transition-all group ${
+                        className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
+                          isClassic 
+                            ? `border-b-[1.5px] border-slate-900 bg-transparent text-[9px]` 
+                            : `bg-slate-50 border border-slate-200 border-dashed rounded text-[10px]`
+                        } text-slate-400 font-mono italic hover:border-amber-500 hover:bg-amber-50/10 ${
                           isLeft ? 'flex-row text-left' : 'flex-row-reverse text-right'
                         } ${isDragging ? 'opacity-40 scale-95' : ''} ${
                           isDragOver ? 'border-amber-500 bg-amber-50/30 scale-105 shadow-md ring-2 ring-amber-500/20 z-20' : ''
@@ -397,10 +449,17 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         <span className={`w-5 text-slate-350 font-bold group-hover:text-amber-500 transition-colors ${isLeft ? 'mr-1 text-left' : 'ml-1 text-right'}`}>
                           {node.seed}
                         </span>
-                        <span className="flex-1">BYE</span>
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1">
-                          + Edit
-                        </span>
+                        <span className="flex-1 text-[11px] font-black uppercase">BYE</span>
+                        {isClassic && (
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1 absolute bottom-0 right-0 p-1">
+                              + Edit
+                            </span>
+                        )}
+                        {!isClassic && (
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1">
+                              + Edit
+                            </span>
+                        )}
                       </div>
                     );
                   }
@@ -424,9 +483,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         setSwapTargetIndex('');
                         setShowModal(true);
                       }}
-                      className={`absolute flex items-center px-2 py-1.5 bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/5 cursor-grab active:cursor-grabbing transition-all group ${
-                        node.checked ? 'bg-emerald-50/75 border-emerald-500 ring-1 ring-emerald-500/20' : ''
-                      } ${isWalkover ? 'bg-amber-50/10 border-slate-400' : ''} ${
+                      className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
+                        isClassic 
+                          ? `bg-transparent ${node.checked ? 'text-emerald-900' : ''}`
+                          : `py-1.5 bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/5 ${node.checked ? 'bg-emerald-50/75 border-emerald-500 ring-1 ring-emerald-500/20' : ''}`
+                      } ${isWalkover ? (isClassic ? '' : 'bg-amber-50/10 border-slate-400') : ''} ${
                         isLeft ? 'flex-row' : 'flex-row-reverse'
                       } ${isDragging ? 'opacity-40 scale-95' : ''} ${
                         isDragOver ? 'border-amber-500 bg-amber-50/30 scale-105 shadow-md ring-2 ring-amber-500/20 z-30' : ''
@@ -438,37 +499,50 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         height: `${BOX_H}px`,
                       }}
                     >
-                      <span className={`w-5 text-slate-400 font-mono text-[10px] font-bold group-hover:text-amber-500 transition-colors ${
-                        isLeft ? 'text-left' : 'text-right'
-                      }`}>
-                        {node.seed}
-                      </span>
-
                       {/* Advancing check trigger */}
-                      <span className={`flex items-center justify-center ${isLeft ? 'mr-1.5' : 'ml-1.5'}`}>
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
-                          checked={node.checked}
-                          disabled={isWalkover}
-                          onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
-                        />
-                      </span>
+                      {!isClassic && (
+                        <span className={`flex items-center justify-center ${isLeft ? 'mr-1.5 order-1' : 'ml-1.5 order-3'}`}>
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                            checked={node.checked}
+                            disabled={isWalkover}
+                            onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
+                          />
+                        </span>
+                      )}
 
-                      {/* Profile details */}
-                      <div className={`flex-1 min-w-0 leading-tight ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
-                        <div className="flex items-center justify-between gap-1">
-                          <p className="text-[11px] font-black text-slate-800 truncate" title={node.name}>
-                            {node.name}
-                          </p>
-                          <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold font-sans">
-                            ✎
-                          </span>
+                      {isClassic ? (
+                        <div className={`flex flex-col w-full h-full justify-center ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
+                           <div className={`flex items-baseline gap-1.5 w-full pb-0.5 ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="text-[10px] font-mono font-black text-slate-800">{node.seed} -</span>
+                              {isWalkover && <span className="text-[10px] text-amber-500 mt-1 font-bold absolute right-0 bottom-0 whitespace-nowrap">Walkover</span>}
+                              <span className="text-[12px] font-black tracking-tight text-slate-900 uppercase truncate" title={node.name}>{node.name}</span>
+                           </div>
+                           <div className="text-[10.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase">{node.club || '(Ind.)'}</div>
                         </div>
-                        <p className="text-[9px] text-slate-400 truncate tracking-wide font-medium">
-                          {node.club || 'Ind.'} {isWalkover ? '· Walkover' : ''}
-                        </p>
-                      </div>
+                      ) : (
+                        <>
+                          <span className={`w-5 text-slate-400 font-mono text-[10px] font-bold group-hover:text-amber-500 transition-colors order-2 ${
+                            isLeft ? 'text-left mr-0.5' : 'text-right ml-0.5'
+                          }`}>
+                            {node.seed}
+                          </span>
+                          <div className={`flex-1 min-w-0 leading-tight order-2 ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-[11px] font-black text-slate-800 truncate uppercase mt-0.5" title={node.name}>
+                                {node.name}
+                              </p>
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold font-sans">
+                                ✎
+                              </span>
+                            </div>
+                            <p className="text-[9px] text-slate-400 truncate tracking-wide font-medium">
+                              {node.club || 'Ind.'} {isWalkover ? '· Walkover' : ''}
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 }
@@ -482,7 +556,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     return (
                       <div
                         key={`${k}-${i}`}
-                        className="absolute flex items-center justify-center bg-slate-50 border border-slate-200 border-dashed rounded text-[11px] text-slate-300 font-semibold"
+                        className={`absolute flex items-center bg-transparent ${isClassic ? 'justify-center' : 'justify-center border border-slate-200 border-dashed rounded bg-slate-50'} text-[11px] text-slate-300 font-semibold`}
                         style={{
                           left: `${x}px`,
                           top: `${y}px`,
@@ -490,7 +564,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           height: `${BOX_H}px`,
                         }}
                       >
-                        —
+                        {!isClassic && '—'}
                       </div>
                     );
                   }
@@ -498,9 +572,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   return (
                     <div
                       key={`${k}-${i}`}
-                      className={`absolute flex items-center px-2 bg-white border border-slate-900 rounded shadow-sm hover:shadow transition-all ${
-                        node.name ? 'bg-slate-50/50' : 'border-dashed border-slate-400'
-                      } ${node.checked ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500/20' : ''} ${
+                      className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
+                        isClassic 
+                          ? `bg-transparent ${node.checked ? 'border-emerald-500 text-emerald-900' : ''}`
+                          : `bg-white border border-slate-900 rounded shadow-sm hover:shadow transition-all ${
+                              node.name ? 'bg-slate-50/50' : 'border-dashed border-slate-400'
+                            } ${node.checked ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500/20' : ''}`
+                      } ${
                         isLeft ? 'flex-row' : 'flex-row-reverse'
                       }`}
                       style={{
@@ -511,31 +589,75 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       }}
                     >
                       {/* Advance Check trigger */}
-                      <span className={`flex items-center justify-center ${isLeft ? 'mr-1.5' : 'ml-1.5'}`}>
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
-                          checked={node.checked}
-                          disabled={!node.name || isWalkover}
-                          onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
-                        />
-                      </span>
+                      {!isClassic && (
+                        <span className={`flex items-center justify-center ${isLeft ? 'mr-1.5' : 'ml-1.5'}`}>
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                            checked={node.checked}
+                            disabled={!node.name || isWalkover}
+                            onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
+                          />
+                        </span>
+                      )}
 
                       {/* Name input flow */}
-                      <input
-                        type="text"
-                        className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 truncate ${
-                          isLeft ? 'text-left' : 'text-right'
-                        }`}
-                        placeholder="Winner advances..."
-                        value={node.name || ''}
-                        onChange={(e) => onTextChange(k, i, e.target.value)}
-                      />
+                      {isClassic ? (
+                        <div className={`flex flex-col w-full h-full justify-center ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
+                           <input
+                             type="text"
+                             className={`w-full bg-transparent border-none outline-none pb-0.5 text-[12px] font-black text-slate-900 placeholder-slate-300 truncate uppercase tracking-tight ${
+                               isLeft ? 'text-left' : 'text-right'
+                             }`}
+                             placeholder="W..."
+                             value={node.name || ''}
+                             onChange={(e) => onTextChange(k, i, e.target.value)}
+                           />
+                           <div className="text-[10.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase h-[18px]">
+                             {node.club || ''}
+                           </div>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 truncate tracking-tight uppercase mt-0.5 ${
+                            isLeft ? 'text-left' : 'text-right'
+                          }`}
+                          placeholder="Winner advances..."
+                          value={node.name || ''}
+                          onChange={(e) => onTextChange(k, i, e.target.value)}
+                        />
+                      )}
                     </div>
                   );
                 }
 
                 // Champion Node (k === numRounds)
+                if (isClassic) {
+                  return (
+                     <div
+                        key={`${k}-${i}`}
+                        className="absolute flex items-center justify-center px-1"
+                        style={{
+                          left: `${x}px`,
+                          top: `${y - 12}px`, /* Above the bout box */
+                          width: `${BOX_W}px`,
+                          height: `${BOX_H}px`,
+                        }}
+                      >
+                         <div className="flex flex-col w-full h-full justify-end items-center text-center">
+                             <input
+                               type="text"
+                               className="w-full bg-transparent border-b-[1.5px] border-slate-900 pb-1 outline-none text-[12px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
+                               placeholder="CHAMPION"
+                               value={node.name || ''}
+                               onChange={(e) => onTextChange(k, i, e.target.value)}
+                             />
+                         </div>
+                      </div>
+                  );
+                }
+
                 return (
                   <div
                     key={`${k}-${i}`}

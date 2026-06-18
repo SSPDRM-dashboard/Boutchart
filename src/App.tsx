@@ -7,7 +7,7 @@ import { ClubReportPanel } from './components/ClubReportPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent } from './types';
-import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { replaceOklchInString } from './utils/colorUtils';
 import {
@@ -71,6 +71,7 @@ export default function App() {
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
+  const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('modern');
 
   const refreshSystemUsers = () => {
     const usersStr = localStorage.getItem('bracket_builder_users_db');
@@ -709,6 +710,7 @@ export default function App() {
     }, 50);
   };
 
+  // Inject a temporary class into the body to force CSS scaling for export without destroying layout
   const handleDownloadProgrammaticPdf = async () => {
     setPdfExportLoading(true);
     setPdfError('');
@@ -721,6 +723,11 @@ export default function App() {
       }
 
       setPdfProgress({ current: 0, total: elements.length });
+
+      document.body.classList.add('exporting-pdf');
+
+      // Wait a moment for the DOM layout to update after scaling back to 1
+      await new Promise(r => setTimeout(r, 100));
 
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -743,59 +750,21 @@ export default function App() {
           canvasHeight = parseInt(canvasHeightAttr, 10);
         }
 
-        const canvas = await html2canvas(element, {
-          scale: 2, // High resolution pixel ratio
-          useCORS: true,
-          allowTaint: true,
+        const imgData = await htmlToImage.toJpeg(element, {
+          quality: 0.95,
           backgroundColor: '#ffffff',
-          logging: false,
-          onclone: (clonedDoc) => {
-            // Replace Tailwind v4 oklch() colors with safe rgb() in cloned styles so html2canvas compiles them cleanly
-            clonedDoc.querySelectorAll('style').forEach((styleEl) => {
-              if (styleEl.textContent) {
-                styleEl.textContent = replaceOklchInString(styleEl.textContent);
-              }
-            });
-
-            clonedDoc.querySelectorAll('[style]').forEach((el) => {
-              const styleAttr = el.getAttribute('style');
-              if (styleAttr && styleAttr.toLowerCase().includes('oklch')) {
-                el.setAttribute('style', replaceOklchInString(styleAttr));
-              }
-            });
-
-            // Hide no-print elements in cloned node
-            clonedDoc.querySelectorAll('.no-print').forEach((el) => {
-              (el as HTMLElement).style.display = 'none';
-            });
-
-            // Target the specific element inside the clone
-            const clonedPage = clonedDoc.getElementById(element.id);
-            if (clonedPage) {
-              clonedPage.style.boxShadow = 'none';
-              clonedPage.style.borderRadius = '0';
-              clonedPage.style.border = 'none';
-              clonedPage.style.padding = '24px';
-
-              const canvasWrapper = clonedPage.querySelector('.bracket-canvas') as HTMLElement;
-              if (canvasWrapper) {
-                canvasWrapper.style.width = `${canvasWidth}px`;
-                canvasWrapper.style.height = `${canvasHeight}px`;
-                canvasWrapper.style.transform = 'none';
-                canvasWrapper.style.margin = '0 auto';
-
-                const innerScaleDiv = canvasWrapper.firstElementChild as HTMLElement;
-                if (innerScaleDiv) {
-                  innerScaleDiv.style.transform = 'scale(1)';
-                  innerScaleDiv.style.width = `${canvasWidth}px`;
-                  innerScaleDiv.style.height = `${canvasHeight}px`;
-                }
-              }
-            }
+          pixelRatio: 2,
+          skipFonts: false,
+          filter: (node) => {
+             return !(node.classList && node.classList.contains('no-print'));
+          },
+          style: {
+            boxShadow: 'none',
+            borderRadius: '0',
+            border: 'none',
+            margin: '0',
           }
         });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
         if (i > 0) {
           pdf.addPage();
@@ -803,8 +772,14 @@ export default function App() {
 
         const pdfWidth = 297;
         const pdfHeight = 210;
-        const imgW = canvas.width;
-        const imgH = canvas.height;
+        // The image generated is from the DOM element, so we need to measure the image or use the designated widths.
+        // Using an image object to get its true dimensions
+        const img = new Image();
+        img.src = imgData;
+        await new Promise((resolve) => { img.onload = resolve; });
+
+        const imgW = img.width;
+        const imgH = img.height;
 
         const margin = 10; // 10mm margins
         const maxW = pdfWidth - 2 * margin;
@@ -823,6 +798,8 @@ export default function App() {
         pdf.addImage(imgData, 'JPEG', x, y, printW, printH, undefined, 'FAST');
       }
 
+      document.body.classList.remove('exporting-pdf');
+
       const filename = `${tournamentName ? tournamentName.toLowerCase().replace(/[^a-z0-9_]+/g, '_') : 'tournament_brackets'}.pdf`;
       pdf.save(filename);
       setPdfExportLoading(false);
@@ -832,8 +809,12 @@ export default function App() {
         type: 'ok',
       });
     } catch (err: any) {
+      document.body.classList.remove('exporting-pdf');
       console.error(err);
-      setPdfError(err?.message || 'Failed to export PDF.');
+      setPdfError(err?.message || String(err) || 'Failed to export PDF.');
+      if (err?.stack) {
+        setPdfError((prev) => prev + '\n' + err.stack);
+      }
       setPdfExportLoading(false);
     }
   };
@@ -1362,13 +1343,29 @@ export default function App() {
             {/* Brackets generation grid assembly inside right master column */}
             {activeTab === 'brackets' && bracketKeys.length > 0 && (
               <div className="mt-8 pt-6 border-t border-slate-200 print:mt-0 print:pt-0 print:border-none">
-                <div className="flex items-baseline justify-between mb-6 print:hidden">
+                <div className="flex flex-col md:flex-row md:items-baseline justify-between mb-6 gap-4 print:hidden">
                   <h2 id="bracketsSectionTitle" className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                     🥋 Generated Tournament Brackets
                   </h2>
-                  <span className="text-xs bg-slate-200 text-slate-800 font-mono px-3 py-1 rounded-full font-bold no-print">
-                    {bracketKeys.length} active classes
-                  </span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                      <button
+                        onClick={() => setBracketLayout('modern')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${bracketLayout === 'modern' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                      >
+                        Modern
+                      </button>
+                      <button
+                        onClick={() => setBracketLayout('classic')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${bracketLayout === 'classic' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                      >
+                        Classic Style
+                      </button>
+                    </div>
+                    <span className="text-xs bg-slate-200 text-slate-800 font-mono px-3 py-1 rounded-full font-bold no-print hidden md:inline-block">
+                      {bracketKeys.length} active classes
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-6 print:space-y-0">
@@ -1381,6 +1378,7 @@ export default function App() {
                         bracket={model}
                         ring={getRingLabel(cat.ring || 1)}
                         entrantCount={cat.count}
+                        layout={bracketLayout}
                         onReshuffle={() => handleReshuffleSingleCategory(key)}
                         onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
                         onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
