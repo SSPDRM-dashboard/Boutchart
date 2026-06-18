@@ -442,7 +442,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         }`}
                         style={{
                           left: `${x}px`,
-                          top: isClassic ? `${y - 20}px` : `${y}px`,
+                          top: `${y}px`,
                           width: `${BOX_W}px`,
                           height: `${BOX_H}px`,
                         }}
@@ -452,7 +452,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             {/* BYE text ON TOP of the line */}
                             <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[14.5px] font-black tracking-tight text-slate-400 uppercase truncate whitespace-nowrap min-w-0">BYE</span>
+                              <span className="text-[13.5px] font-black tracking-tight text-slate-400 uppercase truncate whitespace-nowrap min-w-0">BYE</span>
                             </div>
                             {/* Empty space below line */}
                             <div className="h-[20px]" />
@@ -509,7 +509,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       }`}
                       style={{
                         left: `${x}px`,
-                        top: isClassic ? `${y - 20}px` : `${y}px`,
+                        top: `${y}px`,
                         width: `${BOX_W}px`,
                         height: `${BOX_H}px`,
                       }}
@@ -532,8 +532,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            {/* Player Name ON TOP of the line */}
                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[14.5px] font-black tracking-tight text-slate-900 uppercase truncate whitespace-nowrap min-w-0" title={node.name}>{node.name}</span>
-                              {isWalkover && <span className="text-[11px] text-amber-600 font-bold ml-1 shrink-0">Walkover</span>}
+                              <span className="text-[13.5px] font-black tracking-tight text-slate-900 uppercase truncate whitespace-nowrap min-w-0" title={node.name}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
                            <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
@@ -557,7 +556,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                               </span>
                             </div>
                             <p className="text-[9px] text-slate-400 tracking-wide font-medium">
-                              {node.club || 'Ind.'} {isWalkover ? '· Walkover' : ''}
+                              {node.club || 'Ind.'}
                             </p>
                           </div>
                         </>
@@ -578,7 +577,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         className={`absolute flex items-center bg-transparent ${isClassic ? 'justify-center' : 'justify-center border border-slate-200 border-dashed rounded bg-slate-50'} text-[11px] text-slate-300 font-semibold`}
                         style={{
                           left: `${x}px`,
-                          top: isClassic ? `${y - 20}px` : `${y}px`,
+                          top: `${y}px`,
                           width: `${BOX_W}px`,
                           height: `${BOX_H}px`,
                         }}
@@ -602,7 +601,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       }`}
                       style={{
                         left: `${x}px`,
-                        top: isClassic ? `${y - 20}px` : `${y}px`,
+                        top: `${y}px`,
                         width: `${BOX_W}px`,
                         height: `${BOX_H}px`,
                       }}
@@ -627,7 +626,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            <div className={`h-[20px] flex items-end w-full pb-[2.5px] overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <input
                                 type="text"
-                                className={`w-full bg-transparent border-none outline-none text-[14.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight truncate whitespace-nowrap min-w-0 ${
+                                className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight truncate whitespace-nowrap min-w-0 ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder="W..."
