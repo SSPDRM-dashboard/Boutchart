@@ -208,18 +208,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       <style>{`
         @media print {
           #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
-            zoom: ${printScale} !important;
+             transform: scale(${printScale}) !important;
+             transform-origin: top center !important;
           }
-          /* Fallback for firefox which doesn't support zoom well */
-          @-moz-document url-prefix() {
-             #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
-                 transform: scale(${printScale}) !important;
-                 transform-origin: top center;
-             }
-             #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
-                 width: ${canvasWidth * printScale}px !important;
-                 height: ${canvasHeight * printScale}px !important;
-             }
+          #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
+             width: ${canvasWidth * printScale}px !important;
+             height: ${canvasHeight * printScale}px !important;
+             margin: 0 auto !important;
           }
         }
       `}</style>
@@ -294,7 +289,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
         >
           <div
             className="absolute top-0 left-0 origin-top-left print-scale-wrapper"
-            style={{ transform: `scale(${scale})` }}
+            style={{ transform: `scale(${scale})`, width: canvasWidth, height: canvasHeight }}
           >
             {/* Symmetrical line connectors svg layer */}
             <svg
