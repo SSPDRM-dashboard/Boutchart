@@ -343,8 +343,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 const hasBout = typeof node.bout === 'number';
                 if (!hasBout) return null;
 
-                const BOUT_BOX_W = 34;
-                const BOUT_BOX_H = 18;
+                const BOUT_BOX_W = isClassic ? 44 : 34;
+                const BOUT_BOX_H = isClassic ? 24 : 18;
 
                 if (k === numRounds) {
                    const c1 = positions[k - 1][0];
@@ -354,7 +354,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                    return (
                      <div
                         key={`riser-bout-final`}
-                        className="absolute bg-white border border-slate-900 flex items-center justify-center font-sans text-[11px] font-medium tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white"
+                        className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white ${isClassic ? 'text-[15px] font-bold' : 'text-[11px] font-medium'}`}
                         style={{
                           left: `${riserX - BOUT_BOX_W / 2}px`,
                           top: `${riserY - BOUT_BOX_H / 2}px`,
@@ -377,7 +377,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 return (
                   <div
                     key={`riser-bout-${k}-${m}`}
-                    className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans text-[11px] font-medium tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white ${isClassic ? '' : 'rounded-sm shadow-sm font-extrabold font-mono text-[10px]'}`}
+                    className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white ${isClassic ? 'text-[15px] font-bold' : 'text-[11px] font-medium rounded-sm shadow-sm font-extrabold font-mono text-[10px]'}`}
                     style={{
                       left: `${riserX - BOUT_BOX_W / 2}px`,
                       top: `${riserY - BOUT_BOX_H / 2}px`,
@@ -449,9 +449,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         <span className={`w-5 text-slate-350 font-bold group-hover:text-amber-500 transition-colors ${isLeft ? 'mr-1 text-left' : 'ml-1 text-right'}`}>
                           {node.seed}
                         </span>
-                        <span className="flex-1 text-[11px] font-black uppercase">BYE</span>
+                        <span className={`flex-1 ${isClassic ? 'text-[15px]' : 'text-[11px]'} font-black uppercase`}>BYE</span>
                         {isClassic && (
-                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1 absolute bottom-0 right-0 p-1">
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-amber-500 font-bold ml-1 absolute bottom-0 right-0 p-1">
                               + Edit
                             </span>
                         )}
@@ -515,11 +515,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       {isClassic ? (
                         <div className={`flex flex-col w-full h-full justify-center ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
                            <div className={`flex items-baseline gap-1.5 w-full pb-0.5 ${isLeft ? 'justify-start' : 'justify-end'}`}>
-                              <span className="text-[10px] font-mono font-black text-slate-800">{node.seed} -</span>
-                              {isWalkover && <span className="text-[10px] text-amber-500 mt-1 font-bold absolute right-0 bottom-0 whitespace-nowrap">Walkover</span>}
-                              <span className="text-[12px] font-black tracking-tight text-slate-900 uppercase truncate" title={node.name}>{node.name}</span>
+                              <span className="text-[14px] font-mono font-black text-slate-800">{node.seed} -</span>
+                              {isWalkover && <span className="text-[14px] text-amber-500 mt-1 font-bold absolute right-0 bottom-0 whitespace-nowrap">Walkover</span>}
+                              <span className="text-[16px] font-black tracking-tight text-slate-900 uppercase truncate" title={node.name}>{node.name}</span>
                            </div>
-                           <div className="text-[10.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase">{node.club || '(Ind.)'}</div>
+                           <div className="text-[12.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase">{node.club || '(Ind.)'}</div>
                         </div>
                       ) : (
                         <>
@@ -606,14 +606,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         <div className={`flex flex-col w-full h-full justify-center ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
                            <input
                              type="text"
-                             className={`w-full bg-transparent border-none outline-none pb-0.5 text-[12px] font-black text-slate-900 placeholder-slate-300 truncate uppercase tracking-tight ${
+                             className={`w-full bg-transparent border-none outline-none pb-0.5 text-[16px] font-black text-slate-900 placeholder-slate-300 truncate uppercase tracking-tight ${
                                isLeft ? 'text-left' : 'text-right'
                              }`}
                              placeholder="W..."
                              value={node.name || ''}
                              onChange={(e) => onTextChange(k, i, e.target.value)}
                            />
-                           <div className="text-[10.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase h-[18px]">
+                           <div className="text-[12.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase h-[20px]">
                              {node.club || ''}
                            </div>
                         </div>
@@ -648,7 +648,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                          <div className="flex flex-col w-full h-full justify-end items-center text-center">
                              <input
                                type="text"
-                               className="w-full bg-transparent border-b-[1.5px] border-slate-900 pb-1 outline-none text-[12px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
+                               className="w-full bg-transparent border-b-[1.5px] border-slate-900 pb-1 outline-none text-[16px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
                                placeholder="CHAMPION"
                                value={node.name || ''}
                                onChange={(e) => onTextChange(k, i, e.target.value)}
