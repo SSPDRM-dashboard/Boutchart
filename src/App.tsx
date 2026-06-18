@@ -22,7 +22,7 @@ import {
   shuffle,
   findDuplicateAthletes
 } from './utils/bracketUtils';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2 } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -70,6 +70,16 @@ export default function App() {
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
+
+  const refreshSystemUsers = () => {
+    const usersStr = localStorage.getItem('bracket_builder_users_db');
+    if (usersStr) {
+      setSystemUsers(JSON.parse(usersStr));
+    } else {
+      setSystemUsers({ admin: 'admin' });
+    }
+  };
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -79,6 +89,27 @@ export default function App() {
   const handleLogin = (username: string) => {
     setCurrentUser(username);
     localStorage.setItem('bracket_builder_current_user_v1', username);
+  };
+
+  const handleDeleteUser = (uname: string) => {
+    if (uname === 'admin') {
+      alert("Cannot delete the default admin account.");
+      return;
+    }
+    if (uname === currentUser) {
+      alert("Cannot delete the currently logged-in account.");
+      return;
+    }
+    const confirmed = window.confirm(`Are you sure you want to delete user '${uname}'?`);
+    if (!confirmed) return;
+
+    const usersStr = localStorage.getItem('bracket_builder_users_db');
+    if (usersStr) {
+      const usersDb = JSON.parse(usersStr);
+      delete usersDb[uname];
+      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
+      refreshSystemUsers();
+    }
   };
 
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -106,6 +137,7 @@ export default function App() {
   // 1. Initial State Hydration from LocalStorage
   useEffect(() => {
     try {
+      refreshSystemUsers();
       const storedUser = localStorage.getItem('bracket_builder_current_user_v1');
       if (storedUser) {
         setCurrentUser(storedUser);
@@ -1057,9 +1089,41 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print">
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
                   <h3 className="text-lg font-black text-slate-800 tracking-tight mb-4 border-b border-slate-100 pb-4">Register New System Users</h3>
-                  <AuthScreen onLogin={() => {}} mode="register" />
+                  <AuthScreen onLogin={() => {}} mode="register" onRegisterSuccess={refreshSystemUsers} />
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print gap-4 flex flex-col">
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight border-b border-slate-100 pb-4">System Accounts</h3>
+                  <p className="text-sm text-slate-500 font-medium">Currently registered accounts in the system.</p>
+                  <div className="grid gap-3">
+                    {Object.entries(systemUsers).map(([uname, pwd]) => (
+                      <div key={uname} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50">
+                        <div className="flex gap-3 items-center">
+                          <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm text-slate-400">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <span className="font-bold text-slate-800 text-sm">{uname}</span>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <div className="flex gap-2 items-center bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+                             <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                             <span className="text-xs font-mono text-slate-600 font-bold tracking-widest">{pwd}</span>
+                          </div>
+                          {uname !== 'admin' && uname !== currentUser && (
+                            <button
+                              onClick={() => handleDeleteUser(uname)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : !tournamentName || !currentEventId ? (

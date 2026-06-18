@@ -4,9 +4,10 @@ import { Trophy, KeyRound, User, Lock, ArrowRight, ShieldCheck } from 'lucide-re
 interface AuthScreenProps {
   onLogin: (username: string) => void;
   mode?: 'login' | 'register';
+  onRegisterSuccess?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login', onRegisterSuccess }) => {
   const isRegister = mode === 'register';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -45,6 +46,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
       setSuccess(`Account '${cleanUsername}' created successfully.`);
       setUsername('');
       setPassword('');
+      onRegisterSuccess?.();
       // Wait to inform user, we don't automatically log in the new user when an admin creates them.
     } else {
       // Login Flow
@@ -75,12 +77,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
               <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-100/50 text-rose-600 text-sm font-semibold flex items-start gap-2">
                 <div className="mt-0.5">⚠️</div>
                 <p>{error}</p>
-              </div>
-            )}
-
-            {!isRegister && !error && !success && (
-              <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-100/50 text-blue-700 text-sm font-semibold">
-                <p>💡 First time? Use default login: <strong>admin</strong> / <strong>admin</strong></p>
               </div>
             )}
 
