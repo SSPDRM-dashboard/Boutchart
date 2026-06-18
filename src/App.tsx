@@ -754,6 +754,8 @@ export default function App() {
           quality: 0.95,
           backgroundColor: '#ffffff',
           pixelRatio: 2,
+          width: element.scrollWidth,
+          height: Math.max(element.scrollHeight, canvasHeight + 250), // Pad for title/footer
           skipFonts: false,
           filter: (node) => {
              return !(node.classList && node.classList.contains('no-print'));
@@ -781,7 +783,7 @@ export default function App() {
         const imgW = img.width;
         const imgH = img.height;
 
-        const margin = 10; // 10mm margins
+        const margin = 2; // 2mm margins (was 10mm)
         const maxW = pdfWidth - 2 * margin;
         const maxH = pdfHeight - 2 * margin;
 
