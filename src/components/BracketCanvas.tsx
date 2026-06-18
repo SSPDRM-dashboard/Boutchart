@@ -3,7 +3,7 @@ import { BracketModel, BracketNode } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 
-const BOX_W = 172;
+const BOX_W = 210;
 const BOX_H = 40;
 const PAD = 24;
 
@@ -514,13 +514,17 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       )}
 
                       {isClassic ? (
-                        <div className={`flex flex-col w-full h-full justify-center ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
-                           <div className={`flex items-baseline gap-1.5 w-full pb-0.5 ${isLeft ? 'justify-start' : 'justify-end'}`}>
-                              <span className="text-[14px] font-mono font-black text-slate-800">{node.seed} -</span>
-                              {isWalkover && <span className="text-[14px] text-amber-500 mt-1 font-bold absolute right-0 bottom-0 whitespace-nowrap">Walkover</span>}
-                              <span className="text-[16px] font-black tracking-tight text-slate-900 uppercase truncate" title={node.name}>{node.name}</span>
+                        <div className={`flex flex-col w-full h-full justify-between ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
+                           {/* Player Name ON TOP of the line */}
+                           <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="text-[12px] font-mono font-black text-slate-500">{node.seed} -</span>
+                              <span className="text-[14.5px] font-black tracking-tight text-slate-900 uppercase" title={node.name}>{node.name}</span>
+                              {isWalkover && <span className="text-[11px] text-amber-600 font-bold ml-1">Walkover</span>}
                            </div>
-                           <div className="text-[12.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase">{node.club || '(Ind.)'}</div>
+                           {/* Club BELOW the line */}
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span>{node.club || '(Ind.)'}</span>
+                           </div>
                         </div>
                       ) : (
                         <>
@@ -531,14 +535,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           </span>
                           <div className={`flex-1 min-w-0 leading-tight order-2 ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
                             <div className="flex items-center justify-between gap-1">
-                              <p className="text-[11px] font-black text-slate-800 truncate uppercase mt-0.5" title={node.name}>
+                              <p className="text-[11px] font-black text-slate-800 uppercase mt-0.5" title={node.name}>
                                 {node.name}
                               </p>
                               <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold font-sans">
                                 ✎
                               </span>
                             </div>
-                            <p className="text-[9px] text-slate-400 truncate tracking-wide font-medium">
+                            <p className="text-[9px] text-slate-400 tracking-wide font-medium">
                               {node.club || 'Ind.'} {isWalkover ? '· Walkover' : ''}
                             </p>
                           </div>
@@ -604,24 +608,28 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                       {/* Name input flow */}
                       {isClassic ? (
-                        <div className={`flex flex-col w-full h-full justify-center ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
-                           <input
-                             type="text"
-                             className={`w-full bg-transparent border-none outline-none pb-0.5 text-[16px] font-black text-slate-900 placeholder-slate-300 truncate uppercase tracking-tight ${
-                               isLeft ? 'text-left' : 'text-right'
-                             }`}
-                             placeholder="W..."
-                             value={node.name || ''}
-                             onChange={(e) => onTextChange(k, i, e.target.value)}
-                           />
-                           <div className="text-[12.5px] font-bold text-slate-600 truncate pt-0.5 tracking-tight uppercase h-[20px]">
-                             {node.club || ''}
+                        <div className={`flex flex-col w-full h-full justify-between ${isLeft ? 'items-start text-left' : 'items-end text-right'}`}>
+                           {/* Player Name ON TOP of the line */}
+                           <div className={`h-[20px] flex items-end w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <input
+                                type="text"
+                                className={`w-full bg-transparent border-none outline-none text-[14.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight ${
+                                  isLeft ? 'text-left' : 'text-right'
+                                }`}
+                                placeholder="W..."
+                                value={node.name || ''}
+                                onChange={(e) => onTextChange(k, i, e.target.value)}
+                              />
+                           </div>
+                           {/* Club BELOW the line */}
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span>{node.club || ''}</span>
                            </div>
                         </div>
                       ) : (
                         <input
                           type="text"
-                          className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 truncate tracking-tight uppercase mt-0.5 ${
+                          className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 tracking-tight uppercase mt-0.5 ${
                             isLeft ? 'text-left' : 'text-right'
                           }`}
                           placeholder="Winner advances..."
@@ -683,7 +691,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     <Trophy className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" />
                     <input
                       type="text"
-                      className="w-full bg-transparent border-none outline-none text-xs font-black text-amber-950 placeholder-amber-400 truncate text-center"
+                      className="w-full bg-transparent border-none outline-none text-xs font-black text-amber-950 placeholder-amber-400 text-center"
                       placeholder="Grand Champion"
                       value={node.name || ''}
                       onChange={(e) => onTextChange(k, i, e.target.value)}
@@ -698,14 +706,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
       {/* Symmetrical Podium Podium table block as shown in the target print sheet */}
       <div className="mt-8 pt-5 border-t border-slate-100 flex flex-col items-center">
-        <div className="w-[280px] border border-slate-350 rounded-lg bg-white overflow-hidden text-xs shadow-sm select-none">
+        <div className="w-[320px] border border-slate-350 rounded-lg bg-white overflow-hidden text-xs shadow-sm select-none">
           <div className="bg-slate-50 border-b border-slate-350 px-3 py-1 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
             Final Standings
           </div>
           <div className="divide-y divide-slate-200">
             <div className="px-3.5 py-2 flex items-center gap-2">
               <span className="font-extrabold w-4 text-amber-500">1.</span>
-              <div className="flex-1 text-slate-400 font-medium italic truncate">
+              <div className="flex-1 text-slate-400 font-medium italic">
                 {nodes[numRounds]?.[0]?.name ? (
                   <strong className="text-slate-900 not-italic font-extrabold">{nodes[numRounds][0].name}</strong>
                 ) : (
@@ -715,7 +723,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             </div>
             <div className="px-3.5 py-2 flex items-center gap-2">
               <span className="font-extrabold w-4 text-slate-400">2.</span>
-              <div className="flex-1 text-slate-400 font-medium italic truncate">
+              <div className="flex-1 text-slate-400 font-medium italic">
                 {/* Runner up from the final node */}
                 {nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked) ? (
                   <strong className="text-slate-800 not-italic font-bold">
@@ -728,11 +736,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             </div>
             <div className="px-3.5 py-2 flex items-center gap-2">
               <span className="font-extrabold w-4 text-amber-700/60 font-mono">3.</span>
-              <div className="flex-1 text-slate-400 font-medium italic truncate">TBD</div>
+              <div className="flex-1 text-slate-400 font-medium italic">TBD</div>
             </div>
             <div className="px-3.5 py-2 flex items-center gap-2">
               <span className="font-extrabold w-4 text-amber-700/60 font-mono">3.</span>
-              <div className="flex-1 text-slate-400 font-medium italic truncate">TBD</div>
+              <div className="flex-1 text-slate-400 font-medium italic">TBD</div>
             </div>
           </div>
         </div>
