@@ -130,7 +130,7 @@ export function groupRoster(roster: Athlete[], existingConfigs: Record<string, {
     const entrants = cats[key];
     const size = nextPow2(entrants.length);
     let status: 'ready' | 'warn' | 'bad' = 'ready';
-    if (entrants.length < 2) status = 'bad';
+    if (entrants.length < 1) status = 'bad';
     else if (entrants.length > 64) status = 'warn';
 
     const ring = existingConfigs[key]?.ring !== undefined ? existingConfigs[key].ring : 0;

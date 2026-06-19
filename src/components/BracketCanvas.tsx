@@ -18,6 +18,8 @@ interface BracketCanvasProps {
   tournamentName?: string;
   onUpdateLeafNode?: (i: number, name: string, club: string, isBye: boolean) => void;
   onSwapLeafNodes?: (i: number, j: number) => void;
+  categoriesList?: string[];
+  onMoveToCategory?: (i: number, targetCategoryKey: string) => void;
 }
 
 function getFormattedBout(ring: string | number, boutNumber: number | undefined): string {
@@ -40,6 +42,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   tournamentName,
   onUpdateLeafNode,
   onSwapLeafNodes,
+  categoriesList,
+  onMoveToCategory,
 }) => {
   const [scale, setScale] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -48,6 +52,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [editClub, setEditClub] = useState('');
   const [editIsBye, setEditIsBye] = useState(false);
   const [swapTargetIndex, setSwapTargetIndex] = useState<string>('');
+  const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -496,6 +501,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         setEditClub(node.club || '');
                         setEditIsBye(node.isBye);
                         setSwapTargetIndex('');
+                        setSelectedTargetCategory('');
                         setShowModal(true);
                       }}
                       className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
@@ -855,6 +861,30 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   💡 Swapping moves this player to the selected slot and brings the target player there. You can also drag & drop players directly on the bracket canvas to swap!
                 </p>
               </div>
+
+              {/* Move to another category dropdown */}
+              {!editIsBye && categoriesList && categoriesList.length > 0 && (
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Move to another Category / Division
+                  </label>
+                  <select
+                    value={selectedTargetCategory}
+                    onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                  >
+                    <option value="">-- Choose target category --</option>
+                    {categoriesList.map((catKey) => (
+                      <option key={catKey} value={catKey}>
+                        {catKey}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal font-sans">
+                    💡 Moving category transfers this competitor and updates both brackets automatically.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Modal actions */}
@@ -870,7 +900,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 type="button"
                 onClick={() => {
                   // Apply actions!
-                  if (swapTargetIndex !== '') {
+                  if (selectedTargetCategory !== '') {
+                    if (onMoveToCategory && selectedLeafIndex !== null) {
+                      onMoveToCategory(selectedLeafIndex, selectedTargetCategory);
+                    }
+                  } else if (swapTargetIndex !== '') {
                     const j = parseInt(swapTargetIndex, 10);
                     if (onSwapLeafNodes && !isNaN(j)) {
                       onSwapLeafNodes(selectedLeafIndex, j);

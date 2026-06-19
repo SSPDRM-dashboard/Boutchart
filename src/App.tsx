@@ -424,7 +424,7 @@ export default function App() {
   };
 
   const handleAutoAssignRings = () => {
-    const keys = Object.keys(categories).filter((k) => categories[k].count >= 2);
+    const keys = Object.keys(categories).filter((k) => categories[k].count >= 1);
     if (keys.length === 0) return;
 
     setCategories((prev) => {
@@ -450,15 +450,157 @@ export default function App() {
     });
   };
 
+  const handleMoveToCategory = (sourceCatKey: string, leafIndex: number, targetCatKey: string) => {
+    // 1. Get the bracket node for the athlete so we can identify them
+    const model = brackets[sourceCatKey];
+    if (!model) return;
+    const leafNodes = model.nodes[0];
+    const leafNode = leafNodes[leafIndex];
+    if (!leafNode || leafNode.isBye) return;
+
+    // 2. Identify the athlete in roster
+    let athleteIndex = roster.findIndex((a) => {
+      const matchName = a.name.trim().toLowerCase() === leafNode.name.trim().toLowerCase();
+      const matchClub = (a.club || '').trim().toLowerCase() === (leafNode.club || '').trim().toLowerCase();
+      const matchWeight = a.weight === sourceCatKey;
+      return matchName && matchClub && matchWeight;
+    });
+
+    if (athleteIndex === -1) {
+      // Fallback: match by name and category
+      const fallbackIndex = roster.findIndex((a) => {
+        const matchName = a.name.trim().toLowerCase() === leafNode.name.trim().toLowerCase();
+        const matchWeight = a.weight === sourceCatKey;
+        return matchName && matchWeight;
+      });
+      if (fallbackIndex === -1) {
+        setStatusMessage({ text: `Could not identify athlete "${leafNode.name}" in roster.`, type: 'err' });
+        return;
+      }
+      athleteIndex = fallbackIndex;
+    }
+
+    // 3. Move the athlete's weight in roster
+    const nextRoster = [...roster];
+    const athlete = { ...nextRoster[athleteIndex], weight: targetCatKey };
+    nextRoster[athleteIndex] = athlete;
+    setRoster(nextRoster);
+
+    // 4. Update the categories mapping
+    const grouped = groupRoster(nextRoster, categories);
+    setCategories(grouped);
+
+    // 5. Update brackets
+    setBrackets((prev) => {
+      const next = { ...prev };
+      
+      // Update source category bracket (since the player left)
+      const oldGroup = grouped[sourceCatKey];
+      if (oldGroup && oldGroup.count >= 1) {
+        next[sourceCatKey] = buildBracketModel(oldGroup.entrants, oldGroup.size, sourceCatKey);
+      } else {
+        delete next[sourceCatKey];
+      }
+
+      // Update destination category bracket (since player joined)
+      const newGroup = grouped[targetCatKey];
+      if (newGroup && newGroup.count >= 1) {
+        next[targetCatKey] = buildBracketModel(newGroup.entrants, newGroup.size, targetCatKey);
+      } else {
+        delete next[targetCatKey];
+      }
+
+      // Re-assign all bout numbers
+      assignAllBoutNumbers(grouped, next);
+      return next;
+    });
+
+    setStatusMessage({
+      text: `Successfully transferred ${athlete.name} from "${sourceCatKey}" to "${targetCatKey}". Both brackets adjusted and rescheduled.`,
+      type: 'ok',
+    });
+  };
+
+  const handleDeleteCategory = (categoryKey: string) => {
+    const cat = categories[categoryKey];
+    if (!cat) return;
+
+    askConfirmation({
+      title: `Delete Weight Class "${categoryKey}"`,
+      message: `Are you sure you want to permanently delete the weight class "${categoryKey}"? This will delete all ${cat.count} athlete(s) assigned to this class and remove its matches. This cannot be undone.`,
+      confirmText: 'Delete Weight Class',
+      isDanger: true,
+      onConfirm: () => {
+        const nextRoster = roster.filter((a) => (a.weight || 'Unspecified') !== categoryKey);
+        setRoster(nextRoster);
+
+        const grouped = groupRoster(nextRoster, categories);
+        setCategories(grouped);
+
+        setBrackets((prev) => {
+          const next = { ...prev };
+          delete next[categoryKey];
+          assignAllBoutNumbers(grouped, next);
+          return next;
+        });
+
+        setStatusMessage({
+          text: `Successfully deleted weight class "${categoryKey}" and removed its ${cat.count} athlete(s).`,
+          type: 'ok',
+        });
+      },
+    });
+  };
+
   // 5. Build/Draw Bracket Assemblies
-  const handleGenerateBrackets = () => {
-    const eligibleKeys = Object.keys(categories).filter((k) => categories[k].count >= 2);
-    if (eligibleKeys.length === 0) {
-      setStatusMessage({ text: 'Ready-to-draw divisions (2+ entrants) are missing.', type: 'err' });
+  const handleGenerateBrackets = (targetRing?: number) => {
+    const keysAll = Object.keys(categories);
+    const eligibleKeys = keysAll.filter((k) => {
+      const matchesRing = !targetRing || categories[k].ring === targetRing;
+      return categories[k].count >= 1 && matchesRing;
+    });
+
+    if (eligibleKeys.length === 0 && targetRing) {
+      const ringLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing);
+      askConfirmation({
+        title: `Clear Ring ${ringLabel} Brackets`,
+        message: `There are no ready-to-draw weight classes assigned to Ring ${ringLabel}. Do you want to clear any existing brackets for this ring?`,
+        confirmText: 'Clear Ring Brackets',
+        isDanger: true,
+        onConfirm: () => {
+          const next = { ...brackets };
+          keysAll.forEach(k => {
+            if (categories[k].ring === targetRing) {
+              delete next[k];
+            }
+          });
+          assignAllBoutNumbers(categories, next);
+          setBrackets(next);
+          setStatusMessage({
+            text: `Cleared existing bracket draws for Ring ${ringLabel}.`,
+            type: 'ok'
+          });
+        }
+      });
       return;
     }
 
-    const nextBrackets: Record<string, BracketModel> = {};
+    if (eligibleKeys.length === 0) {
+      setStatusMessage({ text: 'Ready-to-draw divisions (1+ entrants) are missing.', type: 'err' });
+      return;
+    }
+
+    // Keep other rings' brackets when generating/regenerating specific ring only
+    const nextBrackets: Record<string, BracketModel> = targetRing ? { ...brackets } : {};
+
+    if (targetRing) {
+      // Clear out only brackets assigned to this specific ring to avoid outdated relics
+      keysAll.forEach((key) => {
+        if (categories[key].ring === targetRing) {
+          delete nextBrackets[key];
+        }
+      });
+    }
 
     eligibleKeys.forEach((key) => {
       const c = categories[key];
@@ -471,6 +613,14 @@ export default function App() {
 
     assignAllBoutNumbers(categories, nextBrackets);
     setBrackets(nextBrackets);
+
+    const targetLabel = targetRing
+      ? `Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing)}`
+      : 'all rings';
+    setStatusMessage({
+      text: `Successfully generated bracket draws and schedules for ${targetLabel}!`,
+      type: 'ok',
+    });
 
     // Auto-scroll layout window smoothly tobrackets viewport
     setTimeout(() => {
@@ -1452,6 +1602,7 @@ export default function App() {
                     setRingLabelFormat={setRingLabelFormat}
                     onExportPdf={() => setShowExportModal(true)}
                     hasBrackets={bracketKeys.length > 0}
+                    onDeleteCategory={handleDeleteCategory}
                   />
                 )}
               </div>
@@ -1554,6 +1705,8 @@ export default function App() {
                             return next;
                           });
                         }}
+                        categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
+                        onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
                       />
                     );
                   })}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Printer } from 'lucide-react';
+import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Printer, Trash2 } from 'lucide-react';
 import { WeightCategory } from '../types';
 
 interface CategoriesPanelProps {
@@ -10,11 +10,12 @@ interface CategoriesPanelProps {
   onUpdateCategoryRing: (categoryKey: string, ring: number) => void;
   shuffleSeed: boolean;
   setShuffleSeed: (shuffle: boolean) => void;
-  onGenerateBrackets: () => void;
+  onGenerateBrackets: (targetRing?: number) => void;
   ringLabelFormat: 'number' | 'letter';
   setRingLabelFormat: (format: 'number' | 'letter') => void;
   onExportPdf: () => void;
   hasBrackets: boolean;
+  onDeleteCategory?: (categoryKey: string) => void;
 }
 
 export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
@@ -30,13 +31,15 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setRingLabelFormat,
   onExportPdf,
   hasBrackets,
+  onDeleteCategory,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
   const [dragOverRing, setDragOverRing] = useState<number | null>(null);
+  const [selectedGenRing, setSelectedGenRing] = useState<string>('all');
 
   const catKeys = Object.keys(categories);
-  const eligibleKeys = catKeys.filter(k => categories[k].count >= 2);
+  const eligibleKeys = catKeys.filter(k => categories[k].count >= 1);
 
   // Unassigned keys (categories where ring is 0 or undefined)
   const unassignedKeys = catKeys.filter(
@@ -205,7 +208,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                     ) : (
                       filteredUnassignedKeys.map((key) => {
                         const cat = categories[key];
-                        const hasMatches = cat.count >= 2;
+                        const hasMatches = cat.count >= 1;
                         
                         return (
                           <tr
@@ -257,39 +260,54 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                               {cat.status === 'bad' && (
                                 <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 px-2.5 py-1 rounded-full text-xs font-bold border border-rose-100">
                                   <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                                  <span>Needs 2+ athletes</span>
+                                  <span>Empty category</span>
                                 </span>
                               )}
                             </td>
                             
                             {/* Ring selector dropdown inside the row */}
                             <td className="px-4 py-3.5 text-right">
-                              {hasMatches ? (
-                                <div className="inline-flex items-center gap-2">
-                                  <span className="text-xs text-slate-400 font-semibold">Ring</span>
-                                  <select
-                                    value={cat.ring || 0}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value, 10) || 0;
-                                      onUpdateCategoryRing(key, val);
+                              <div className="inline-flex items-center justify-end gap-2 w-full">
+                                {hasMatches ? (
+                                  <div className="inline-flex items-center gap-2">
+                                    <span className="text-xs text-slate-400 font-semibold">Ring</span>
+                                    <select
+                                      value={cat.ring || 0}
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value, 10) || 0;
+                                        onUpdateCategoryRing(key, val);
+                                      }}
+                                      className="bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-850 outline-none cursor-pointer transition-all"
+                                    >
+                                      <option value="0">Select...</option>
+                                      {Array.from({ length: ringCount }, (_, idx) => {
+                                        const val = idx + 1;
+                                        const label = ringLabelFormat === 'letter' ? String.fromCharCode(64 + val) : String(val);
+                                        return (
+                                          <option key={val} value={val}>
+                                            {label}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-350 italic text-xs">Exempted</span>
+                                )}
+                                {onDeleteCategory && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDeleteCategory(key);
                                     }}
-                                    className="bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-850 outline-none cursor-pointer transition-all"
+                                    className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-all shrink-0 cursor-pointer"
+                                    title={`Delete Weight Class "${key}"`}
                                   >
-                                    <option value="0">Select...</option>
-                                    {Array.from({ length: ringCount }, (_, idx) => {
-                                      const val = idx + 1;
-                                      const label = ringLabelFormat === 'letter' ? String.fromCharCode(64 + val) : String(val);
-                                      return (
-                                        <option key={val} value={val}>
-                                          {label}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                </div>
-                              ) : (
-                                <span className="text-slate-350 italic text-xs">Exempted</span>
-                              )}
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -387,14 +405,29 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                     {catKey}
                                   </span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => onUpdateCategoryRing(catKey, 0)}
-                                  className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-all shrink-0 cursor-pointer"
-                                  title="Unassign weight class and return to top list"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {onDeleteCategory && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteCategory(catKey);
+                                      }}
+                                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-all shrink-0 cursor-pointer animate-in fade-in"
+                                      title={`Delete Weight Class "${catKey}"`}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateCategoryRing(catKey, 0)}
+                                    className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-all shrink-0 cursor-pointer"
+                                    title="Unassign weight class and return to top list"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
 
                               <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold font-mono">
@@ -430,6 +463,19 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                         })
                       )}
                     </div>
+
+                    {/* Ring Draw Action button */}
+                    {ringCats.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => onGenerateBrackets(rVal)}
+                        className="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-amber-400 hover:text-amber-300 py-2 px-3 rounded-xl text-[10px] font-extrabold border border-slate-950 tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 text-center shadow-sm"
+                        title={`Draw tournament brackets exclusively for Ring ${rLabel}`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span>Draw Ring {rLabel} Brackets</span>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -449,17 +495,42 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
             </label>
 
             {/* Build buttons */}
-            <div className="flex flex-col gap-3 w-full sm:w-auto mt-4 sm:mt-0">
-              <button
-                onClick={onGenerateBrackets}
-                disabled={eligibleKeys.length === 0}
-                className="w-full sm:w-auto px-8 py-3 text-sm font-extrabold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Layers className="w-4 h-4" />
-                <span>Generate Brackets</span>
-              </button>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+              <div className="flex items-center bg-amber-500 rounded-xl shadow-lg shadow-amber-500/10 border border-amber-600/20 overflow-hidden w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => onGenerateBrackets(selectedGenRing === 'all' ? undefined : Number(selectedGenRing))}
+                  disabled={eligibleKeys.length === 0}
+                  className="px-6 py-3 text-sm font-extrabold text-slate-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-45 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2 border-r border-amber-650/20 flex-1 sm:flex-none"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>
+                    {selectedGenRing === 'all' 
+                      ? 'Generate All Brackets' 
+                      : `Draw Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + Number(selectedGenRing)) : selectedGenRing} Brackets`}
+                  </span>
+                </button>
+                <select
+                  value={selectedGenRing}
+                  onChange={(e) => setSelectedGenRing(e.target.value)}
+                  className="bg-amber-500 text-slate-950 font-extrabold text-xs px-2.5 py-3 h-full outline-none cursor-pointer hover:bg-amber-400 transition-colors border-none min-h-[44px]"
+                  title="Target generating and scheduling brackets to all rings or a specific ring"
+                >
+                  <option value="all">All Rings</option>
+                  {Array.from({ length: ringCount }, (_, idx) => {
+                    const rVal = idx + 1;
+                    const rLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + rVal) : String(rVal);
+                    return (
+                      <option key={rVal} value={rVal}>
+                        Ring {rLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
               
               <button
+                type="button"
                 onClick={onExportPdf}
                 disabled={!hasBrackets}
                 className="w-full sm:w-auto px-8 py-3 text-sm font-bold bg-slate-800 border border-slate-700 hover:bg-slate-700 text-white rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer active:scale-95 flex items-center justify-center gap-2"
