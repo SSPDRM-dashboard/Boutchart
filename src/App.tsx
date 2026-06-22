@@ -80,7 +80,7 @@ export default function App() {
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
-  const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('modern');
+  const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(false);
 
   const refreshSystemUsers = () => {
