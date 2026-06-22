@@ -224,7 +224,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const canvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
 
   const MAX_PRINT_WIDTH = 1050; // landscape width inside margins
-  const MAX_PRINT_HEIGHT = 400; // landscape height leaving room for headers and podium
+  const MAX_PRINT_HEIGHT = 600; // landscape height leaving room for headers and podium
   const scaleWidth = MAX_PRINT_WIDTH / canvasWidth;
   const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
   const printScale = Math.min(1, scaleWidth, scaleHeight);
@@ -306,7 +306,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
         @media print {
           #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
              transform: scale(${printScale}) !important;
-             transform-origin: top center !important;
+             transform-origin: top left !important;
           }
           #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
              width: ${canvasWidth * printScale}px !important;

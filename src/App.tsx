@@ -2110,15 +2110,15 @@ export default function App() {
                         </div>
                         <div>
                           <h4 className="font-black text-slate-900 text-base leading-tight group-hover:text-amber-600 transition-colors">
-                            Download PDF File
+                            Download PDF (Image Backup)
                           </h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-1.5 font-medium">
-                            Works reliably in all sandboxed previews. Compiles every single bracket sheet into a single landscape PDF document file.
+                            Compiles bracket sheets into a landscape PDF. NOTE: This is an image-based backup and text won't be searchable.
                           </p>
                         </div>
                       </div>
                       <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-amber-600">
-                        <span>Save PDF Document (.pdf)</span>
+                        <span>Save Image PDF (.pdf)</span>
                         <span className="text-lg">→</span>
                       </div>
                     </button>
@@ -2139,15 +2139,15 @@ export default function App() {
                         </div>
                         <div>
                           <h4 className="font-black text-slate-900 text-base leading-tight">
-                            Local Browser Printer
+                            Text-Searchable PDF / Print
                           </h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-1.5 font-medium">
-                            Opens the system printer driver controls. Directly output to hardware printer or customize browser-managed PDF parameters.
+                            Uses the browser printer. Choose "Save as PDF" for a text-searchable, high-quality vector PDF document.
                           </p>
                         </div>
                       </div>
                       <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-slate-700">
-                        <span>Physical Print / Browser driver</span>
+                        <span>Browser Print (Save as PDF)</span>
                         <span className="text-lg">→</span>
                       </div>
                     </button>
