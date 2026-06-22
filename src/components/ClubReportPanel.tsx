@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download, Share2, Copy, Check } from 'lucide-react';
+import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download, Share2, Copy, Check, Trash2 } from 'lucide-react';
 import { Athlete, WeightCategory, BracketModel } from '../types';
 import { compressToGzipBase64 } from '../utils/compression';
 
@@ -8,8 +8,10 @@ interface ClubReportPanelProps {
   brackets: Record<string, BracketModel>;
   roster: Athlete[];
   ringLabelFormat: 'number' | 'letter';
+  boutLabelFormat?: 'alpha-2' | 'thousands-3';
   tournamentName?: string;
   isPublicView?: boolean;
+  onUpdateStandings?: (catKey: string, nextStandings: string[]) => void;
 }
 
 interface PlayerFightInfo {
@@ -32,14 +34,18 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   brackets,
   roster,
   ringLabelFormat,
+  boutLabelFormat = 'alpha-2',
   tournamentName = '',
   isPublicView = false,
+  onUpdateStandings,
 }) => {
   const [selectedClub, setSelectedClub] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showOnlyScheduled, setShowOnlyScheduled] = useState<boolean>(true);
   
-  // Choose between 'photo-matrix' (current tabular grid) or 'classic-cards' (previous layout)
-  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards'>('photo-matrix');
+  // Choose between 'photo-matrix', 'classic-cards', or 'medal-standings'
+  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings'>('photo-matrix');
+  const [expandedClub, setExpandedClub] = useState<string | null>(null);
 
   const [shareStatus, setShareStatus] = useState<'silent' | 'loading' | 'copied' | 'error'>('silent');
   const [shareUrl, setShareUrl] = useState('');
@@ -113,14 +119,36 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     return String(ringNum);
   };
 
-  // 2. Bout ID format helper (e.g. A02)
+  // 2. Bout ID format helper (e.g. A02 / 1001)
   const getFormattedBout = (ring: string | number, boutNumber: number | undefined): string => {
     if (boutNumber === undefined) return '';
-    const trimmed = String(ring).trim();
-    const match = trimmed.match(/([a-zA-Z0-9]+)$/);
-    const prefix = match ? match[1].toUpperCase() : 'R';
-    const padded = String(boutNumber).padStart(2, '0');
-    return `${prefix}${padded}`;
+
+    let ringNum = 1;
+    if (typeof ring === 'number') {
+      ringNum = ring;
+    } else {
+      const cleaned = String(ring).trim().toLowerCase();
+      const numMatch = cleaned.match(/\d+$/);
+      if (numMatch) {
+        ringNum = parseInt(numMatch[0], 10);
+      } else {
+        const letterMatch = cleaned.match(/[a-z]$/);
+        if (letterMatch) {
+          ringNum = letterMatch[0].charCodeAt(0) - 96;
+        }
+      }
+    }
+
+    if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+
+    if (boutLabelFormat === 'thousands-3') {
+      const pad = String(boutNumber).padStart(3, '0');
+      return `${ringNum}${pad}`;
+    } else {
+      const letter = String.fromCharCode(64 + ringNum);
+      const pad = String(boutNumber).padStart(2, '0');
+      return `${letter}${pad}`;
+    }
   };
 
   // 3. Human-readable round name helper
@@ -137,6 +165,17 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
   // Add from original roster
   roster.forEach(a => {
+    const catKey = a.weight?.trim() || 'Unspecified';
+    const cat = categories[catKey];
+    const bracketModel = brackets[catKey];
+    
+    // If the category has only 1 player and they are removed from standings/report
+    if (cat && cat.count === 1) {
+      if (bracketModel && bracketModel.standings?.[0] === '_REMOVED_') {
+        return; // Exclude from overall report
+      }
+    }
+
     const key = `${a.name.trim().toLowerCase()}||${a.club.trim().toLowerCase()}||${a.weight.trim().toLowerCase()}`;
     if (!athleteKeySet.has(key)) {
       athleteKeySet.add(key);
@@ -151,6 +190,15 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   // Add from bracket leaf nodes to cover manual changes/overrides
   Object.keys(brackets).forEach(catKey => {
     const model = brackets[catKey];
+    const cat = categories[catKey];
+    
+    // If the category has only 1 player and they are removed from standings/report
+    if (cat && cat.count === 1) {
+      if (model && model.standings?.[0] === '_REMOVED_') {
+        return; // Exclude from overall report
+      }
+    }
+
     if (model && model.nodes[0]) {
       model.nodes[0].forEach(node => {
         if (node.name && node.name !== 'BYE') {
@@ -223,7 +271,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     const fullKey = `${athlete.name}||${athlete.club}||${athlete.weight}`;
     const cat = categories[athlete.weight];
     const model = brackets[athlete.weight];
-    const ringLabel = getRingLabel((cat?.ring) || 1);
+    const ringLabel = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
 
     const bouts: PlayerFightInfo['bouts'] = [];
 
@@ -382,7 +430,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       });
 
       return [
-        `Ring ${fightInfo?.ringLabel || 'A'}`,
+        fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`,
         ath.weight,
         ath.club,
         ath.name,
@@ -411,6 +459,207 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     window.print();
   };
 
+  // Compute Medal Standings dynamically
+  interface ClubMedalEntry {
+    clubName: string;
+    gold: number;
+    silver: number;
+    bronze: number;
+    total: number;
+    points: number;
+    competitors: number;
+    details: Array<{
+      athleteName: string;
+      medalType: 'gold' | 'silver' | 'bronze';
+      division: string;
+      slotIdx: number;
+    }>;
+  }
+
+  const handleRemoveMedalist = (catKey: string, slotIdx: number) => {
+    if (!onUpdateStandings) return;
+    const model = brackets[catKey];
+    if (!model) return;
+    const currentStandings = [
+      model.standings?.[0] || '',
+      model.standings?.[1] || '',
+      model.standings?.[2] || '',
+      model.standings?.[3] || '',
+    ];
+    currentStandings[slotIdx] = '_REMOVED_';
+    onUpdateStandings(catKey, currentStandings);
+  };
+
+  const computeMedalStandings = (): ClubMedalEntry[] => {
+    const clubMap: Record<string, Omit<ClubMedalEntry, 'clubName'>> = {};
+
+    // Initialize all clubs found in the tournament
+    clubList.forEach(club => {
+      clubMap[club] = {
+        gold: 0,
+        silver: 0,
+        bronze: 0,
+        total: 0,
+        points: 0,
+        competitors: athleteList.filter(a => a.club === club).length,
+        details: []
+      };
+    });
+
+    const findClubForAthleteInDivision = (athName: string, divName: string): string => {
+      if (!athName) return '';
+      const lowerName = athName.trim().toLowerCase();
+      const lowerDiv = divName.trim().toLowerCase();
+      const matchDivName = athleteList.find(a => a.name.toLowerCase() === lowerName && a.weight.toLowerCase() === lowerDiv);
+      if (matchDivName) return matchDivName.club;
+      const matchNameOnly = athleteList.find(a => a.name.toLowerCase() === lowerName);
+      if (matchNameOnly) return matchNameOnly.club;
+      return 'Unassigned Club';
+    };
+
+    // Calculate per bracket
+    Object.keys(brackets).forEach(catKey => {
+      const model = brackets[catKey];
+      if (!model) return;
+
+      const currentStandings = [
+        model.standings?.[0] || '',
+        model.standings?.[1] || '',
+        model.standings?.[2] || '',
+        model.standings?.[3] || '',
+      ];
+      const numRounds = model.numRounds;
+
+      // 1st place (Gold)
+      let goldName = currentStandings[0];
+      if (goldName === '_REMOVED_') {
+        goldName = '';
+      } else if (!goldName && model.nodes[numRounds]?.[0]?.name) {
+        goldName = model.nodes[numRounds][0].name;
+      }
+      
+      // 2nd place (Silver)
+      let silverName = currentStandings[1];
+      if (silverName === '_REMOVED_') {
+        silverName = '';
+      } else if (!silverName && model.nodes[numRounds]?.[0]?.name && (model.nodes[numRounds - 1]?.[0]?.checked || model.nodes[numRounds - 1]?.[1]?.checked)) {
+        silverName = model.nodes[numRounds - 1][0].checked ? model.nodes[numRounds - 1][1].name : model.nodes[numRounds - 1][0].name;
+      }
+
+      // 3rd place 1 (Bronze)
+      let bronze1Name = currentStandings[2];
+      if (bronze1Name === '_REMOVED_') {
+        bronze1Name = '';
+      } else if (!bronze1Name && numRounds >= 2) {
+        const semi0Winner = model.nodes[numRounds - 1]?.[0]?.name;
+        if (semi0Winner && model.nodes[numRounds - 2]?.[0] && model.nodes[numRounds - 2]?.[1]) {
+          bronze1Name = model.nodes[numRounds - 2][0].checked ? model.nodes[numRounds - 2][1].name : model.nodes[numRounds - 2][0].name;
+        }
+      }
+
+      // 3rd place 2 (Bronze)
+      let bronze2Name = currentStandings[3];
+      if (bronze2Name === '_REMOVED_') {
+        bronze2Name = '';
+      } else if (!bronze2Name && numRounds >= 2) {
+        const semi1Winner = model.nodes[numRounds - 1]?.[1]?.name;
+        if (semi1Winner && model.nodes[numRounds - 2]?.[2] && model.nodes[numRounds - 2]?.[3]) {
+          bronze2Name = model.nodes[numRounds - 2][2].checked ? model.nodes[numRounds - 2][3].name : model.nodes[numRounds - 2][2].name;
+        }
+      }
+
+      const processMedal = (name: string, type: 'gold' | 'silver' | 'bronze', slotIdx: number) => {
+        if (!name || name === 'BYE') return;
+        const clubName = findClubForAthleteInDivision(name, catKey);
+        if (!clubName) return;
+
+        // Ensure club exists in map
+        if (!clubMap[clubName]) {
+          clubMap[clubName] = {
+            gold: 0,
+            silver: 0,
+            bronze: 0,
+            total: 0,
+            points: 0,
+            competitors: athleteList.filter(a => a.club === clubName).length,
+            details: []
+          };
+        }
+
+        const entry = clubMap[clubName];
+        if (type === 'gold') {
+          entry.gold += 1;
+          entry.points += 5;
+        } else if (type === 'silver') {
+          entry.silver += 1;
+          entry.points += 3;
+        } else if (type === 'bronze') {
+          entry.bronze += 1;
+          entry.points += 1;
+        }
+        entry.total += 1;
+        entry.details.push({ athleteName: name, medalType: type, division: catKey, slotIdx });
+      };
+
+      processMedal(goldName, 'gold', 0);
+      processMedal(silverName, 'silver', 1);
+      processMedal(bronze1Name, 'bronze', 2);
+      processMedal(bronze2Name, 'bronze', 3);
+    });
+
+    return Object.entries(clubMap)
+      .map(([clubName, values]) => ({
+        clubName,
+        ...values
+      }))
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.gold !== a.gold) return b.gold - a.gold;
+        if (b.silver !== a.silver) return b.silver - a.silver;
+        if (b.bronze !== a.bronze) return b.bronze - a.bronze;
+        return a.clubName.localeCompare(b.clubName);
+      });
+  };
+
+  const downloadClubMedalStandingsCSV = () => {
+    const headers = [
+      "Rank",
+      "Club Name",
+      "Registered Competitors",
+      "Gold Medals",
+      "Silver Medals",
+      "Bronze Medals",
+      "Total Medals",
+      "Championship Points (Gold=5, Silver=3, Bronze=1)"
+    ];
+
+    const standings = computeMedalStandings();
+    const rows = standings.map((club, index) => [
+      index + 1,
+      club.clubName,
+      club.competitors,
+      club.gold,
+      club.silver,
+      club.bronze,
+      club.total,
+      club.points
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${tournamentName || 'Tournament'}_Club_Medal_Standings.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filter and compute matches
   const filteredAthletes = athleteList.filter(ath => {
     const matchesClub = selectedClub === 'all' || ath.club === selectedClub;
@@ -418,7 +667,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       ath.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       ath.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ath.weight.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesClub && matchesSearch;
+    
+    const matchesScheduled = !showOnlyScheduled || !!brackets[ath.weight];
+    return matchesClub && matchesSearch && matchesScheduled;
   });
 
   // Group sorted athletes
@@ -438,6 +689,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   });
 
   const visibleClubsForCards = Object.keys(groupedResults).sort((a, b) => a.localeCompare(b));
+  const medalStandings = computeMedalStandings();
 
   return (
     <section className="bg-white border border-slate-200 rounded-3xl p-6 mb-8 shadow-sm print:border-0 print:shadow-none print:p-0">
@@ -475,12 +727,18 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           {!isPublicView && (
             <button
               type="button"
-              onClick={() => downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined)}
+              onClick={() => {
+                if (reportStyle === 'medal-standings') {
+                  downloadClubMedalStandingsCSV();
+                } else {
+                  downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
+                }
+              }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title="Download fight schedules for current filtered selection as a CSV spreadsheet"
+              title={reportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
             >
               <Download className="w-4 h-4 text-emerald-100" />
-              <span>Export CSV Report</span>
+              <span>{reportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
             </button>
           )}
 
@@ -560,18 +818,35 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     <Grid className="w-3.5 h-3.5" />
                     <span>Taekwondo Matrix Grid (Reference Photo)</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('classic-cards')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'classic-cards'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <AlignJustify className="w-3.5 h-3.5" />
-                    <span>Classic Card Deck (Matchups Style)</span>
-                  </button>
+                  
+                  {!isPublicView && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('classic-cards')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'classic-cards'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <AlignJustify className="w-3.5 h-3.5" />
+                        <span>Classic Card Deck (Matchups Style)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('medal-standings')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'medal-standings'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <span>🏆 Club Medal Standings &amp; Points</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -596,10 +871,32 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer transition-all max-w-[200px]"
                 >
                   <option value="all">All Registered Clubs ({clubList.length})</option>
-                  {clubList.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
+                  {clubList.map(name => {
+                    const stats = medalStandings.find(s => s.clubName === name);
+                    const ptsSuffix = stats ? ` (${stats.points} pts)` : ' (0 pts)';
+                    return (
+                      <option key={name} value={name}>
+                        {name}{ptsSuffix}
+                      </option>
+                    );
+                  })}
                 </select>
+
+                {/* Only Show Scheduled / Toggle */}
+                {reportStyle !== 'medal-standings' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOnlyScheduled(!showOnlyScheduled)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                      showOnlyScheduled
+                        ? 'bg-amber-150 border-amber-300 text-amber-950 font-black'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${showOnlyScheduled ? 'bg-amber-600 animate-pulse' : 'bg-slate-400'}`} />
+                    <span>{showOnlyScheduled ? 'Scheduled Fights Only' : 'Show All Registered'}</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -675,8 +972,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         >
                           {/* Ring and Division */}
                           <td className="px-4 py-3 border border-[#cbd5e1] align-middle bg-slate-50/20 print:bg-transparent">
-                            <span className="font-extrabold text-[#0c2e5c] text-[11px] block uppercase tracking-wide">
-                              Ring {fightInfo?.ringLabel || 'A'}
+                            <span className={`font-extrabold text-[11px] block uppercase tracking-wide ${
+                              fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400 font-bold' : 'text-[#0c2e5c]'
+                            }`}>
+                              {fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`}
                             </span>
                             <span className="text-slate-500 text-[10px] block mt-0.5 font-bold leading-tight uppercase font-sans">
                               {ath.weight}
@@ -766,8 +1065,17 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         <div className="flex items-center gap-2.5">
                           <Users className="w-5 h-5 text-amber-400 shrink-0 print:hidden" />
                           <div>
-                            <h3 className="font-extrabold text-base tracking-tight text-white print:text-slate-950 font-sans print:font-black">
-                              {clubName}
+                            <h3 className="font-extrabold text-base tracking-tight text-white print:text-slate-950 font-sans print:font-black flex flex-wrap items-center gap-2">
+                              <span>{clubName}</span>
+                              {(() => {
+                                const stats = medalStandings.find(s => s.clubName === clubName);
+                                if (!stats || stats.points === 0) return null;
+                                return (
+                                  <span className="bg-amber-450/15 text-amber-300 border border-amber-400/30 text-[10px] uppercase font-black px-1.5 py-0.5 rounded shadow-2xs leading-none">
+                                    🏆 {stats.points} pts
+                                  </span>
+                                );
+                              })()}
                             </h3>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 print:text-slate-600">
                               Battle Card Deck &amp; Fighter Roster
@@ -813,8 +1121,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                   <span className="bg-slate-105 hover:bg-slate-200/80 text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wide border border-slate-200/60 print:bg-white print:border print:border-slate-300">
                                     {ath.weight}
                                   </span>
-                                  <span className="text-slate-450 text-[11px] font-bold font-mono">
-                                    {fightInfo?.ringLabel ? `Mat / Ring: ${fightInfo.ringLabel}` : 'No allocation'}
+                                  <span className={`text-[11px] font-bold font-mono ${
+                                    fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400' : 'text-slate-500'
+                                  }`}>
+                                    {fightInfo?.ringLabel === 'Unassigned' ? 'No Allocation' : `Mat / Ring: ${fightInfo?.ringLabel || 'A'}`}
                                   </span>
                                 </div>
                               </div>
@@ -822,17 +1132,37 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                               {/* Right column: Bouts list cards */}
                               <div className="flex-1">
                                 {athleteBouts.length === 0 ? (
-                                  <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
-                                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
-                                    <div>
-                                      <p className="text-[11px] font-bold text-slate-800 leading-snug">
-                                        Waiting / Bye Bye Allocation
-                                      </p>
-                                      <p className="text-[9px] text-slate-500 mt-0.5">
-                                        This competitor starts the bracket tree with an initial Bye slot.
-                                      </p>
-                                    </div>
-                                  </div>
+                                  (() => {
+                                    const hasBracket = !!brackets[ath.weight];
+                                    if (!hasBracket) {
+                                      return (
+                                        <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
+                                          <ShieldAlert className="w-4.5 h-4.5 text-slate-400 shrink-0" />
+                                          <div>
+                                            <p className="text-[11px] font-bold text-slate-500 leading-snug">
+                                              No Bracket Drawn Yet
+                                            </p>
+                                            <p className="text-[9px] text-slate-400 mt-0.5">
+                                              This category has not been drawn or assigned a competition ring to generate combat matching.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
+                                        <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                        <div>
+                                          <p className="text-[11px] font-bold text-slate-800 leading-snug">
+                                            Waiting / Bye Allocation
+                                          </p>
+                                          <p className="text-[9px] text-slate-500 mt-0.5">
+                                            This competitor starts the bracket tree with an initial Bye slot.
+                                          </p>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()
                                 ) : (
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {athleteBouts.map(bout => {
@@ -868,7 +1198,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                             </p>
 
                                             {bout.opponentClub && !bout.opponentName.startsWith('Winner of') && (
-                                              <p className="text-[10px] text-slate-505 font-bold italic mt-1 flex items-center gap-1 pl-4">
+                                              <p className="text-[10px] text-slate-500 font-bold italic mt-1 flex items-center gap-1 pl-4">
                                                 <span>🏠</span>
                                                 <span>{bout.opponentClub}</span>
                                               </p>
@@ -890,6 +1220,262 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               </div>
             )
           )}
+
+          {/* STYLE 3: CLUB MEDAL STANDINGS LAYOUT */}
+          {reportStyle === 'medal-standings' && (() => {
+            const standings = medalStandings;
+            
+            // Total summary stats
+            const totalGolds = standings.reduce((sum, item) => sum + item.gold, 0);
+            const totalSilvers = standings.reduce((sum, item) => sum + item.silver, 0);
+            const totalBronzes = standings.reduce((sum, item) => sum + item.bronze, 0);
+            const topClub = standings[0];
+
+            return (
+              <div className="space-y-6">
+                {/* Visual scorecard metrics summary */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
+                  <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="bg-[#b45309] text-white p-2.5 rounded-lg shadow-sm">
+                      <Award className="w-5 h-5 text-amber-300" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Overall Leader</span>
+                      <p className="font-extrabold text-slate-900 text-sm truncate max-w-[150px]" title={topClub?.clubName || 'N/A'}>
+                        {topClub ? topClub.clubName : 'N/A'}
+                      </p>
+                      <p className="text-[11px] font-sans text-slate-500 font-bold mt-0.5">
+                        {topClub ? `${topClub.points} Championship Pts` : 'No points registered'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="bg-amber-400 text-slate-950 p-2.5 rounded-lg shadow-sm">
+                      <span className="font-black text-sm">🥇</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Gold Medals</span>
+                      <p className="font-extrabold text-slate-900 text-sm leading-tight">
+                        {totalGolds} Count
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 font-mono">5 Pts each</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="bg-slate-350 text-slate-800 p-2.5 rounded-lg shadow-sm">
+                      <span className="font-black text-sm">🥈</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Silver Medals</span>
+                      <p className="font-extrabold text-slate-900 text-sm leading-tight">
+                        {totalSilvers} Count
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 font-mono">3 Pts each</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="bg-amber-700/80 text-white p-2.5 rounded-lg shadow-sm">
+                      <span className="font-black text-sm">🥉</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Bronze Medals</span>
+                      <p className="font-extrabold text-slate-900 text-sm leading-tight">
+                        {totalBronzes} Count
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 font-mono">1 Pt each</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Standings Table layout */}
+                <div className="overflow-hidden border border-slate-200 rounded-xl shadow-xs bg-white">
+                  <table className="w-full border-collapse text-left table-auto">
+                    <thead>
+                      <tr className="bg-slate-900 text-white print:bg-slate-100 print:text-black border-b border-slate-250">
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-16 print:text-black">Rank</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-left print:text-black">Club Affiliation Name</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-24 print:text-black">Delegation</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-24 print:text-black text-amber-500">🥇 Gold</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-24 print:text-black text-slate-350">🥈 Silver</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-24 print:text-black text-amber-700">🥉 Bronze</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-28 print:text-black">Total Medals</th>
+                        <th className="px-4 py-3 text-[11px] font-black uppercase tracking-wider text-center w-32 print:text-black">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {standings.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-10 text-slate-400 font-medium text-sm">
+                            No clubs or competitors found to calculate standings.
+                          </td>
+                        </tr>
+                      ) : (
+                        standings.map((club, index) => {
+                          const isExpanded = expandedClub === club.clubName;
+                          const showArrow = club.details.length > 0;
+                          
+                          // Badge styling for top 3
+                          let rankBadge = <span className="font-mono font-black text-slate-500 text-xs">{index + 1}</span>;
+                          if (index === 0) rankBadge = <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center font-black text-amber-700 border border-amber-300">🥇</span>;
+                          else if (index === 1) rankBadge = <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-700 border border-slate-300">🥈</span>;
+                          else if (index === 2) rankBadge = <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center font-black text-amber-800 border border-amber-200">🥉</span>;
+
+                          return (
+                            <React.Fragment key={club.clubName}>
+                              {/* Main row */}
+                              <tr 
+                                onClick={() => showArrow && setExpandedClub(isExpanded ? null : club.clubName)}
+                                className={`transition-all duration-150 relative select-none hover:bg-slate-50/50 ${
+                                  showArrow ? 'cursor-pointer' : ''
+                                } ${isExpanded ? 'bg-amber-50/10' : ''}`}
+                              >
+                                {/* Rank */}
+                                <td className="px-4 py-3 align-middle text-center">
+                                  <div className="flex items-center justify-center">
+                                    {rankBadge}
+                                  </div>
+                                </td>
+
+                                {/* Club name & details toggler */}
+                                <td className="px-4 py-3 align-middle font-extrabold text-slate-900 text-xs tracking-wider uppercase">
+                                  <div className="flex items-center gap-2">
+                                    <span>{club.clubName || 'Unattached / Independent'}</span>
+                                    {showArrow && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase tracking-widest leading-none no-print group-hover:bg-slate-200">
+                                        {club.details.length} Medalist{club.details.length === 1 ? '' : 's'} {isExpanded ? '▲' : '▼'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Competitors count */}
+                                <td className="px-4 py-3 align-middle text-center text-xs font-semibold text-slate-500">
+                                  {club.competitors} Athlete{club.competitors === 1 ? '' : 's'}
+                                </td>
+
+                                {/* Medals breakdown */}
+                                <td className="px-4 py-3 align-middle text-center text-xs font-black text-slate-950">
+                                  {club.gold > 0 ? (
+                                    <span className="bg-amber-50 text-amber-800 border border-amber-200 py-0.5 px-2 rounded-md font-bold text-[10px]">
+                                      {club.gold} Gold
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 font-bold">-</span>
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-3 align-middle text-center text-xs font-black text-slate-950">
+                                  {club.silver > 0 ? (
+                                    <span className="bg-slate-50 text-slate-800 border border-slate-200 py-0.5 px-2 rounded-md font-bold text-[10px]">
+                                      {club.silver} Silver
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 font-bold">-</span>
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-3 align-middle text-center text-xs font-black text-slate-950">
+                                  {club.bronze > 0 ? (
+                                    <span className="bg-amber-50/50 text-amber-900 border border-amber-200/50 py-0.5 px-2 rounded-md font-bold text-[10px]">
+                                      {club.bronze} Bronze
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 font-bold">-</span>
+                                  )}
+                                </td>
+
+                                {/* Total medals count */}
+                                <td className="px-4 py-3 align-middle text-center text-xs font-bold text-slate-700">
+                                  <span className="bg-slate-100 px-2 py-0.5 rounded font-extrabold text-[11px]">
+                                    {club.total}
+                                  </span>
+                                </td>
+
+                                {/* Championship Points */}
+                                <td className="px-4 py-3 align-middle text-center">
+                                  <span className="text-xs bg-slate-900 text-amber-400 font-black px-3 py-1 rounded-lg shadow-2xs font-mono select-none">
+                                    {club.points} pts
+                                  </span>
+                                </td>
+                              </tr>
+
+                              {/* Expandable medal detail list */}
+                              {isExpanded && showArrow && (
+                                <tr className="bg-slate-50/40 print:bg-transparent">
+                                  <td colSpan={8} className="p-0 border-t border-slate-100">
+                                    <div className="px-8 py-3.5 divide-y divide-slate-100 text-left border-l-4 border-amber-500 bg-slate-50/20 max-w-full">
+                                      <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center justify-between">
+                                        <span>Medalist roster breakdown for {club.clubName}</span>
+                                        <span className="font-mono text-slate-500 italic">Gold: 5 points · Silver: 3 points · Bronze: 1 point</span>
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1.5 pb-2.5">
+                                        {club.details.map((med, dIdx) => {
+                                          let medalBadge = <span className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] uppercase font-black px-2 py-0.5 rounded shadow-2xs shrink-0">🥇 Gold</span>;
+                                          if (med.medalType === 'silver') {
+                                            medalBadge = <span className="bg-slate-100 text-slate-800 border border-slate-300 text-[10px] uppercase font-black px-2 py-0.5 rounded shadow-2xs shrink-0">🥈 Silver</span>;
+                                          } else if (med.medalType === 'bronze') {
+                                            medalBadge = <span className="bg-amber-50 text-amber-900 border border-amber-200/50 text-[10px] uppercase font-black px-2 py-0.5 rounded shadow-2xs shrink-0">🥉 Bronze</span>;
+                                          }
+
+                                          return (
+                                            <div key={dIdx} className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center justify-between shadow-2xs hover:border-amber-400/65 transition-all">
+                                              <div className="min-w-0 pr-2">
+                                                <p className="font-extrabold text-xs text-slate-800 truncate uppercase tracking-wider">{med.athleteName}</p>
+                                                <p className="text-[9px] text-slate-500 font-extrabold uppercase mt-1 tracking-wider">{med.division}</p>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                {medalBadge}
+                                                {!isPublicView && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      if (window.confirm(`Are you sure you want to remove ${med.athleteName} from the medal standings in ${categories[med.division]?.name || med.division}?`)) {
+                                                        handleRemoveMedalist(med.division, med.slotIdx);
+                                                      }
+                                                    }}
+                                                    className="p-1.5 text-rose-600 hover:text-white hover:bg-rose-600 border border-transparent rounded bg-slate-50 hover:border-rose-650 transition-all cursor-pointer no-print flex items-center justify-center"
+                                                    title="Strip medalist status from this bracket slot"
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Helpful instructions for directors / coaches */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs leading-relaxed space-y-1.5 shadow-3xs max-w-2xl no-print">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                    <HelpCircle className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>How Overall Medal Standings work:</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 pl-1 text-[11px] font-medium text-slate-500">
+                    <li>Rankings are computed dynamically from each weight division bracket's gold, runner-up, and dual-bronze slots.</li>
+                    <li><strong>Custom Podium Override:</strong> You can drag/drop and manually override podium slots inside any individual category's bracket canvas to immediately update these overall tallies.</li>
+                    <li><strong>Championship Points Equation:</strong> Clubs earn <strong className="font-bold text-slate-700">5 pts</strong> per Gold medal, <strong className="font-bold text-slate-700">3 pts</strong> per Silver, and <strong className="font-bold text-slate-700">1 pt</strong> per Bronze.</li>
+                    <li>Expand any club row above to see exactly which divisions and athletes secure their position!</li>
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
 
         </div>
       )}

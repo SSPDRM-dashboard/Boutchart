@@ -6,6 +6,7 @@ import { BracketCanvas } from './components/BracketCanvas';
 import { ClubReportPanel } from './components/ClubReportPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
+import { PdfBracketParserPanel } from './components/PdfBracketParserPanel';
 import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent } from './types';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -15,6 +16,7 @@ import {
   groupRoster,
   buildBracketModel,
   assignAllBoutNumbers,
+  applyParsedBoutNumbers,
   handleCheckboxToggle,
   handleTextChange,
   handleUpdateLeafNode,
@@ -22,7 +24,7 @@ import {
   shuffle,
   findDuplicateAthletes
 } from './utils/bracketUtils';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2 } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -51,13 +53,15 @@ export default function App() {
   const [roster, setRoster] = useState<Athlete[]>([]);
   const [categories, setCategories] = useState<Record<string, WeightCategory>>({});
   const [brackets, setBrackets] = useState<Record<string, BracketModel>>({});
-  const [ringCount, setRingCount] = useState(4);
-  const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('number');
+  const [ringCount, setRingCount] = useState(13);
+  const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
+  const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'account'>('brackets');
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'account' | 'pdf-bracket'>('brackets');
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
   const [pdfError, setPdfError] = useState('');
@@ -81,11 +85,15 @@ export default function App() {
 
   const refreshSystemUsers = () => {
     const usersStr = localStorage.getItem('bracket_builder_users_db');
-    if (usersStr) {
-      setSystemUsers(JSON.parse(usersStr));
-    } else {
-      setSystemUsers({ admin: 'admin' });
+    let usersDb: Record<string, string> = usersStr ? JSON.parse(usersStr) : {};
+    
+    // Auto-seed admin if not present
+    if (!usersDb['admin']) {
+      usersDb['admin'] = 'admin';
+      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
     }
+    
+    setSystemUsers(usersDb);
   };
 
   const handleLogout = () => {
@@ -247,6 +255,7 @@ export default function App() {
           if (snap.brackets) setBrackets(snap.brackets);
           if (snap.ringCount) setRingCount(snap.ringCount);
           if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+          if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
           if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
           if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
           
@@ -281,6 +290,7 @@ export default function App() {
           brackets,
           ringCount,
           ringLabelFormat,
+          boutLabelFormat,
           shuffleSeed,
           dismissedDuplicates,
         };
@@ -300,7 +310,7 @@ export default function App() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
+  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
 
   // 3. Import Core Roster Handler
   const handleLoadRoster = (text: string, source: string) => {
@@ -350,6 +360,77 @@ export default function App() {
       type: 'ok',
     });
     setPendingRosterImport(null);
+  };
+
+  const handleImportPdfDivisions = (
+    importedDivisions: Array<{
+      categoryName: string;
+      competitors: Array<{ name: string; club: string }>;
+      bouts?: Array<{ athlete1: string; athlete2: string; boutNumber: number }>;
+    }>,
+    ringAllocations: Record<string, number>,
+    shouldReplace: boolean
+  ) => {
+    // 1. Create Athlete entries from raw extracted competitors
+    const newAthletes: Athlete[] = [];
+    importedDivisions.forEach((div) => {
+      div.competitors.forEach((comp) => {
+        if (!comp.name || comp.name.trim() === '' || comp.name.toLowerCase() === 'bye') {
+          return;
+        }
+        newAthletes.push({
+          name: comp.name.trim(),
+          club: (comp.club || 'Unattached').trim(),
+          weight: div.categoryName.trim(),
+        });
+      });
+    });
+
+    // 2. Compute final roster state
+    const nextRoster = shouldReplace ? newAthletes : [...roster, ...newAthletes];
+    setRoster(nextRoster);
+    setDismissedDuplicates([]);
+
+    // 3. Keep existing configured rings and overlay new ring allocations
+    const ringConfigs: Record<string, { ring: number }> = {};
+    if (!shouldReplace) {
+      Object.keys(categories).forEach((key) => {
+        ringConfigs[key] = { ring: categories[key].ring || 1 };
+      });
+    }
+    Object.keys(ringAllocations).forEach((key) => {
+      ringConfigs[key] = { ring: ringAllocations[key] };
+    });
+
+    // 4. Update categories
+    const nextCategories = groupRoster(nextRoster, ringConfigs);
+    setCategories(nextCategories);
+
+    // 5. Autogenerate bracket drawings for new divisions
+    const nextBrackets = shouldReplace ? {} : { ...brackets };
+    importedDivisions.forEach((div) => {
+      const key = div.categoryName.trim();
+      const cat = nextCategories[key];
+      if (cat && cat.entrants.length >= 1) {
+        let entrants = cat.entrants.slice(0, 64);
+        if (shuffleSeed) {
+          entrants = shuffle(entrants);
+        }
+        const model = buildBracketModel(entrants, cat.size, key);
+        if (div.bouts && div.bouts.length > 0) {
+          applyParsedBoutNumbers(model, div.bouts);
+        }
+        nextBrackets[key] = model;
+      }
+    });
+
+    assignAllBoutNumbers(nextCategories, nextBrackets);
+    setBrackets(nextBrackets);
+
+    setStatusMessage({
+      text: `Successfully imported ${newAthletes.length} athletes across ${importedDivisions.length} divisions and placed them into their ring allocations. Brackets populated with official bout numbers of the PDF!`,
+      type: 'ok',
+    });
   };
 
   const handleUseSample = () => {
@@ -556,7 +637,9 @@ export default function App() {
   const handleGenerateBrackets = (targetRing?: number) => {
     const keysAll = Object.keys(categories);
     const eligibleKeys = keysAll.filter((k) => {
-      const matchesRing = !targetRing || categories[k].ring === targetRing;
+      const matchesRing = !targetRing 
+        ? (categories[k].ring !== undefined && categories[k].ring > 0)
+        : categories[k].ring === targetRing;
       return categories[k].count >= 1 && matchesRing;
     });
 
@@ -586,7 +669,10 @@ export default function App() {
     }
 
     if (eligibleKeys.length === 0) {
-      setStatusMessage({ text: 'Ready-to-draw divisions (1+ entrants) are missing.', type: 'err' });
+      setStatusMessage({ 
+        text: 'No active weight classes (1+ entrants) are currently assigned to any Competition Ring. Please assign classes to rings first.', 
+        type: 'err' 
+      });
       return;
     }
 
@@ -667,6 +753,27 @@ export default function App() {
     });
   };
 
+  // 6.5 Reset Brackets Handler
+  const handleResetBrackets = () => {
+    askConfirmation({
+      title: 'Reset Tournament Brackets',
+      message: 'Are you sure you want to clear all generated tournament brackets and match progress? This will reset the tournament back to the Competition Ring Allocation phase so you can adjust ring layouts, weights, or categories first. Your athlete roster and category assignments will remain intact.',
+      confirmText: 'Reset to Ring Allocation',
+      isDanger: true,
+      onConfirm: () => {
+        setBrackets({});
+        setActiveTab('brackets');
+        setStatusMessage({
+          text: 'Generated brackets cleared! You are now back in the Competition Ring Allocation phase.',
+          type: 'ok',
+        });
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+      }
+    });
+  };
+
   // 7. Full Session Reset Handler
   const handleClearAll = () => {
     askConfirmation({
@@ -713,6 +820,7 @@ export default function App() {
       brackets,
       ringCount,
       ringLabelFormat,
+      boutLabelFormat,
       shuffleSeed,
       dismissedDuplicates,
     };
@@ -756,6 +864,7 @@ export default function App() {
           brackets,
           ringCount,
           ringLabelFormat,
+          boutLabelFormat,
           shuffleSeed,
           dismissedDuplicates,
         };
@@ -781,8 +890,9 @@ export default function App() {
       setRoster(target.roster || []);
       setCategories(target.categories || {});
       setBrackets(target.brackets || {});
-      setRingCount(target.ringCount || 4);
-      setRingLabelFormat(target.ringLabelFormat || 'number');
+      setRingCount(target.ringCount || 13);
+      setRingLabelFormat(target.ringLabelFormat || 'letter');
+      setBoutLabelFormat(target.boutLabelFormat || 'alpha-2');
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
       setCurrentEventId(target.id);
@@ -796,6 +906,7 @@ export default function App() {
         brackets: target.brackets,
         ringCount: target.ringCount,
         ringLabelFormat: target.ringLabelFormat,
+        boutLabelFormat: target.boutLabelFormat || 'alpha-2',
         shuffleSeed: target.shuffleSeed,
         dismissedDuplicates: target.dismissedDuplicates,
       };
@@ -1116,6 +1227,24 @@ export default function App() {
     return a.localeCompare(b);
   });
 
+  const filteredBracketKeys = bracketKeys.filter((key) => {
+    if (!adminSearchQuery.trim()) return true;
+    const lowerQuery = adminSearchQuery.trim().toLowerCase();
+    
+    // Match category/weight class name
+    if (key.toLowerCase().includes(lowerQuery)) return true;
+    
+    // Match player name or club name inside this category
+    const hasMatchingAthlete = roster.some(
+      (a) =>
+        (a.weight || 'Unspecified') === key &&
+        (a.name.toLowerCase().includes(lowerQuery) || (a.club && a.club.toLowerCase().includes(lowerQuery)))
+    );
+    if (hasMatchingAthlete) return true;
+    
+    return false;
+  });
+
   const duplicateGroups = findDuplicateAthletes(roster);
   const activeDuplicateGroups = duplicateGroups.filter(
     (g) => !dismissedDuplicates.includes(g.signature)
@@ -1136,8 +1265,9 @@ export default function App() {
     ringStats[r] = { count: 0, bouts: 0 };
   }
   Object.keys(categories).forEach((k) => {
-    const ring = categories[k].ring || 1;
-    if (ringStats[ring]) {
+    const ring = categories[k].ring;
+    const isValidRing = typeof ring === 'number' && ring >= 1 && ring <= ringCount;
+    if (isValidRing && ringStats[ring]) {
       ringStats[ring].count += categories[k].count;
       if (brackets[k]) {
         // count the active numbered bouts
@@ -1229,6 +1359,22 @@ export default function App() {
                     ) : (
                       <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('pdf-bracket')}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
+                      activeTab === 'pdf-bracket'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="text-base">📄</span>
+                    <span className="text-left flex-1 font-extrabold text-sm font-sans">PDF Bracket Parser</span>
+                    <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase animate-pulse shrink-0">
+                      AI
+                    </span>
                   </button>
 
                   <button
@@ -1600,9 +1746,12 @@ export default function App() {
                     onGenerateBrackets={handleGenerateBrackets}
                     ringLabelFormat={ringLabelFormat}
                     setRingLabelFormat={setRingLabelFormat}
+                    boutLabelFormat={boutLabelFormat}
+                    setBoutLabelFormat={setBoutLabelFormat}
                     onExportPdf={() => setShowExportModal(true)}
                     hasBrackets={bracketKeys.length > 0}
                     onDeleteCategory={handleDeleteCategory}
+                    onResetBrackets={handleResetBrackets}
                   />
                 )}
               </div>
@@ -1616,10 +1765,35 @@ export default function App() {
                   brackets={brackets}
                   roster={roster}
                   ringLabelFormat={ringLabelFormat}
+                  boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
                   isPublicView={isPublicReportOnly}
+                  onUpdateStandings={(catKey, nextStandings) => {
+                    setBrackets((prev) => {
+                      const existing = prev[catKey];
+                      if (!existing) return prev;
+                      return {
+                        ...prev,
+                        [catKey]: {
+                          ...existing,
+                          standings: nextStandings,
+                        },
+                      };
+                    });
+                  }}
                 />
               </div>
+            )}
+
+            {/* 2.5 AI PDF BRACKET PARSER VIEW */}
+            {activeTab === 'pdf-bracket' && (
+              <PdfBracketParserPanel
+                ringCount={ringCount}
+                ringLabelFormat={ringLabelFormat}
+                hasExistingRoster={roster.length > 0}
+                onImport={handleImportPdfDivisions}
+                onShowMessage={setStatusMessage}
+              />
             )}
 
             {/* 3. ACCOUNT / AUTHENTICATION VIEW */}
@@ -1673,44 +1847,124 @@ export default function App() {
                     <span className="text-xs bg-slate-200 text-slate-800 font-mono px-3 py-1 rounded-full font-bold no-print hidden md:inline-block">
                       {bracketKeys.length} active classes
                     </span>
+                    <button
+                      type="button"
+                      onClick={handleResetBrackets}
+                      className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 no-print"
+                      title="Reset all generated brackets back to competition allocation lanes"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset Brackets</span>
+                    </button>
                   </div>
                 </div>
 
-                <div className="space-y-6 print:space-y-0">
-                  {bracketKeys.map((key) => {
-                    const model = brackets[key];
-                    const cat = categories[key];
-                    return (
-                      <BracketCanvas
-                        key={key}
-                        bracket={model}
-                        ring={getRingLabel(cat.ring || 1)}
-                        entrantCount={cat.count}
-                        layout={bracketLayout}
-                        onReshuffle={() => handleReshuffleSingleCategory(key)}
-                        onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
-                        onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
-                        tournamentName={tournamentName}
-                        onUpdateLeafNode={(i, name, club, isBye) => {
-                          setBrackets((prev) => {
-                            const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
-                            assignAllBoutNumbers(categories, next);
-                            return next;
-                          });
-                        }}
-                        onSwapLeafNodes={(i, j) => {
-                          setBrackets((prev) => {
-                            const next = handleSwapLeafNodes(prev, key, i, j);
-                            assignAllBoutNumbers(categories, next);
-                            return next;
-                          });
-                        }}
-                        categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
-                        onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
-                      />
-                    );
-                  })}
+                {/* Search Engine Input Card */}
+                <div className="mb-6 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center gap-4 no-print animate-in fade-in duration-200">
+                  <div className="relative w-full flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-slate-400" />
+                    </span>
+                    <input
+                      id="bracketSearchEngine"
+                      type="text"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 focus:border-amber-500 rounded-xl text-sm font-semibold placeholder-slate-450 focus:outline-none focus:bg-white transition-all outline-none"
+                      placeholder="Search admin brackets by category (e.g. -60kg) or competitor/player name..."
+                      value={adminSearchQuery}
+                      onChange={(e) => setAdminSearchQuery(e.target.value)}
+                    />
+                    {adminSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminSearchQuery('')}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        title="Clear search query"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 text-xs font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
+                    {adminSearchQuery ? (
+                      <span>
+                        Found <strong className="text-slate-900 font-extrabold">{filteredBracketKeys.length}</strong> of{' '}
+                        <strong className="text-slate-700">{bracketKeys.length}</strong> categories
+                      </span>
+                    ) : (
+                      <span>All <strong className="text-slate-900 font-extrabold">{bracketKeys.length}</strong> categories listed</span>
+                    )}
+                  </div>
                 </div>
+
+                {filteredBracketKeys.length === 0 ? (
+                  <div className="bg-white border border-dashed border-slate-250 rounded-2xl p-10 text-center space-y-4 no-print my-6">
+                    <div className="inline-flex p-4 bg-amber-50 rounded-full border border-amber-100 text-amber-500">
+                      <Search className="w-8 h-8" />
+                    </div>
+                    <h3 className="font-extrabold text-slate-800 text-base">No brackets match your search query</h3>
+                    <p className="text-xs text-slate-550 max-w-md mx-auto leading-relaxed">
+                      We couldn't find any divisions or competitor/player names containing{' '}
+                      <strong className="font-semibold text-slate-800">"{adminSearchQuery}"</strong>. Please try a different term or press button below to reset.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAdminSearchQuery('')}
+                      className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-850 text-white font-bold px-4.5 py-2 rounded-xl text-xs transition-all active:scale-95 cursor-pointer shadow-sm"
+                    >
+                      <span>Clear Search Filter</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6 print:space-y-0">
+                    {filteredBracketKeys.map((key) => {
+                      const model = brackets[key];
+                      const cat = categories[key];
+                      return (
+                        <BracketCanvas
+                          key={key}
+                          bracket={model}
+                          ring={getRingLabel(cat.ring || 1)}
+                          entrantCount={cat.count}
+                          layout={bracketLayout}
+                          boutLabelFormat={boutLabelFormat}
+                          onReshuffle={() => handleReshuffleSingleCategory(key)}
+                          onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
+                          onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
+                          onUpdateStandings={(nextStandings) => {
+                            setBrackets((prev) => {
+                              const existing = prev[key];
+                              if (!existing) return prev;
+                              return {
+                                ...prev,
+                                [key]: {
+                                  ...existing,
+                                  standings: nextStandings,
+                                },
+                              };
+                            });
+                          }}
+                          tournamentName={tournamentName}
+                          onUpdateLeafNode={(i, name, club, isBye) => {
+                            setBrackets((prev) => {
+                              const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
+                              assignAllBoutNumbers(categories, next);
+                              return next;
+                            });
+                          }}
+                          onSwapLeafNodes={(i, j) => {
+                            setBrackets((prev) => {
+                              const next = handleSwapLeafNodes(prev, key, i, j);
+                              assignAllBoutNumbers(categories, next);
+                              return next;
+                            });
+                          }}
+                          categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
+                          onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

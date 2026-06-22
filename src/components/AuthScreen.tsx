@@ -19,8 +19,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login',
     setError(null);
     setSuccess(null);
 
-    const cleanUsername = username.trim();
-    if (!cleanUsername || !password) {
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanPassword = password.trim();
+    if (!cleanUsername || !cleanPassword) {
       setError('Please fill in all fields.');
       return;
     }
@@ -29,8 +30,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login',
     const usersStr = localStorage.getItem('bracket_builder_users_db');
     const usersDb: Record<string, string> = usersStr ? JSON.parse(usersStr) : {};
 
-    // Auto-seed an admin account if the database is completely empty
-    if (Object.keys(usersDb).length === 0) {
+    // Always guarantee that the default 'admin' system account is present in the database
+    if (!usersDb['admin']) {
       usersDb['admin'] = 'admin';
       localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
     }
@@ -41,7 +42,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login',
         setError('Username already exists. Please choose another.');
         return;
       }
-      usersDb[cleanUsername] = password; // Not secure in real app, but works for mock local persist
+      usersDb[cleanUsername] = cleanPassword; // Safe local mock storage
       localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
       setSuccess(`Account '${cleanUsername}' created successfully.`);
       setUsername('');
@@ -54,7 +55,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login',
         setError('Account not found. Please contact an admin to register.');
         return;
       }
-      if (usersDb[cleanUsername] !== password) {
+      if (usersDb[cleanUsername] !== cleanPassword) {
         setError('Incorrect password. Please try again.');
         return;
       }

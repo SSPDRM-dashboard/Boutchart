@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BracketModel, BracketNode } from '../types';
-import { Trophy, Shuffle, ZoomIn, ZoomOut } from 'lucide-react';
+import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 
 const BOX_W = 210;
@@ -20,15 +20,43 @@ interface BracketCanvasProps {
   onSwapLeafNodes?: (i: number, j: number) => void;
   categoriesList?: string[];
   onMoveToCategory?: (i: number, targetCategoryKey: string) => void;
+  boutLabelFormat?: 'alpha-2' | 'thousands-3';
+  onUpdateStandings?: (standings: string[]) => void;
 }
 
-function getFormattedBout(ring: string | number, boutNumber: number | undefined): string {
+function getFormattedBout(
+  ring: string | number,
+  boutNumber: number | undefined,
+  boutLabelFormat: string = 'alpha-2'
+): string {
   if (boutNumber === undefined) return '';
-  const trimmed = String(ring).trim();
-  const match = trimmed.match(/([a-zA-Z0-9]+)$/);
-  const prefix = match ? match[1].toUpperCase() : 'R';
-  const padded = String(boutNumber).padStart(2, '0');
-  return `${prefix}${padded}`;
+
+  let ringNum = 1;
+  if (typeof ring === 'number') {
+    ringNum = ring;
+  } else {
+    const cleaned = String(ring).trim().toLowerCase();
+    const numMatch = cleaned.match(/\d+$/);
+    if (numMatch) {
+      ringNum = parseInt(numMatch[0], 10);
+    } else {
+      const letterMatch = cleaned.match(/[a-z]$/);
+      if (letterMatch) {
+        ringNum = letterMatch[0].charCodeAt(0) - 96;
+      }
+    }
+  }
+
+  if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+
+  if (boutLabelFormat === 'thousands-3') {
+    const pad = String(boutNumber).padStart(3, '0');
+    return `${ringNum}${pad}`;
+  } else {
+    const letter = String.fromCharCode(64 + ringNum);
+    const pad = String(boutNumber).padStart(2, '0');
+    return `${letter}${pad}`;
+  }
 }
 
 export const BracketCanvas: React.FC<BracketCanvasProps> = ({
@@ -44,6 +72,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   onSwapLeafNodes,
   categoriesList,
   onMoveToCategory,
+  boutLabelFormat = 'alpha-2',
+  onUpdateStandings,
 }) => {
   const [scale, setScale] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -55,11 +85,16 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     // Keep it functional and secure
     e.dataTransfer.setData('text/plain', index.toString());
-    e.dataTransfer.effectAllowed = 'move';
+    const leafNode = nodes[0]?.[index];
+    if (leafNode && leafNode.name && !leafNode.isBye) {
+      e.dataTransfer.setData('athleteName', leafNode.name);
+    }
+    e.dataTransfer.effectAllowed = 'copyMove';
     setDraggingIndex(index);
   };
 
@@ -97,6 +132,37 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
     }
     setDraggingIndex(null);
     setDragOverIndex(null);
+  };
+
+  const handleDropToStanding = (e: React.DragEvent, slotIdx: number) => {
+    e.preventDefault();
+    setDragOverStandingsIndex(null);
+    const athleteName = e.dataTransfer.getData('athleteName') || e.dataTransfer.getData('text/plain');
+    if (!athleteName) return;
+
+    if (onUpdateStandings) {
+      const nextStandings = [
+        bracket.standings?.[0] || '',
+        bracket.standings?.[1] || '',
+        bracket.standings?.[2] || '',
+        bracket.standings?.[3] || '',
+      ];
+      nextStandings[slotIdx] = athleteName;
+      onUpdateStandings(nextStandings);
+    }
+  };
+
+  const clearStandingSlot = (slotIdx: number) => {
+    if (onUpdateStandings) {
+      const nextStandings = [
+        bracket.standings?.[0] || '',
+        bracket.standings?.[1] || '',
+        bracket.standings?.[2] || '',
+        bracket.standings?.[3] || '',
+      ];
+      nextStandings[slotIdx] = '';
+      onUpdateStandings(nextStandings);
+    }
   };
 
   const { size, numRounds, nodes, categoryKey } = bracket;
@@ -368,7 +434,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           height: `${BOUT_BOX_H}px`,
                         }}
                       >
-                        {getFormattedBout(ring, node.bout)}
+                        {getFormattedBout(ring, node.bout, boutLabelFormat)}
                       </div>
                    )
                 }
@@ -391,7 +457,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       height: `${BOUT_BOX_H}px`,
                     }}
                   >
-                    {getFormattedBout(ring, node.bout)}
+                    {getFormattedBout(ring, node.bout, boutLabelFormat)}
                   </div>
                 );
               });
@@ -596,10 +662,16 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   return (
                     <div
                       key={`${k}-${i}`}
+                      draggable={!!node.name && !node.isBye}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('athleteName', node.name);
+                        e.dataTransfer.setData('text/plain', node.name);
+                        e.dataTransfer.effectAllowed = 'copyMove';
+                      }}
                       className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
                         isClassic 
                           ? `bg-transparent ${node.checked ? 'border-emerald-500 text-emerald-900' : ''}`
-                          : `bg-white border border-slate-900 rounded shadow-sm hover:shadow transition-all ${
+                          : `bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 transition-all ${
                               node.name ? 'bg-slate-50/50' : 'border-dashed border-slate-400'
                             } ${node.checked ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500/20' : ''}`
                       } ${
@@ -665,7 +737,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   return (
                      <div
                         key={`${k}-${i}`}
-                        className="absolute flex items-center justify-center px-1"
+                        draggable={!!node.name}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('athleteName', node.name);
+                          e.dataTransfer.setData('text/plain', node.name);
+                          e.dataTransfer.effectAllowed = 'copyMove';
+                        }}
+                        className="absolute flex items-center justify-center px-1 cursor-grab active:cursor-grabbing"
                         style={{
                           left: `${x}px`,
                           top: `${y - 12}px`, /* Above the bout box */
@@ -689,7 +767,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 return (
                   <div
                     key={`${k}-${i}`}
-                    className="absolute flex items-center gap-1.5 px-3 bg-amber-50/90 border-2 border-amber-500 rounded-lg shadow-md group animate-fade-in text-center"
+                    draggable={!!node.name}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('athleteName', node.name);
+                      e.dataTransfer.setData('text/plain', node.name);
+                      e.dataTransfer.effectAllowed = 'copyMove';
+                    }}
+                    className="absolute flex items-center gap-1.5 px-3 bg-amber-50/90 hover:bg-amber-100/90 border-2 border-amber-500 rounded-lg shadow-md group animate-fade-in text-center cursor-grab active:cursor-grabbing"
                     style={{
                       left: `${x}px`,
                       top: `${y}px`,
@@ -699,7 +783,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   >
                     {hasBout ? (
                       <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">
-                        FINAL · {getFormattedBout(ring, node.bout)}
+                        FINAL · {getFormattedBout(ring, node.bout, boutLabelFormat)}
                       </span>
                     ) : (
                       <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">
@@ -726,41 +810,159 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       {/* Symmetrical Podium Podium table block as shown in the target print sheet */}
       <div className="mt-8 pt-5 border-t border-slate-100 flex flex-col items-center">
         <div className="w-[320px] border border-slate-350 rounded-lg bg-white overflow-hidden text-xs shadow-sm select-none">
-          <div className="bg-slate-50 border-b border-slate-350 px-3 py-1 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
+          <div className="bg-slate-50 border-b border-slate-350 px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
             Final Standings
           </div>
           <div className="divide-y divide-slate-200">
-            <div className="px-3.5 py-2 flex items-center gap-2">
-              <span className="font-extrabold w-4 text-amber-500">1.</span>
-              <div className="flex-1 text-slate-400 font-medium italic">
-                {nodes[numRounds]?.[0]?.name ? (
-                  <strong className="text-slate-900 not-italic font-extrabold">{nodes[numRounds][0].name}</strong>
-                ) : (
-                  'TBD (Winner of Final)'
-                )}
-              </div>
-            </div>
-            <div className="px-3.5 py-2 flex items-center gap-2">
-              <span className="font-extrabold w-4 text-slate-400">2.</span>
-              <div className="flex-1 text-slate-400 font-medium italic">
-                {/* Runner up from the final node */}
-                {nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked) ? (
-                  <strong className="text-slate-800 not-italic font-bold">
-                    {nodes[numRounds - 1][0].checked ? nodes[numRounds - 1][1].name : nodes[numRounds - 1][0].name}
-                  </strong>
-                ) : (
-                  'TBD (Runner-up)'
-                )}
-              </div>
-            </div>
-            <div className="px-3.5 py-2 flex items-center gap-2">
-              <span className="font-extrabold w-4 text-amber-700/60 font-mono">3.</span>
-              <div className="flex-1 text-slate-400 font-medium italic">TBD</div>
-            </div>
-            <div className="px-3.5 py-2 flex items-center gap-2">
-              <span className="font-extrabold w-4 text-amber-700/60 font-mono">3.</span>
-              <div className="flex-1 text-slate-400 font-medium italic">TBD</div>
-            </div>
+            {(() => {
+              const currentStandings = [
+                bracket.standings?.[0] || '',
+                bracket.standings?.[1] || '',
+                bracket.standings?.[2] || '',
+                bracket.standings?.[3] || '',
+              ];
+              const default1 = nodes[numRounds]?.[0]?.name || '';
+              const default2 = (nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked))
+                ? (nodes[numRounds - 1][0].checked ? nodes[numRounds - 1][1].name : nodes[numRounds - 1][0].name)
+                : '';
+
+              const getSlotPlaceholder = (idx: number) => {
+                if (currentStandings[idx] === '_REMOVED_') {
+                  if (idx === 0) return `❌ (Removed: ${default1 || 'Winner'} - Click restore or drop)`;
+                  if (idx === 1) return `❌ (Removed: ${default2 || 'Runner-up'} - Click restore or drop)`;
+                  return '❌ (Medalist Removed - Click restore or drop)';
+                }
+                if (idx === 0) return default1 ? `${default1} (Auto)` : 'TBD (Winner of Final)';
+                if (idx === 1) return default2 ? `${default2} (Auto)` : 'TBD (Runner-up)';
+                return 'Drag competitor here';
+              };
+
+              return [0, 1, 2, 3].map((slotIdx) => {
+                const isOver = dragOverStandingsIndex === slotIdx;
+                const val = currentStandings[slotIdx];
+                const isRemoved = val === '_REMOVED_';
+                let displayName = isRemoved ? '' : val;
+                let isComputed = false;
+
+                if (!displayName) {
+                  if (slotIdx === 0 && !isRemoved) {
+                    displayName = default1;
+                    isComputed = !!default1;
+                  } else if (slotIdx === 1 && !isRemoved) {
+                    displayName = default2;
+                    isComputed = !!default2;
+                  }
+                }
+
+                const labelColor =
+                  slotIdx === 0
+                    ? 'text-amber-500'
+                    : slotIdx === 1
+                    ? 'text-slate-400'
+                    : 'text-amber-700/60';
+
+                return (
+                  <div
+                    key={slotIdx}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverStandingsIndex !== slotIdx) {
+                        setDragOverStandingsIndex(slotIdx);
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setDragOverStandingsIndex(slotIdx);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverStandingsIndex === slotIdx) {
+                        setDragOverStandingsIndex(null);
+                      }
+                    }}
+                    onDrop={(e) => handleDropToStanding(e, slotIdx)}
+                    className={`px-3.5 py-2.5 flex items-center gap-2 transition-all group/slot relative ${
+                      isOver
+                        ? 'bg-amber-50 border-y border-amber-300 scale-[1.02] shadow-sm z-10'
+                        : 'hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <span className={`font-black w-4 text-[13px] ${labelColor}`}>
+                      {slotIdx + 1}.
+                    </span>
+                    <div className="flex-1 flex items-center min-w-0">
+                      <input
+                        type="text"
+                        value={val === '_REMOVED_' ? '' : val}
+                        onChange={(e) => {
+                          const nextS = [...currentStandings];
+                          nextS[slotIdx] = e.target.value;
+                          if (onUpdateStandings) onUpdateStandings(nextS);
+                        }}
+                        className={`w-full bg-transparent border-none outline-none text-xs font-semibold p-0 placeholder-slate-400 truncate focus:ring-0 ${
+                          val && val !== '_REMOVED_'
+                            ? 'text-slate-950 font-black' 
+                            : isComputed 
+                            ? 'text-slate-700 font-extrabold italic' 
+                            : 'text-slate-400 font-medium italic'
+                        }`}
+                        placeholder={getSlotPlaceholder(slotIdx)}
+                      />
+                    </div>
+
+                    {/* Badges/Controls */}
+                    <div className="flex items-center gap-1.5 shrink-0 select-none">
+                      {!val && isComputed && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextS = [...currentStandings];
+                            nextS[slotIdx] = '_REMOVED_';
+                            if (onUpdateStandings) onUpdateStandings(nextS);
+                          }}
+                          className="bg-rose-50 hover:bg-rose-105 active:scale-95 text-rose-600 hover:text-white border border-transparent hover:border-rose-300 p-1 rounded-md cursor-pointer transition-all no-print flex items-center justify-center gap-0.5 text-[8px] font-semibold"
+                          title="Exclude this competitor from final standings"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+
+                      {val && val !== '_REMOVED_' && (
+                        <button
+                          onClick={() => clearStandingSlot(slotIdx)}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px] cursor-pointer transition-all no-print"
+                          title="Clear custom result"
+                        >
+                          ×
+                        </button>
+                      )}
+
+                      {val === '_REMOVED_' && (
+                        <button
+                          onClick={() => clearStandingSlot(slotIdx)}
+                          className="bg-amber-100 hover:bg-amber-200 text-amber-700 hover:text-amber-900 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider cursor-pointer transition-all no-print"
+                          title="Restore automatic medalist calculations"
+                        >
+                          Restore
+                        </button>
+                      )}
+                      
+                      {!displayName && !val && (
+                        <span className="text-[8px] text-slate-350 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded font-black uppercase tracking-wider group-hover/slot:opacity-0 transition-opacity no-print">
+                          Drop
+                        </span>
+                      )}
+
+                      {val && val !== '_REMOVED_' && (
+                        <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-black uppercase tracking-wider scale-90 no-print">
+                          Custom
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 

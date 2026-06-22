@@ -28,6 +28,7 @@ export interface BracketModel {
   size: number;
   numRounds: number;
   nodes: BracketNode[][]; // nodes[roundIdx][nodeIdx]
+  standings?: string[];
 }
 
 export interface AppState {
@@ -59,6 +60,7 @@ export interface SavedEvent {
   brackets: Record<string, BracketModel>;
   ringCount: number;
   ringLabelFormat: 'number' | 'letter';
+  boutLabelFormat?: 'alpha-2' | 'thousands-3';
   shuffleSeed: boolean;
   dismissedDuplicates: string[];
 }

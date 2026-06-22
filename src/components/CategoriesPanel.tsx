@@ -13,9 +13,12 @@ interface CategoriesPanelProps {
   onGenerateBrackets: (targetRing?: number) => void;
   ringLabelFormat: 'number' | 'letter';
   setRingLabelFormat: (format: 'number' | 'letter') => void;
+  boutLabelFormat: 'alpha-2' | 'thousands-3';
+  setBoutLabelFormat: (format: 'alpha-2' | 'thousands-3') => void;
   onExportPdf: () => void;
   hasBrackets: boolean;
   onDeleteCategory?: (categoryKey: string) => void;
+  onResetBrackets?: () => void;
 }
 
 export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
@@ -29,9 +32,12 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   onGenerateBrackets,
   ringLabelFormat,
   setRingLabelFormat,
+  boutLabelFormat,
+  setBoutLabelFormat,
   onExportPdf,
   hasBrackets,
   onDeleteCategory,
+  onResetBrackets,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
@@ -125,6 +131,36 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
               title="Label rings alphabetically (e.g. Ring A, Ring B, Bout A01)"
             >
               Ring "A"
+            </button>
+          </div>
+
+          <div className="h-6 w-[1px] bg-slate-200"></div>
+
+          {/* Bout format switcher: allow admin to change between A01 to 1001, B01 to 2001 */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setBoutLabelFormat('alpha-2')}
+              className={`px-2.5 py-1 rounded text-xs font-extrabold transition-all cursor-pointer ${
+                boutLabelFormat === 'alpha-2'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+              title="Alpha-Numeric format (e.g. A01, B01)"
+            >
+              A01 / B01
+            </button>
+            <button
+              type="button"
+              onClick={() => setBoutLabelFormat('thousands-3')}
+              className={`px-2.5 py-1 rounded text-xs font-extrabold transition-all cursor-pointer ${
+                boutLabelFormat === 'thousands-3'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+              title="Numeric Thousands format (e.g. 1001, 2001)"
+            >
+              1001 / 2001
             </button>
           </div>
 
@@ -528,6 +564,18 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   })}
                 </select>
               </div>
+              
+              {hasBrackets && onResetBrackets && (
+                <button
+                  type="button"
+                  onClick={onResetBrackets}
+                  className="w-full sm:w-auto px-6 py-3 text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                  title="Clear generated tournament brackets and return to Ring Allocation"
+                >
+                  <RotateCcw className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>Reset Brackets</span>
+                </button>
+              )}
               
               <button
                 type="button"

@@ -275,77 +275,22 @@ export function countRealBouts(model: BracketModel): number {
 }
 
 export function assignBoutNumbersForRing(brackets: Record<string, BracketModel>, keysInOrder: string[], startCounter: number = 1): number {
+  if (keysInOrder.length === 0) return startCounter;
+
   let counter = startCounter;
-  if (keysInOrder.length === 0) return counter;
-
-  interface SortingMatch {
-    key: string;
-    k: number;
-    i: number;
-    distanceToFinal: number;
-    bracketSize: number;
-  }
-
-  const allActiveMatches: SortingMatch[] = [];
-
-  // Gather all active matches across the categories of this ring
   keysInOrder.forEach(key => {
     const model = brackets[key];
     if (!model) return;
     for (let k = 1; k <= model.numRounds; k++) {
       const round = model.nodes[k];
       for (let i = 0; i < round.length; i++) {
-        // Clear previous assignment first
-        round[i].bout = undefined;
-
         if (isRealBout(model, k, i)) {
-          allActiveMatches.push({
-            key,
-            k,
-            i,
-            distanceToFinal: model.numRounds - k,
-            bracketSize: model.size,
-          });
+          model.nodes[k][i].bout = counter;
+          counter++;
+        } else {
+          model.nodes[k][i].bout = undefined;
         }
       }
-    }
-  });
-
-  // Sort matches based on verified tournament sequencing rules:
-  // 1. Distance to final descending (furthest matches played first)
-  // 2. Bracket size ascending (smaller classes completed within a round group first)
-  // 3. Category order in keysInOrder
-  // 4. LHS vs RHS within the round to keep brackets grouped nicely
-  // 5. Index within the round ascending (from top to bottom)
-  allActiveMatches.sort((m1, m2) => {
-    if (m1.distanceToFinal !== m2.distanceToFinal) {
-      return m2.distanceToFinal - m1.distanceToFinal;
-    }
-
-    if (m1.bracketSize !== m2.bracketSize) {
-      return m1.bracketSize - m2.bracketSize;
-    }
-
-    const idx1 = keysInOrder.indexOf(m1.key);
-    const idx2 = keysInOrder.indexOf(m2.key);
-    if (idx1 !== idx2) return idx1 - idx2;
-
-    const countInRound1 = m1.bracketSize / Math.pow(2, m1.k);
-    const countInRound2 = m2.bracketSize / Math.pow(2, m2.k);
-    const isLeft1 = m1.i < countInRound1 / 2;
-    const isLeft2 = m2.i < countInRound2 / 2;
-    if (isLeft1 !== isLeft2) {
-      return isLeft1 ? -1 : 1;
-    }
-
-    return m1.i - m2.i;
-  });
-
-  // Assign sequential bout numbers
-  allActiveMatches.forEach(match => {
-    const model = brackets[match.key];
-    if (model) {
-      model.nodes[match.k][match.i].bout = counter++;
     }
   });
 
@@ -602,4 +547,68 @@ export function handleSwapLeafNodes(
   });
 
   return nextBrackets;
+}
+
+export function applyParsedBoutNumbers(
+  model: BracketModel,
+  parsedBouts: { athlete1: string; athlete2: string; boutNumber: number }[]
+): void {
+  if (!parsedBouts || parsedBouts.length === 0) return;
+
+  function getLeafNamesUnderNode(model: BracketModel, k: number, i: number): string[] {
+    const sizeOfNodeRange = Math.pow(2, k);
+    const startIdx = i * sizeOfNodeRange;
+    const endIdx = startIdx + sizeOfNodeRange;
+    const names: string[] = [];
+    for (let idx = startIdx; idx < endIdx; idx++) {
+      const leaf = model.nodes[0][idx];
+      if (leaf && !leaf.isBye && leaf.name && leaf.name.trim() !== '') {
+        names.push(leaf.name.trim().toLowerCase());
+      }
+    }
+    return names;
+  }
+
+  function matchesNameResilient(athleteName: string, leafNames: string[]): boolean {
+    const cleanAthlete = athleteName.trim().toLowerCase();
+    if (cleanAthlete === '' || cleanAthlete === 'bye') return false;
+
+    // Direct check
+    const directMatch = leafNames.some(ln => {
+      return ln === cleanAthlete || ln.includes(cleanAthlete) || cleanAthlete.includes(ln);
+    });
+    if (directMatch) return true;
+
+    // Resilient fallback: split by whitespace, match words of length >= 3
+    const athleteWords = cleanAthlete.split(/\s+/).filter(w => w.length >= 3);
+    if (athleteWords.length === 0) return false;
+
+    return leafNames.some(ln => {
+      const lnWords = ln.split(/\s+/).filter(w => w.length >= 3);
+      return athleteWords.some(aw => lnWords.includes(aw));
+    });
+  }
+
+  for (let k = 1; k <= model.numRounds; k++) {
+    const round = model.nodes[k];
+    for (let i = 0; i < round.length; i++) {
+      if (isRealBout(model, k, i)) {
+        const leftLeaves = getLeafNamesUnderNode(model, k - 1, 2 * i);
+        const rightLeaves = getLeafNamesUnderNode(model, k - 1, 2 * i + 1);
+
+        const match = parsedBouts.find(pb => {
+          const name1 = pb.athlete1;
+          const name2 = pb.athlete2;
+          return (
+            (matchesNameResilient(name1, leftLeaves) && matchesNameResilient(name2, rightLeaves)) ||
+            (matchesNameResilient(name2, leftLeaves) && matchesNameResilient(name1, rightLeaves))
+          );
+        });
+
+        if (match) {
+          round[i].bout = match.boutNumber;
+        }
+      }
+    }
+  }
 }
