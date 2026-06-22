@@ -223,8 +223,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const canvasWidth = PAD * 2 + 2 * numRounds * gap + BOX_W;
   const canvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
 
-  const MAX_PRINT_WIDTH = 1050; // landscape width inside margins
-  const MAX_PRINT_HEIGHT = 600; // landscape height leaving room for headers and podium
+  const MAX_PRINT_WIDTH = 1120; // landscape width inside margins
+  const MAX_PRINT_HEIGHT = 720; // landscape height leaving room for headers and podium
   const scaleWidth = MAX_PRINT_WIDTH / canvasWidth;
   const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
   const printScale = Math.min(1.5, scaleWidth, scaleHeight);
@@ -604,11 +604,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            {/* Player Name ON TOP of the line */}
                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[13.5px] font-black tracking-tight text-slate-900 uppercase break-normal whitespace-nowrap min-w-0" title={node.name}>{node.name}</span>
+                              <span className="text-[13.5px] font-black tracking-tight text-slate-900 uppercase break-normal overflow-visible min-w-0" title={node.name}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
                            <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="break-normal whitespace-nowrap min-w-0">{node.club || '(Ind.)'}</span>
+                              <span className="break-normal overflow-visible min-w-0">{node.club || '(Ind.)'}</span>
                            </div>
                         </div>
                       ) : (
@@ -704,7 +704,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            <div className={`h-[20px] flex items-end w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <input
                                 type="text"
-                                className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight break-normal whitespace-nowrap min-w-0 ${
+                                className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight break-normal overflow-visible min-w-0 ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder=""
@@ -714,7 +714,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            </div>
                            {/* Club BELOW the line */}
                            <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="break-normal whitespace-nowrap min-w-0">{node.club || ''}</span>
+                              <span className="break-normal overflow-visible min-w-0">{node.club || ''}</span>
                            </div>
                         </div>
                       ) : (
