@@ -3,7 +3,7 @@ import { BracketModel, BracketNode } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 
-const BOX_W = 210;
+const BOX_W = 260;
 const BOX_H = 40;
 const PAD = 24;
 
@@ -375,9 +375,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       </div>
 
       {/* Symmetrical split bracket workspace container */}
-      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-hidden print:border-none print:flex print:justify-center">
+      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
         <div
-          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none print:overflow-hidden"
+          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none print:overflow-visible"
           style={{
             width: `${canvasWidth * scale}px`,
             height: `${canvasHeight * scale}px`,
@@ -521,9 +521,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         {isClassic ? (
                           <div className="flex flex-col w-full h-full justify-between min-w-0">
                             {/* BYE text ON TOP of the line */}
-                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[13.5px] font-black tracking-tight text-slate-400 uppercase truncate whitespace-nowrap min-w-0">BYE</span>
+                              <span className="text-[13.5px] font-black tracking-tight text-slate-400 uppercase break-normal whitespace-nowrap min-w-0">BYE</span>
                             </div>
                             {/* Empty space below line */}
                             <div className="h-[20px]" />
@@ -602,13 +602,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       {isClassic ? (
                         <div className="flex flex-col w-full h-full justify-between min-w-0">
                            {/* Player Name ON TOP of the line */}
-                           <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                           <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[13.5px] font-black tracking-tight text-slate-900 uppercase truncate whitespace-nowrap min-w-0" title={node.name}>{node.name}</span>
+                              <span className="text-[13.5px] font-black tracking-tight text-slate-900 uppercase break-normal whitespace-nowrap min-w-0" title={node.name}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="truncate whitespace-nowrap min-w-0">{node.club || '(Ind.)'}</span>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                              <span className="break-normal whitespace-nowrap min-w-0">{node.club || '(Ind.)'}</span>
                            </div>
                         </div>
                       ) : (
@@ -701,10 +701,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       {isClassic ? (
                         <div className="flex flex-col w-full h-full justify-between min-w-0">
                            {/* Player Name ON TOP of the line */}
-                           <div className={`h-[20px] flex items-end w-full pb-[2.5px] overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                           <div className={`h-[20px] flex items-end w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <input
                                 type="text"
-                                className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight truncate whitespace-nowrap min-w-0 ${
+                                className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight break-normal whitespace-nowrap min-w-0 ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder=""
@@ -713,8 +713,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                               />
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-hidden min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="truncate whitespace-nowrap min-w-0">{node.club || ''}</span>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                              <span className="break-normal whitespace-nowrap min-w-0">{node.club || ''}</span>
                            </div>
                         </div>
                       ) : (
@@ -898,7 +898,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           nextS[slotIdx] = e.target.value;
                           if (onUpdateStandings) onUpdateStandings(nextS);
                         }}
-                        className={`w-full bg-transparent border-none outline-none text-xs font-semibold p-0 placeholder-slate-400 truncate focus:ring-0 ${
+                        className={`w-full bg-transparent border-none outline-none text-xs font-semibold p-0 placeholder-slate-400 break-normal focus:ring-0 ${
                           val && val !== '_REMOVED_'
                             ? 'text-slate-950 font-black' 
                             : isComputed 
