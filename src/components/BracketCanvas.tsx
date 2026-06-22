@@ -227,7 +227,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const MAX_PRINT_HEIGHT = 600; // landscape height leaving room for headers and podium
   const scaleWidth = MAX_PRINT_WIDTH / canvasWidth;
   const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
-  const printScale = Math.min(1, scaleWidth, scaleHeight);
+  const printScale = Math.min(1.5, scaleWidth, scaleHeight);
 
   const isClassic = layout === 'classic';
 
@@ -375,9 +375,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       </div>
 
       {/* Symmetrical split bracket workspace container */}
-      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
+      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-hidden print:border-none print:flex print:justify-center">
         <div
-          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none"
+          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none print:overflow-hidden"
           style={{
             width: `${canvasWidth * scale}px`,
             height: `${canvasHeight * scale}px`,
