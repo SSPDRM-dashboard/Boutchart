@@ -1,0 +1,32 @@
+{
+  "entities": {
+    "UserEvent": {
+      "title": "User Event",
+      "description": "A saved bracket/roster event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tournamentName": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "CurrentState": {
+      "title": "Current State",
+      "description": "The user's current working state",
+      "type": "object",
+      "properties": {
+        "tournamentName": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userEmail}/events/{eventId}": {
+      "schema": "#/entities/UserEvent",
+      "description": "Saved events for a user"
+    },
+    "users/{userEmail}/current/{stateId}": {
+      "schema": "#/entities/CurrentState",
+      "description": "Current unsaved state for a user"
+    }
+  }
+}

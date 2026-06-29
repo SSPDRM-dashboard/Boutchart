@@ -205,7 +205,7 @@ export function PdfBracketParserPanel({
             <Sparkles className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-slate-800 tracking-tight">AI Bracket &amp; Roster PDF Copiler</h3>
+            <h3 className="text-xl font-black text-slate-800 tracking-tight">AI Bracket &amp; Roster PDF Compiler</h3>
             <p className="text-sm font-semibold text-slate-500 mt-1">
               Have brackets in external tournament sheets (Smoothcomp, Sportdata, or photocopied sheets)? 
               Upload the PDF bracket here. Gemini AI will automatically extract divisions and competitors, and 

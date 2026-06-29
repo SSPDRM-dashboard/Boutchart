@@ -31,22 +31,31 @@ export async function compressToGzipBase64(str: string): Promise<string> {
 }
 
 export async function decompressFromGzipBase64(base64Str: string): Promise<string> {
-  if (typeof DecompressionStream === 'undefined') {
-    // Fallback if DecompressionStream is unsupported
-    return decodeURIComponent(atob(base64Str));
-  }
+  try {
+    if (!base64Str) {
+      throw new Error("Empty input");
+    }
 
-  const binaryString = atob(base64Str);
-  const byteArray = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    byteArray[i] = binaryString.charCodeAt(i);
+    if (typeof DecompressionStream === 'undefined') {
+      // Fallback if DecompressionStream is unsupported
+      return decodeURIComponent(atob(base64Str));
+    }
+
+    const binaryString = atob(base64Str);
+    const byteArray = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      byteArray[i] = binaryString.charCodeAt(i);
+    }
+    
+    const ds = new DecompressionStream("gzip");
+    const writer = ds.writable.getWriter();
+    writer.write(byteArray);
+    writer.close();
+    
+    const arrBuffer = await new Response(ds.readable).arrayBuffer();
+    return new TextDecoder().decode(arrBuffer);
+  } catch (e) {
+    console.error("Failed to decompress gzip base64 string", e);
+    throw e;
   }
-  
-  const ds = new DecompressionStream("gzip");
-  const writer = ds.writable.getWriter();
-  writer.write(byteArray);
-  writer.close();
-  
-  const arrBuffer = await new Response(ds.readable).arrayBuffer();
-  return new TextDecoder().decode(arrBuffer);
 }

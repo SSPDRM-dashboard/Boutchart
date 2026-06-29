@@ -17,6 +17,7 @@ export const RosterPanel: React.FC<RosterPanelProps> = ({
 }) => {
   const [pasteText, setPasteText] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: DragEvent) => {
@@ -47,6 +48,8 @@ export const RosterPanel: React.FC<RosterPanelProps> = ({
   };
 
   const readAndLoadFile = (file: File) => {
+    setSelectedFileName(file.name);
+    setPasteText('');
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target && typeof event.target.result === 'string') {
@@ -105,8 +108,8 @@ export const RosterPanel: React.FC<RosterPanelProps> = ({
           />
           <Upload className={`w-8 h-8 ${dragActive ? 'text-amber-500' : 'text-slate-400'} mb-2`} />
           <p className="text-sm font-semibold text-slate-800">
-            {fileInputRef.current?.files && fileInputRef.current.files[0] ? (
-              <span className="text-amber-600 font-mono">{fileInputRef.current.files[0].name}</span>
+            {selectedFileName ? (
+              <span className="text-amber-600 font-mono">{selectedFileName}</span>
             ) : (
               'Drag & drop CSV file or click to browse'
             )}
@@ -123,7 +126,12 @@ export const RosterPanel: React.FC<RosterPanelProps> = ({
               className="w-full h-full min-h-[140px] bg-slate-50/55 border border-slate-200 focus:border-amber-500 text-slate-800 placeholder-slate-400 rounded-xl p-3.5 text-xs font-mono transition-all outline-none focus:bg-white resize-vertical"
               placeholder={'John Tan\tEagle Judo Club\tU60\nAli Hassan\tTiger Gym\tU60\nSarah Connor\tIron Academy\tU66'}
               value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
+              onChange={(e) => {
+                setPasteText(e.target.value);
+                if (e.target.value.trim()) {
+                  setSelectedFileName(null);
+                }
+              }}
             />
             <div className="absolute bottom-2.5 right-2.5 bg-slate-200/60 text-slate-500 p-1 rounded text-[10px] pointer-events-none font-sans font-medium flex items-center gap-1">
               <ClipboardType className="w-3 h-3" />

@@ -109,7 +109,7 @@ app.post("/api/parse-pdf-bracket", async (req: any, res: any) => {
     const client = getGeminiClient();
 
     const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           inlineData: {

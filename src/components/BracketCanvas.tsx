@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BracketModel, BracketNode } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 
-const BOX_W = 260;
+const BOX_W = 240;
 const BOX_H = 40;
-const PAD = 24;
+const PAD = 16;
 
 interface BracketCanvasProps {
   bracket: BracketModel;
@@ -63,7 +63,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   bracket,
   ring,
   entrantCount,
-  layout = 'modern',
+  layout = 'classic',
   onReshuffle,
   onCheckboxToggle,
   onTextChange,
@@ -76,6 +76,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   onUpdateStandings,
 }) => {
   const [scale, setScale] = useState(1);
+  const [isAutoFit, setIsAutoFit] = useState(true);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedLeafIndex, setSelectedLeafIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
@@ -86,6 +89,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
+
+  if (!bracket || !bracket.nodes) {
+    return (
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center">
+        <p className="text-sm text-slate-500">Invalid or uninitialized bracket configuration.</p>
+      </div>
+    );
+  }
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     // Keep it functional and secure
@@ -168,18 +179,15 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const { size, numRounds, nodes, categoryKey } = bracket;
 
   // Sizing adapters: scale gap and pitch dynamically based on bracket rounds
-  let gap = 200;
-  if (numRounds >= 5) gap = 145; // size 32
-  else if (numRounds >= 4) gap = 175; // size 16
-  else if (numRounds >= 3) gap = 210; // size 8
+  let gap = 240;
 
   let ROW_PITCH = 46;
-  if (size === 2) ROW_PITCH = 140;
-  else if (size === 4) ROW_PITCH = 110;
-  else if (size === 8) ROW_PITCH = 75;
-  else if (size === 16) ROW_PITCH = 58;
-  else if (size === 32) ROW_PITCH = 46;
-  else if (size === 64) ROW_PITCH = 40;
+  if (size === 2) ROW_PITCH = 340;
+  else if (size === 4) ROW_PITCH = 300;
+  else if (size === 8) ROW_PITCH = 200;
+  else if (size === 16) ROW_PITCH = 140;
+  else if (size === 32) ROW_PITCH = 90;
+  else if (size === 64) ROW_PITCH = 65;
 
   // Compute absolute positions dynamically for split symmetrical bracket
   const positions: { x: number; y: number }[][] = [];
@@ -220,16 +228,46 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
     positions.push(arr);
   }
 
+  const isClassic = layout === 'classic';
   const canvasWidth = PAD * 2 + 2 * numRounds * gap + BOX_W;
-  const canvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
+  const baseCanvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
+  const finalY = positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2);
+  const minRequiredHeight = finalY + (isClassic ? 75 : 95) + 180 + PAD;
+  const canvasHeight = Math.max(baseCanvasHeight, minRequiredHeight);
 
-  const MAX_PRINT_WIDTH = 1050; // landscape width inside margins
-  const MAX_PRINT_HEIGHT = 600; // landscape height leaving room for headers and podium
+  const MAX_PRINT_WIDTH = 1060; // landscape width inside margins
+  const MAX_PRINT_HEIGHT = 630; // landscape height leaving room for headers
   const scaleWidth = MAX_PRINT_WIDTH / canvasWidth;
   const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
-  const printScale = Math.min(1.5, scaleWidth, scaleHeight);
+  const printScale = Math.min(1, scaleWidth, scaleHeight);
 
-  const isClassic = layout === 'classic';
+  // Set up ResizeObserver to observe parent container size changes
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const rect = entries[0].contentRect;
+      setContainerWidth(rect.width);
+    });
+
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Set the dynamic scale when auto-fit is active
+  useEffect(() => {
+    if (isAutoFit && containerWidth && canvasWidth) {
+      // Scale to fit available container width minus some margins for aesthetics
+      const horizontalPadding = 16;
+      const fitScale = (containerWidth - horizontalPadding) / canvasWidth;
+      // Clamp fitScale to reasonable bounds so it doesn't get unreadably tiny or huge
+      setScale(Math.max(0.3, Math.min(2.5, fitScale)));
+    }
+  }, [isAutoFit, containerWidth, canvasWidth]);
 
   // Compile high-fidelity connector line commands in split-bracket mode
   const connectorLines: string[] = [];
@@ -258,12 +296,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
            const riserX = (c1.x + BOX_W + c2.x) / 2;
            // Straight horizontal line joining the two sides
            connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${c2.x} ${c2.y}`);
-           // Short vertical tick for the champion slot
-           connectorLines.push(`M ${riserX} ${c1.y} L ${riserX} ${c1.y - 12}`);
         } else {
-           // Final match: LHS and RHS meet perfectly horizontal at the center node
-           connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${parent.x} ${parent.y}`);
-           connectorLines.push(`M ${c2.x} ${c2.y} L ${parent.x + BOX_W} ${parent.y}`);
+           // Final match: LHS and RHS meet perfectly horizontal at the center node - removed per user request: "remove 1 left/right connector lines"
+           // connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${parent.x} ${parent.y}`);
+           // connectorLines.push(`M ${c2.x} ${c2.y} L ${parent.x + BOX_W} ${parent.y}`);
         }
       } else {
         const isLeftParent = m < count / 2;
@@ -287,28 +323,30 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   }
 
   const handleZoom = (factor: number) => {
-    setScale((prev) => Math.min(Math.max(0.4, prev * factor), 2));
+    setIsAutoFit(false);
+    setScale((prev) => Math.min(Math.max(0.3, prev * factor), 2.5));
   };
 
   const handleResetZoom = () => {
-    setScale(1);
+    setIsAutoFit((prev) => !prev);
   };
 
   return (
     <div
-      id={`page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')}`}
+      id={`page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')}`}
       data-canvas-width={canvasWidth}
       data-canvas-height={canvasHeight}
       data-ring={ring}
+      data-category={categoryKey}
       className="bracket-page-card bracket-page bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
     >
       <style>{`
         @media print {
-          #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
+          #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
              transform: scale(${printScale}) !important;
-             transform-origin: top left !important;
+             transform-origin: top center !important;
           }
-          #page-${categoryKey.replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
+          #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
              width: ${canvasWidth * printScale}px !important;
              height: ${canvasHeight * printScale}px !important;
              margin: 0 auto !important;
@@ -316,14 +354,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
         }
       `}</style>
       {/* Centered Heading Layout precisely mimicking the PDF layout */}
-      <div className="text-center pb-5 mb-6 border-b border-slate-100 max-w-2xl mx-auto">
-        <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight uppercase">
+      <div className="text-center border-b border-slate-100 max-w-2xl mx-auto -mt-2">
+        <h1 className="text-[26px] md:text-[30px] font-black text-slate-900 tracking-tight uppercase">
           {tournamentName || 'TOURNAMENT CHAMPIONSHIP'}
         </h1>
-        <p className="text-xs md:text-sm font-black text-slate-800 tracking-widest uppercase mt-1">
+        <p className="text-[22px] md:text-[24px] font-black text-slate-800 tracking-widest uppercase mt-1">
           RING {ring}
         </p>
-        <p className="text-base md:text-lg font-extrabold text-amber-600 tracking-normal mt-1.5 uppercase">
+        <p className="text-[24px] md:text-[26px] font-extrabold text-amber-600 tracking-normal mt-1.5 uppercase">
           {categoryKey}
         </p>
         <p className="text-xs text-slate-500 font-bold mt-1">
@@ -345,10 +383,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             </button>
             <button
               onClick={handleResetZoom}
-              className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent font-mono text-[10px] font-bold transition-all cursor-pointer"
-              title="Reset Zoom"
+              className={`p-1 px-2 rounded text-[10px] font-extrabold transition-all cursor-pointer uppercase tracking-wider ${isAutoFit ? 'bg-amber-500 text-slate-950 font-black' : 'bg-transparent text-slate-600 hover:bg-white font-bold'}`}
+              title={isAutoFit ? "Auto-Fit: Active. Click to lock zoom" : "Click to auto-fit to screen"}
             >
-              {(scale * 100).toFixed(0)}%
+              {isAutoFit ? 'Auto-Fit' : `${(scale * 100).toFixed(0)}%`}
             </button>
             <button
               onClick={() => handleZoom(1.15)}
@@ -375,14 +413,16 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       </div>
 
       {/* Symmetrical split bracket workspace container */}
-      <div className="overflow-x-auto overflow-y-hidden pb-4 pt-4 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
+      <div ref={containerRef} className="overflow-x-auto overflow-y-hidden py-1 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
         <div
-          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none print:overflow-visible"
+          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none"
           style={{
             width: `${canvasWidth * scale}px`,
             height: `${canvasHeight * scale}px`,
+            '--export-width': `${canvasWidth}px`,
+            '--export-height': `${canvasHeight}px`,
             margin: '0 auto',
-          }}
+          } as React.CSSProperties}
         >
           <div
             className="absolute top-0 left-0 origin-top-left print-scale-wrapper"
@@ -411,7 +451,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
               if (k === numRounds && !isClassic) return null;
               
               return roundPositions.map((pos, m) => {
-                const node = nodes[k][m];
+                const node = nodes[k]?.[m];
+                if (!node) return null;
                 const hasBout = typeof node.bout === 'number';
                 if (!hasBout) return null;
 
@@ -466,7 +507,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             {/* Symmetrical render matches list */}
             {positions.map((roundPositions, k) => {
               return roundPositions.map((pos, i) => {
-                const node = nodes[k][i];
+                const node = nodes[k]?.[i];
+                if (!node) return null;
                 const hasBout = typeof node.bout === 'number';
 
                 const x = pos.x;
@@ -477,7 +519,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                 // Leaf Nodes: Round 0
                 if (k === 0) {
-                  const sibling = nodes[k][i ^ 1];
+                  const sibling = nodes[k]?.[i ^ 1];
                   const isWalkover = !!(sibling && sibling.isBye);
 
                   const isDragging = draggingIndex === i;
@@ -521,9 +563,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         {isClassic ? (
                           <div className="flex flex-col w-full h-full justify-between min-w-0">
                             {/* BYE text ON TOP of the line */}
-                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[13.5px] font-black tracking-tight text-slate-400 uppercase break-normal whitespace-nowrap min-w-0">BYE</span>
+                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                              <span className="text-[12.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
+                              <span className="text-[14px] font-black tracking-tight text-slate-400 uppercase whitespace-nowrap min-w-0">BYE</span>
                             </div>
                             {/* Empty space below line */}
                             <div className="h-[20px]" />
@@ -600,15 +642,15 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       )}
 
                       {isClassic ? (
-                        <div className="flex flex-col w-full h-full justify-between min-w-0">
+                        <div className={`classic-competitor-container absolute bottom-0 flex flex-col h-full justify-between pointer-events-none ${isLeft ? 'left-0 items-start text-left' : 'right-0 items-end text-right'}`} style={{ width: 'max-content', minWidth: '100%' }}>
                            {/* Player Name ON TOP of the line */}
-                           <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="text-[12px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[13.5px] font-black tracking-tight text-slate-900 uppercase break-normal whitespace-nowrap min-w-0" title={node.name}>{node.name}</span>
+                           <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="text-[17.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
+                              <span className="text-[32.5px] font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto" title={node.name}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="break-normal whitespace-nowrap min-w-0">{node.club || '(Ind.)'}</span>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || '(Ind.)'}</span>
                            </div>
                         </div>
                       ) : (
@@ -618,7 +660,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           }`}>
                             {node.seed}
                           </span>
-                          <div className={`flex-1 min-w-0 leading-tight order-2 ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
+                          <div className={`flex-1 min-w-0 leading-tight order-2 flex flex-col justify-center ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
                             <div className="flex items-center justify-between gap-1">
                               <p className="text-[11px] font-black text-slate-800 uppercase mt-0.5" title={node.name}>
                                 {node.name}
@@ -627,7 +669,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                                 ✎
                               </span>
                             </div>
-                            <p className="text-[9px] text-slate-400 tracking-wide font-medium">
+                            <p className="competitor-club text-[9px] text-slate-400 tracking-wide font-medium">
                               {node.club || 'Ind.'}
                             </p>
                           </div>
@@ -639,7 +681,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                 // Intermediate Rounds
                 if (k < numRounds) {
-                  const sibling = nodes[k][i ^ 1];
+                  const sibling = nodes[k]?.[i ^ 1];
                   const isWalkover = !!(sibling && sibling.isBye);
 
                   if (node.isBye) {
@@ -664,8 +706,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       key={`${k}-${i}`}
                       draggable={!!node.name && !node.isBye}
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('athleteName', node.name);
-                        e.dataTransfer.setData('text/plain', node.name);
+                        e.dataTransfer.setData('athleteName', node.name || '');
+                        e.dataTransfer.setData('text/plain', node.name || '');
                         e.dataTransfer.effectAllowed = 'copyMove';
                       }}
                       className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
@@ -699,12 +741,12 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                       {/* Name input flow */}
                       {isClassic ? (
-                        <div className="flex flex-col w-full h-full justify-between min-w-0">
+                        <div className={`classic-competitor-container absolute bottom-0 flex flex-col h-full justify-between pointer-events-none ${isLeft ? 'left-0 items-start text-left' : 'right-0 items-end text-right'}`} style={{ width: 'max-content', minWidth: '100%' }}>
                            {/* Player Name ON TOP of the line */}
-                           <div className={`h-[20px] flex items-end w-full pb-[2.5px] overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                           <div className={`h-[20px] flex items-end w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <input
                                 type="text"
-                                className={`w-full bg-transparent border-none outline-none text-[13.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight break-normal whitespace-nowrap min-w-0 ${
+                                className={`w-full min-w-[240px] bg-transparent border-none outline-none text-[32.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder=""
@@ -713,8 +755,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                               />
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[11px] font-extrabold text-slate-500 uppercase tracking-tight overflow-visible min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
-                              <span className="break-normal whitespace-nowrap min-w-0">{node.club || ''}</span>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || ''}</span>
                            </div>
                         </div>
                       ) : (
@@ -739,8 +781,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         key={`${k}-${i}`}
                         draggable={!!node.name}
                         onDragStart={(e) => {
-                          e.dataTransfer.setData('athleteName', node.name);
-                          e.dataTransfer.setData('text/plain', node.name);
+                          e.dataTransfer.setData('athleteName', node.name || '');
+                          e.dataTransfer.setData('text/plain', node.name || '');
                           e.dataTransfer.effectAllowed = 'copyMove';
                         }}
                         className="absolute flex items-center justify-center px-1 cursor-grab active:cursor-grabbing"
@@ -754,7 +796,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                          <div className="flex flex-col w-full h-full justify-end items-center text-center">
                              <input
                                type="text"
-                               className="w-full bg-transparent border-b-[1.5px] border-slate-900 pb-1 outline-none text-[16px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
+                               className="w-[260px] max-w-none bg-transparent pb-1 outline-none text-[24.5px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
                                placeholder="CHAMPION"
                                value={node.name || ''}
                                onChange={(e) => onTextChange(k, i, e.target.value)}
@@ -769,8 +811,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     key={`${k}-${i}`}
                     draggable={!!node.name}
                     onDragStart={(e) => {
-                      e.dataTransfer.setData('athleteName', node.name);
-                      e.dataTransfer.setData('text/plain', node.name);
+                      e.dataTransfer.setData('athleteName', node.name || '');
+                      e.dataTransfer.setData('text/plain', node.name || '');
                       e.dataTransfer.effectAllowed = 'copyMove';
                     }}
                     className="absolute flex items-center gap-1.5 px-3 bg-amber-50/90 hover:bg-amber-100/90 border-2 border-amber-500 rounded-lg shadow-md group animate-fade-in text-center cursor-grab active:cursor-grabbing"
@@ -803,174 +845,174 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 );
               });
             })}
-          </div>
-        </div>
-      </div>
+            <div
+              className="absolute border border-slate-350 rounded-lg bg-white overflow-hidden text-xs shadow-sm select-none z-30"
+              style={{
+                width: '325px',
+                left: `${PAD + numRounds * gap + (BOX_W - 325) / 2}px`,
+                top: `${(positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2)) + (isClassic ? 75 : 95)}px`,
+              }}
+            >
+              <div className="bg-slate-50 border-b border-slate-350 px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
+                Final Standings
+              </div>
+              <div className="divide-y divide-slate-200">
+                {(() => {
+                  const currentStandings = [
+                    bracket.standings?.[0] || '',
+                    bracket.standings?.[1] || '',
+                    bracket.standings?.[2] || '',
+                    bracket.standings?.[3] || '',
+                  ];
+                  const default1 = nodes[numRounds]?.[0]?.name || '';
+                  const default2 = (nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked))
+                    ? (nodes[numRounds - 1]?.[0]?.checked ? (nodes[numRounds - 1]?.[1]?.name || '') : (nodes[numRounds - 1]?.[0]?.name || ''))
+                    : '';
 
-      {/* Symmetrical Podium Podium table block as shown in the target print sheet */}
-      <div className="mt-8 pt-5 border-t border-slate-100 flex flex-col items-center">
-        <div className="w-[320px] border border-slate-350 rounded-lg bg-white overflow-hidden text-xs shadow-sm select-none">
-          <div className="bg-slate-50 border-b border-slate-350 px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
-            Final Standings
-          </div>
-          <div className="divide-y divide-slate-200">
-            {(() => {
-              const currentStandings = [
-                bracket.standings?.[0] || '',
-                bracket.standings?.[1] || '',
-                bracket.standings?.[2] || '',
-                bracket.standings?.[3] || '',
-              ];
-              const default1 = nodes[numRounds]?.[0]?.name || '';
-              const default2 = (nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked))
-                ? (nodes[numRounds - 1][0].checked ? nodes[numRounds - 1][1].name : nodes[numRounds - 1][0].name)
-                : '';
+                  const getSlotPlaceholder = (idx: number) => {
+                    if (currentStandings[idx] === '_REMOVED_') {
+                      if (idx === 0) return `❌ (Removed: ${default1 || 'Winner'} - Click restore or drop)`;
+                      if (idx === 1) return `❌ (Removed: ${default2 || 'Runner-up'} - Click restore or drop)`;
+                      return '❌ (Medalist Removed - Click restore or drop)';
+                    }
+                    if (idx === 0) return default1 ? `${default1} (Auto)` : 'TBD (Winner of Final)';
+                    if (idx === 1) return default2 ? `${default2} (Auto)` : 'TBD (Runner-up)';
+                    return 'Drag competitor here';
+                  };
 
-              const getSlotPlaceholder = (idx: number) => {
-                if (currentStandings[idx] === '_REMOVED_') {
-                  if (idx === 0) return `❌ (Removed: ${default1 || 'Winner'} - Click restore or drop)`;
-                  if (idx === 1) return `❌ (Removed: ${default2 || 'Runner-up'} - Click restore or drop)`;
-                  return '❌ (Medalist Removed - Click restore or drop)';
-                }
-                if (idx === 0) return default1 ? `${default1} (Auto)` : 'TBD (Winner of Final)';
-                if (idx === 1) return default2 ? `${default2} (Auto)` : 'TBD (Runner-up)';
-                return 'Drag competitor here';
-              };
+                  return [0, 1, 2, 3].map((slotIdx) => {
+                    const isOver = dragOverStandingsIndex === slotIdx;
+                    const val = currentStandings[slotIdx];
+                    const isRemoved = val === '_REMOVED_';
+                    let displayName = isRemoved ? '' : val;
+                    let isComputed = false;
 
-              return [0, 1, 2, 3].map((slotIdx) => {
-                const isOver = dragOverStandingsIndex === slotIdx;
-                const val = currentStandings[slotIdx];
-                const isRemoved = val === '_REMOVED_';
-                let displayName = isRemoved ? '' : val;
-                let isComputed = false;
-
-                if (!displayName) {
-                  if (slotIdx === 0 && !isRemoved) {
-                    displayName = default1;
-                    isComputed = !!default1;
-                  } else if (slotIdx === 1 && !isRemoved) {
-                    displayName = default2;
-                    isComputed = !!default2;
-                  }
-                }
-
-                const labelColor =
-                  slotIdx === 0
-                    ? 'text-amber-500'
-                    : slotIdx === 1
-                    ? 'text-slate-400'
-                    : 'text-amber-700/60';
-
-                return (
-                  <div
-                    key={slotIdx}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragOverStandingsIndex !== slotIdx) {
-                        setDragOverStandingsIndex(slotIdx);
+                    if (!displayName) {
+                      if (slotIdx === 0 && !isRemoved) {
+                        displayName = default1;
+                        isComputed = !!default1;
+                      } else if (slotIdx === 1 && !isRemoved) {
+                        displayName = default2;
+                        isComputed = !!default2;
                       }
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      setDragOverStandingsIndex(slotIdx);
-                    }}
-                    onDragLeave={() => {
-                      if (dragOverStandingsIndex === slotIdx) {
-                        setDragOverStandingsIndex(null);
-                      }
-                    }}
-                    onDrop={(e) => handleDropToStanding(e, slotIdx)}
-                    className={`px-3.5 py-2.5 flex items-center gap-2 transition-all group/slot relative ${
-                      isOver
-                        ? 'bg-amber-50 border-y border-amber-300 scale-[1.02] shadow-sm z-10'
-                        : 'hover:bg-slate-50/50'
-                    }`}
-                  >
-                    <span className={`font-black w-4 text-[13px] ${labelColor}`}>
-                      {slotIdx + 1}.
-                    </span>
-                    <div className="flex-1 flex items-center min-w-0">
-                      <input
-                        type="text"
-                        value={val === '_REMOVED_' ? '' : val}
-                        onChange={(e) => {
-                          const nextS = [...currentStandings];
-                          nextS[slotIdx] = e.target.value;
-                          if (onUpdateStandings) onUpdateStandings(nextS);
+                    }
+
+                    const labelColor =
+                      slotIdx === 0
+                        ? 'text-amber-500'
+                        : slotIdx === 1
+                        ? 'text-slate-400'
+                        : 'text-amber-700/60';
+
+                    return (
+                      <div
+                        key={slotIdx}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (dragOverStandingsIndex !== slotIdx) {
+                            setDragOverStandingsIndex(slotIdx);
+                          }
                         }}
-                        className={`w-full bg-transparent border-none outline-none text-xs font-semibold p-0 placeholder-slate-400 break-normal focus:ring-0 ${
-                          val && val !== '_REMOVED_'
-                            ? 'text-slate-950 font-black' 
-                            : isComputed 
-                            ? 'text-slate-700 font-extrabold italic' 
-                            : 'text-slate-400 font-medium italic'
+                        onDragEnter={(e) => {
+                          e.preventDefault();
+                          setDragOverStandingsIndex(slotIdx);
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverStandingsIndex === slotIdx) {
+                            setDragOverStandingsIndex(null);
+                          }
+                        }}
+                        onDrop={(e) => handleDropToStanding(e, slotIdx)}
+                        className={`px-3.5 py-2.5 flex items-center gap-2 transition-all group/slot relative ${
+                          isOver
+                            ? 'bg-amber-50 border-y border-amber-300 scale-[1.02] shadow-sm z-10'
+                            : 'hover:bg-slate-50/50'
                         }`}
-                        placeholder={getSlotPlaceholder(slotIdx)}
-                      />
-                    </div>
-
-                    {/* Badges/Controls */}
-                    <div className="flex items-center gap-1.5 shrink-0 select-none">
-                      {!val && isComputed && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const nextS = [...currentStandings];
-                            nextS[slotIdx] = '_REMOVED_';
-                            if (onUpdateStandings) onUpdateStandings(nextS);
-                          }}
-                          className="bg-rose-50 hover:bg-rose-105 active:scale-95 text-rose-600 hover:text-white border border-transparent hover:border-rose-300 p-1 rounded-md cursor-pointer transition-all no-print flex items-center justify-center gap-0.5 text-[8px] font-semibold"
-                          title="Exclude this competitor from final standings"
-                        >
-                          <Trash2 className="w-2.5 h-2.5" />
-                          <span>Remove</span>
-                        </button>
-                      )}
-
-                      {val && val !== '_REMOVED_' && (
-                        <button
-                          onClick={() => clearStandingSlot(slotIdx)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px] cursor-pointer transition-all no-print"
-                          title="Clear custom result"
-                        >
-                          ×
-                        </button>
-                      )}
-
-                      {val === '_REMOVED_' && (
-                        <button
-                          onClick={() => clearStandingSlot(slotIdx)}
-                          className="bg-amber-100 hover:bg-amber-200 text-amber-700 hover:text-amber-900 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider cursor-pointer transition-all no-print"
-                          title="Restore automatic medalist calculations"
-                        >
-                          Restore
-                        </button>
-                      )}
-                      
-                      {!displayName && !val && (
-                        <span className="text-[8px] text-slate-350 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded font-black uppercase tracking-wider group-hover/slot:opacity-0 transition-opacity no-print">
-                          Drop
+                      >
+                        <span className={`font-black w-4 text-[13px] ${labelColor}`}>
+                          {slotIdx + 1}.
                         </span>
-                      )}
+                        <div className="flex-1 flex items-center min-w-0">
+                          <input
+                            type="text"
+                            value={val === '_REMOVED_' ? '' : val}
+                            onChange={(e) => {
+                              const nextS = [...currentStandings];
+                              nextS[slotIdx] = e.target.value;
+                              if (onUpdateStandings) onUpdateStandings(nextS);
+                            }}
+                            className={`w-full bg-transparent border-none outline-none text-[13.5px] font-semibold p-0 placeholder-slate-400 truncate focus:ring-0 ${
+                              val && val !== '_REMOVED_'
+                                ? 'text-slate-950 font-black' 
+                                : isComputed 
+                                ? 'text-slate-700 font-extrabold italic' 
+                                : 'text-slate-400 font-medium italic'
+                            }`}
+                            placeholder={getSlotPlaceholder(slotIdx)}
+                          />
+                        </div>
 
-                      {val && val !== '_REMOVED_' && (
-                        <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-black uppercase tracking-wider scale-90 no-print">
-                          Custom
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
+                        {/* Badges/Controls */}
+                        <div className="flex items-center gap-1.5 shrink-0 select-none">
+                          {!val && isComputed && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextS = [...currentStandings];
+                                nextS[slotIdx] = '_REMOVED_';
+                                if (onUpdateStandings) onUpdateStandings(nextS);
+                              }}
+                              className="bg-rose-50 hover:bg-rose-105 active:scale-95 text-rose-600 hover:text-white border border-transparent hover:border-rose-300 p-1 rounded-md cursor-pointer transition-all no-print flex items-center justify-center gap-0.5 text-[8px] font-semibold"
+                              title="Exclude this competitor from final standings"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                              <span>Remove</span>
+                            </button>
+                          )}
+
+                          {val && val !== '_REMOVED_' && (
+                            <button
+                              onClick={() => clearStandingSlot(slotIdx)}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px] cursor-pointer transition-all no-print"
+                              title="Clear custom result"
+                            >
+                              ×
+                            </button>
+                          )}
+
+                          {val === '_REMOVED_' && (
+                            <button
+                              onClick={() => clearStandingSlot(slotIdx)}
+                              className="bg-amber-100 hover:bg-amber-200 text-amber-700 hover:text-amber-900 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider cursor-pointer transition-all no-print"
+                              title="Restore automatic medalist calculations"
+                            >
+                              Restore
+                            </button>
+                          )}
+                          
+                          {!displayName && !val && (
+                            <span className="text-[8px] text-slate-350 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded font-black uppercase tracking-wider group-hover/slot:opacity-0 transition-opacity no-print">
+                              Drop
+                            </span>
+                          )}
+
+                          {val && val !== '_REMOVED_' && (
+                            <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-black uppercase tracking-wider scale-90 no-print">
+                              Custom
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Dynamic clean professional footer print line */}
-        <p className="text-[9px] text-slate-400 font-medium italic mt-6 tracking-wide uppercase select-none text-center">
-          Generated automatically via Bracket Builder · Printed on {new Date().toLocaleDateString()}
-        </p>
       </div>
+
+
 
       {/* Edit Leaf Node Modal overlay */}
       {showModal && selectedLeafIndex !== null && (
@@ -978,7 +1020,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
           <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-xl relative">
             <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center gap-1.5 border-b border-slate-100 pb-2">
               <span className="text-amber-500 text-lg">🥋</span>
-              <span>Edit Competitor — Slot {selectedLeafIndex + 1} (Seed {nodes[0][selectedLeafIndex].seed})</span>
+              <span>Edit Competitor — Slot {selectedLeafIndex + 1} (Seed {nodes[0]?.[selectedLeafIndex]?.seed})</span>
             </h3>
 
             <div className="space-y-4">
@@ -1049,7 +1091,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
                 >
                   <option value="">-- Choose target slot --</option>
-                  {nodes[0].map((n, idx) => {
+                  {(nodes[0] || []).map((n, idx) => {
                     if (idx === selectedLeafIndex) return null;
                     const desc = n.isBye ? 'BYE' : `${n.name} (${n.club || 'Ind.'})`;
                     return (

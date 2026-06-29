@@ -6,11 +6,13 @@ import { BracketCanvas } from './components/BracketCanvas';
 import { ClubReportPanel } from './components/ClubReportPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
+import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged } from './lib/firebase';
 import { PdfBracketParserPanel } from './components/PdfBracketParserPanel';
 import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent } from './types';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { replaceOklchInString } from './utils/colorUtils';
+import { decompressFromGzipBase64 } from './utils/compression';
 import {
   buildRosterFromText,
   groupRoster,
@@ -29,6 +31,49 @@ import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layer
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
 const CURRENT_ID_STORAGE_KEY = 'bracket_builder_current_event_id_v1';
+
+// Robust local storage proxy that falls back to in-memory state in sandbox/iframe environments
+const inMemoryDb: Record<string, string> = {};
+const safeLocalStorage = {
+  getItem(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (e) {
+      return inMemoryDb[key] || null;
+    }
+  },
+  setItem(key: string, value: string): void {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (e) {
+      inMemoryDb[key] = value;
+    }
+  },
+  removeItem(key: string): void {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (e) {
+      delete inMemoryDb[key];
+    }
+  }
+};
+
+const safeAlert = (message: string): void => {
+  try {
+    window.alert(message);
+  } catch (e) {
+    console.warn('window.alert blocked or unavailable in this environment:', message, e);
+  }
+};
+
+const safeConfirm = (message: string): boolean => {
+  try {
+    return window.confirm(message);
+  } catch (e) {
+    console.warn('window.confirm blocked or unavailable in this environment, auto-confirming action.', e);
+    return true;
+  }
+};
 
 const DEMO_DATA = `Name,Club,Category
 John Tan,Eagle Judo Club,-60kg
@@ -84,46 +129,104 @@ export default function App() {
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(false);
 
   const refreshSystemUsers = () => {
-    const usersStr = localStorage.getItem('bracket_builder_users_db');
-    let usersDb: Record<string, string> = usersStr ? JSON.parse(usersStr) : {};
+    const usersStr = safeLocalStorage.getItem('bracket_builder_users_db');
+    let usersDb: Record<string, string> = {};
+    try {
+      usersDb = usersStr ? JSON.parse(usersStr) : {};
+    } catch (e) {
+      console.warn('Failed to parse system users db', e);
+    }
     
     // Auto-seed admin if not present
     if (!usersDb['admin']) {
       usersDb['admin'] = 'admin';
-      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
+      try {
+        safeLocalStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
+      } catch (e) {
+        console.warn('Failed to save to localStorage', e);
+      }
     }
     
     setSystemUsers(usersDb);
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('bracket_builder_current_user_v1');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user && user.email) {
+        setCurrentUser(user.email);
+        try {
+          // Load saved events
+          const eventsRef = collection(db, `users/${user.email}/events`);
+          const snapshot = await getDocs(eventsRef);
+          const eventsList: SavedEvent[] = [];
+          snapshot.forEach(d => {
+            const data = d.data();
+            if (data.payload) {
+              eventsList.push(JSON.parse(data.payload));
+            } else {
+              eventsList.push(data as SavedEvent);
+            }
+          });
+          setSavedEvents(eventsList.sort((a, b) => b.timestamp - a.timestamp));
+
+          // Load current ongoing state
+          const currentRef = doc(db, `users/${user.email}/current/state`);
+          const currentStateSnap = await getDoc(currentRef);
+          if (currentStateSnap.exists()) {
+             const data = currentStateSnap.data();
+             const snap = data.payload ? JSON.parse(data.payload) : data;
+             if (snap.tournamentName) setTournamentName(snap.tournamentName);
+             if (snap.roster) setRoster(snap.roster);
+             if (snap.categories) setCategories(snap.categories);
+             if (snap.brackets) setBrackets(snap.brackets);
+             if (snap.ringCount) setRingCount(snap.ringCount);
+             if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+             if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+             if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
+             if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
+             if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
+          }
+        } catch (err) {
+          console.error("Error loading Firestore data:", err);
+        }
+      } else {
+        setCurrentUser(null);
+        setSavedEvents([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await import('./lib/firebase').then(m => m.signOut(auth));
   };
 
   const handleLogin = (username: string) => {
-    setCurrentUser(username);
-    localStorage.setItem('bracket_builder_current_user_v1', username);
+    // Handled by onAuthStateChanged
   };
 
   const handleDeleteUser = (uname: string) => {
     if (uname === 'admin') {
-      alert("Cannot delete the default admin account.");
+      safeAlert("Cannot delete the default admin account.");
       return;
     }
     if (uname === currentUser) {
-      alert("Cannot delete the currently logged-in account.");
+      safeAlert("Cannot delete the currently logged-in account.");
       return;
     }
-    const confirmed = window.confirm(`Are you sure you want to delete user '${uname}'?`);
+    const confirmed = safeConfirm(`Are you sure you want to delete user '${uname}'?`);
     if (!confirmed) return;
 
-    const usersStr = localStorage.getItem('bracket_builder_users_db');
+    const usersStr = safeLocalStorage.getItem('bracket_builder_users_db');
     if (usersStr) {
-      const usersDb = JSON.parse(usersStr);
-      delete usersDb[uname];
-      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
-      refreshSystemUsers();
+      try {
+        const usersDb = JSON.parse(usersStr);
+        delete usersDb[uname];
+        safeLocalStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
+        refreshSystemUsers();
+      } catch (e) {
+        console.warn('Failed to update system users db', e);
+      }
     }
   };
 
@@ -196,8 +299,7 @@ export default function App() {
             });
           return; // Bypass loading from localStorage
         } else if (dataParam) {
-          import('./utils/compression')
-            .then(({ decompressFromGzipBase64 }) => decompressFromGzipBase64(dataParam))
+          decompressFromGzipBase64(dataParam)
             .then(decompressed => JSON.parse(decompressed))
             .catch(() => {
               // Fallback to standard raw base64 if it is an old format URL
@@ -230,22 +332,22 @@ export default function App() {
       }
 
       // Standard fallback load
-      const storedUser = localStorage.getItem('bracket_builder_current_user_v1');
+      const storedUser = safeLocalStorage.getItem('bracket_builder_current_user_v1');
       if (storedUser) {
         setCurrentUser(storedUser);
       }
 
-      const storedEvents = localStorage.getItem(EVENTS_STORAGE_KEY);
+      const storedEvents = safeLocalStorage.getItem(EVENTS_STORAGE_KEY);
       if (storedEvents) {
         setSavedEvents(JSON.parse(storedEvents));
       }
 
-      const storedId = localStorage.getItem(CURRENT_ID_STORAGE_KEY);
+      const storedId = safeLocalStorage.getItem(CURRENT_ID_STORAGE_KEY);
       if (storedId) {
         setCurrentEventId(storedId);
       }
 
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
       if (stored) {
         const snap = JSON.parse(stored);
         if (snap) {
@@ -281,7 +383,7 @@ export default function App() {
     }
     setSaveStatus('saving');
 
-    saveTimerRef.current = setTimeout(() => {
+    saveTimerRef.current = setTimeout(async () => {
       try {
         const snapshot = {
           tournamentName,
@@ -293,8 +395,15 @@ export default function App() {
           boutLabelFormat,
           shuffleSeed,
           dismissedDuplicates,
+          currentEventId,
         };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        
+        if (currentUser) {
+          const currentRef = doc(db, `users/${currentUser}/current/state`);
+          await setDoc(currentRef, { payload: JSON.stringify(snapshot) });
+        }
+
         setSaveStatus('saved');
         
         // Hide saved status after a block of time
@@ -302,7 +411,7 @@ export default function App() {
           setSaveStatus((prev) => (prev === 'saved' ? 'idle' : prev));
         }, 3000);
       } catch (e) {
-        console.error('Failed to write to local storage', e);
+        console.error('Failed to write state', e);
         setSaveStatus('idle');
       }
     }, 1000);
@@ -537,11 +646,11 @@ export default function App() {
     if (!model) return;
     const leafNodes = model.nodes[0];
     const leafNode = leafNodes[leafIndex];
-    if (!leafNode || leafNode.isBye) return;
+    if (!leafNode || leafNode.isBye || !leafNode.name) return;
 
     // 2. Identify the athlete in roster
     let athleteIndex = roster.findIndex((a) => {
-      const matchName = a.name.trim().toLowerCase() === leafNode.name.trim().toLowerCase();
+      const matchName = (a.name || '').trim().toLowerCase() === leafNode.name!.trim().toLowerCase();
       const matchClub = (a.club || '').trim().toLowerCase() === (leafNode.club || '').trim().toLowerCase();
       const matchWeight = a.weight === sourceCatKey;
       return matchName && matchClub && matchWeight;
@@ -550,7 +659,7 @@ export default function App() {
     if (athleteIndex === -1) {
       // Fallback: match by name and category
       const fallbackIndex = roster.findIndex((a) => {
-        const matchName = a.name.trim().toLowerCase() === leafNode.name.trim().toLowerCase();
+        const matchName = (a.name || '').trim().toLowerCase() === leafNode.name!.trim().toLowerCase();
         const matchWeight = a.weight === sourceCatKey;
         return matchName && matchWeight;
       });
@@ -791,9 +900,9 @@ export default function App() {
         setShuffleSeed(true);
         setActiveTab('brackets');
         setCurrentEventId(null);
-        localStorage.removeItem(CURRENT_ID_STORAGE_KEY);
+        safeLocalStorage.removeItem(CURRENT_ID_STORAGE_KEY);
         setStatusMessage({ text: 'Data has been reset successfully.', type: 'ok' });
-        localStorage.removeItem(STORAGE_KEY);
+        safeLocalStorage.removeItem(STORAGE_KEY);
       }
     });
   };
@@ -801,10 +910,10 @@ export default function App() {
   // Event Archives Persistence Handlers
   const saveEventListToStorage = (list: SavedEvent[]) => {
     setSavedEvents(list);
-    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+    safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
   };
 
-  const handleSaveCurrentEvent = (customName?: string) => {
+  const handleSaveCurrentEvent = async (customName?: string) => {
     const finalName = customName || tournamentName || 'Untitled Event';
     const newId = currentEventId || (Math.random().toString(36).substring(2, 9) + '-' + Date.now());
     
@@ -831,11 +940,26 @@ export default function App() {
     } else {
       updatedList = [...savedEvents, newEvent];
     }
+    updatedList = updatedList.sort((a, b) => b.timestamp - a.timestamp);
 
     saveEventListToStorage(updatedList);
     setCurrentEventId(newId);
-    localStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
+    safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
     setTournamentName(finalName);
+
+    if (currentUser) {
+      try {
+        const eventRef = doc(db, `users/${currentUser}/events/${newId}`);
+        await setDoc(eventRef, {
+          payload: JSON.stringify(newEvent),
+          id: newId,
+          timestamp: newEvent.timestamp,
+          tournamentName: finalName
+        });
+      } catch (err) {
+        console.error("Failed to save event to Firestore", err);
+      }
+    }
 
     setStatusMessage({
       text: `Successfully saved event "${finalName}" to library.`,
@@ -852,7 +976,7 @@ export default function App() {
       message: `Are you sure you want to overwrite "${existing.tournamentName}" with your current layout? All previous details for this slot will be replaced.`,
       confirmText: 'Overwrite Slot',
       isDanger: true,
-      onConfirm: () => {
+      onConfirm: async () => {
         const updatedEvent: SavedEvent = {
           ...existing,
           timestamp: Date.now(),
@@ -870,8 +994,22 @@ export default function App() {
         };
 
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
-        saveEventListToStorage(updatedList);
+        saveEventListToStorage(updatedList.sort((a, b) => b.timestamp - a.timestamp));
         
+        if (currentUser) {
+          try {
+            const eventRef = doc(db, `users/${currentUser}/events/${id}`);
+            await setDoc(eventRef, {
+              payload: JSON.stringify(updatedEvent),
+              id: id,
+              timestamp: updatedEvent.timestamp,
+              tournamentName: updatedEvent.tournamentName
+            });
+          } catch (err) {
+            console.error("Failed to update event in Firestore", err);
+          }
+        }
+
         setStatusMessage({
           text: `Successfully updated (overwrote) event "${existing.tournamentName}".`,
           type: 'ok',
@@ -896,7 +1034,7 @@ export default function App() {
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
       setCurrentEventId(target.id);
-      localStorage.setItem(CURRENT_ID_STORAGE_KEY, target.id);
+      safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, target.id);
 
       // Sync immediate item
       const snapshot = {
@@ -910,7 +1048,7 @@ export default function App() {
         shuffleSeed: target.shuffleSeed,
         dismissedDuplicates: target.dismissedDuplicates,
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 
       setIsEventsModalOpen(false);
       setStatusMessage({
@@ -940,13 +1078,22 @@ export default function App() {
       message: `Are you sure you want to permanently delete "${target.tournamentName}" from saved history snapshots? This cannot be restored.`,
       confirmText: 'Delete Permanently',
       isDanger: true,
-      onConfirm: () => {
+      onConfirm: async () => {
         const updatedList = savedEvents.filter(e => e.id !== id);
         saveEventListToStorage(updatedList);
 
+        if (currentUser) {
+          try {
+            const eventRef = doc(db, `users/${currentUser}/events/${id}`);
+            await deleteDoc(eventRef);
+          } catch (err) {
+            console.error("Failed to delete event from Firestore", err);
+          }
+        }
+
         if (currentEventId === id) {
           setCurrentEventId(null);
-          localStorage.removeItem(CURRENT_ID_STORAGE_KEY);
+          safeLocalStorage.removeItem(CURRENT_ID_STORAGE_KEY);
         }
 
         setStatusMessage({
@@ -968,8 +1115,8 @@ export default function App() {
       setShuffleSeed(true);
       setActiveTab('brackets');
       setCurrentEventId(null);
-      localStorage.removeItem(CURRENT_ID_STORAGE_KEY);
-      localStorage.removeItem(STORAGE_KEY);
+      safeLocalStorage.removeItem(CURRENT_ID_STORAGE_KEY);
+      safeLocalStorage.removeItem(STORAGE_KEY);
 
       setIsEventsModalOpen(false);
       setStatusMessage({ text: 'Created new blank event. Roster is ready for import.', type: 'ok' });
@@ -995,7 +1142,7 @@ export default function App() {
     
     setTournamentName(cleanName);
     setCurrentEventId(newId);
-    localStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
+    safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
 
     if (loadDemo) {
       // populate standard sample data immediately
@@ -1026,8 +1173,8 @@ export default function App() {
 
   // 8. Custom High-Fidelity SVG Print Trigger
   const handleExportPdf = () => {
-    const TARGET_W = 1500;
-    const TARGET_H = 980;
+    const TARGET_W = 1010;
+    const TARGET_H = 480;
 
     const restoreStates: Array<() => void> = [];
 
@@ -1150,8 +1297,8 @@ export default function App() {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
           width: element.scrollWidth,
-          height: Math.max(element.scrollHeight, canvasHeight + 250), // Pad for title/footer
-          skipFonts: false,
+          height: Math.max(element.scrollHeight, canvasHeight + 170), // Pad for title/footer
+          skipFonts: true,
           filter: (node) => {
              return !(node.classList && node.classList.contains('no-print'));
           },
@@ -1178,9 +1325,10 @@ export default function App() {
         const imgW = img.width;
         const imgH = img.height;
 
-        const margin = 2; // 2mm margins (was 10mm)
-        const maxW = pdfWidth - 2 * margin;
-        const maxH = pdfHeight - 2 * margin;
+        const marginTopBottom = 20; // 20mm top & bottom margin
+        const marginLeftRight = 10; // 10mm left & right margin
+        const maxW = pdfWidth - 2 * marginLeftRight;
+        const maxH = pdfHeight - 2 * marginTopBottom;
 
         const ratioW = maxW / imgW;
         const ratioH = maxH / imgH;
@@ -1189,8 +1337,8 @@ export default function App() {
         const printW = imgW * ratio;
         const printH = imgH * ratio;
 
-        const x = margin + (maxW - printW) / 2;
-        const y = margin + (maxH - printH) / 2;
+        const x = marginLeftRight + (maxW - printW) / 2;
+        const y = marginTopBottom; // Align to top margin instead of vertically centering
 
         pdf.addImage(imgData, 'JPEG', x, y, printW, printH, undefined, 'FAST');
       }
@@ -1208,6 +1356,575 @@ export default function App() {
       });
     } catch (err: any) {
       document.body.classList.remove('exporting-pdf');
+      console.error(err);
+      setPdfError(err?.message || String(err) || 'Failed to export PDF.');
+      if (err?.stack) {
+        setPdfError((prev) => prev + '\n' + err.stack);
+      }
+      setPdfExportLoading(false);
+    }
+  };
+
+  const handleDownloadSearchablePdf = async (ringFilter?: 'all' | number) => {
+    setPdfExportLoading(true);
+    setPdfError('');
+    setPdfProgress({ current: 0, total: 0 });
+
+    const activeFilter = ringFilter !== undefined ? ringFilter : selectedRingFilter;
+
+    try {
+      // Find keys of brackets that match the filter
+      let keysToExport = bracketKeys;
+      if (activeFilter !== 'all') {
+        keysToExport = bracketKeys.filter((key) => {
+          const cat = categories[key];
+          return cat && (cat.ring === activeFilter || getRingLabel(cat.ring) === getRingLabel(activeFilter));
+        });
+      }
+
+      if (keysToExport.length === 0) {
+        throw new Error(`No brackets found for Ring ${getRingLabel(activeFilter)} to export. Please verify allocation setup.`);
+      }
+
+      setPdfProgress({ current: 0, total: keysToExport.length });
+
+      // Create a Landscape A4 PDF Document
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      // Internal copy of getFormattedBout to avoid module exports mismatch
+      const getFormattedBoutLabel = (
+        ring: string | number,
+        boutNumber: number | undefined
+      ): string => {
+        if (boutNumber === undefined) return '';
+
+        let ringNum = 1;
+        if (typeof ring === 'number') {
+          ringNum = ring;
+        } else {
+          const cleaned = String(ring).trim().toLowerCase();
+          const numMatch = cleaned.match(/\d+$/);
+          if (numMatch) {
+            ringNum = parseInt(numMatch[0], 10);
+          } else {
+            const letterMatch = cleaned.match(/[a-z]$/);
+            if (letterMatch) {
+              ringNum = letterMatch[0].charCodeAt(0) - 96;
+            }
+          }
+        }
+
+        if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+
+        if (boutLabelFormat === 'thousands-3') {
+          const pad = String(boutNumber).padStart(3, '0');
+          return `${ringNum}${pad}`;
+        } else {
+          const letter = String.fromCharCode(64 + ringNum);
+          const pad = String(boutNumber).padStart(2, '0');
+          return `${letter}${pad}`;
+        }
+      };
+
+      for (let index = 0; index < keysToExport.length; index++) {
+        setPdfProgress({ current: index + 1, total: keysToExport.length });
+        const key = keysToExport[index];
+        const bracket = brackets[key];
+        const cat = categories[key];
+        
+        if (!bracket) continue;
+
+        if (index > 0) {
+          pdf.addPage();
+        }
+
+        const ringLabel = getRingLabel(cat?.ring || 1);
+        const entrantCount = cat?.count || 0;
+
+        // Draw header
+        // Center X: 148.5mm (half of 297mm)
+        const centerX = 148.5;
+        
+        pdf.setTextColor(15, 23, 42); // slate-900
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(15);
+        const titleText = (tournamentName || 'TOURNAMENT CHAMPIONSHIP').toUpperCase();
+        pdf.text(titleText, centerX, 14, { align: 'center' });
+
+        pdf.setTextColor(30, 41, 59); // slate-800
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        pdf.text(`RING ${ringLabel}`.toUpperCase(), centerX, 19, { align: 'center' });
+
+        pdf.setTextColor(217, 119, 6); // amber-600
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.text(bracket.categoryKey.toUpperCase(), centerX, 24, { align: 'center' });
+
+        pdf.setTextColor(100, 116, 139); // slate-500
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        const dateStr = new Date().toISOString().split('T')[0];
+        pdf.text(`${entrantCount} competitors  |  ${dateStr}`, centerX, 28, { align: 'center' });
+
+        // Subtle dividing line
+        pdf.setDrawColor(226, 232, 240); // slate-200
+        pdf.setLineWidth(0.35);
+        pdf.line(20, 31, 277, 31);
+
+        // Compute bracket structure positions (mirroring BracketCanvas exactly)
+        const { size, numRounds, nodes } = bracket;
+
+        let gap = 240;
+
+        let ROW_PITCH = 46;
+        if (size === 2) ROW_PITCH = 340;
+        else if (size === 4) ROW_PITCH = 300;
+        else if (size === 8) ROW_PITCH = 200;
+        else if (size === 16) ROW_PITCH = 140;
+        else if (size === 32) ROW_PITCH = 90;
+        else if (size === 64) ROW_PITCH = 65;
+
+        const PAD = 16;
+        const BOX_W = 240;
+        const BOX_H = 40;
+
+        // Compute absolute positions dynamically for split symmetrical bracket
+        const positions: { x: number; y: number }[][] = [];
+        for (let k = 0; k <= numRounds; k++) {
+          const count = size / Math.pow(2, k);
+          const arr: { x: number; y: number }[] = [];
+          for (let i = 0; i < count; i++) {
+            let x: number;
+            if (k === numRounds) {
+              x = PAD + (numRounds - 1) * gap + BOX_W / 2 + 60;
+            } else {
+              const isLeft = i < count / 2;
+              if (isLeft) {
+                x = PAD + k * gap;
+              } else {
+                x = PAD + (2 * numRounds - 2 - k) * gap + BOX_W + 120;
+              }
+            }
+
+            let y: number;
+            if (k === 0) {
+              const j = i < count / 2 ? i : (i - count / 2);
+              y = PAD + j * ROW_PITCH + ROW_PITCH / 2;
+            } else if (k === numRounds) {
+              const prev1Y = positions[k - 1][0].y;
+              const prev2Y = positions[k - 1][1].y;
+              y = (prev1Y + prev2Y) / 2;
+            } else {
+              const prev1Y = positions[k - 1][2 * i].y;
+              const prev2Y = positions[k - 1][2 * i + 1].y;
+              y = (prev1Y + prev2Y) / 2;
+            }
+            arr.push({ x, y });
+          }
+          positions.push(arr);
+        }
+
+        const canvasWidth = numRounds === 0 ? PAD * 2 + BOX_W : PAD * 2 + (2 * numRounds - 2) * gap + 2 * BOX_W + 120;
+        const baseCanvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
+        const finalY = positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2);
+        const isClassic = bracketLayout === 'classic';
+        const minRequiredHeight = finalY + (isClassic ? 75 : 95) + 180 + PAD;
+        const canvasHeight = Math.max(baseCanvasHeight, minRequiredHeight);
+
+        // Project coordinate math onto PDF dimensions
+        // A4 Landscape available space inside margins
+        const maxW = 273; // 297 - 24 (12mm margins)
+        const maxH = 158; // 210 - 12 (top header) - 32 (header) - 8 (bottom margin)
+        
+        const scaleX = maxW / canvasWidth;
+        const scaleY = maxH / canvasHeight;
+        const scale = Math.min(scaleX, scaleY);
+
+        const startX = 12 + (maxW - canvasWidth * scale) / 2;
+        const startY = 38 + (maxH - canvasHeight * scale) / 2;
+
+        const mapX = (ptX: number) => startX + ptX * scale;
+        const mapY = (ptY: number) => startY + ptY * scale;
+
+        const drawPdfLine = (x1: number, y1: number, x2: number, y2: number) => {
+          pdf.line(mapX(x1), mapY(y1), mapX(x2), mapY(y2));
+        };
+
+        // Draw bracket line connectors (Vector graphics)
+        pdf.setDrawColor(30, 41, 59); // slate-800
+        pdf.setLineWidth(0.35);
+
+        if (isClassic) {
+           for (let k = 0; k <= numRounds; k++) {
+               if (k === numRounds) continue;
+               const count = positions[k].length;
+               for (let i = 0; i < count; i++) {
+                   const pos = positions[k][i];
+                   drawPdfLine(pos.x, pos.y, pos.x + BOX_W, pos.y);
+               }
+           }
+        }
+
+        for (let k = 1; k <= numRounds; k++) {
+          const count = positions[k].length;
+          for (let m = 0; m < count; m++) {
+            const c1 = positions[k - 1][2 * m];
+            const c2 = positions[k - 1][2 * m + 1];
+            const parent = positions[k][m];
+
+            if (k === numRounds) {
+              if (isClassic) {
+                 const riserX = (c1.x + BOX_W + c2.x) / 2;
+                 // Straight horizontal line joining the two sides
+                 drawPdfLine(c1.x + BOX_W, c1.y, c2.x, c2.y);
+              } else {
+                 // Final match horizontal connectors removed per user request: "remove 1 left/right connector lines"
+                 // drawPdfLine(c1.x + BOX_W, c1.y, parent.x, parent.y);
+                 // drawPdfLine(c2.x, c2.y, parent.x + BOX_W, parent.y);
+              }
+            } else {
+              const isLeftParent = m < count / 2;
+              if (isLeftParent) {
+                const riserX = (c1.x + BOX_W + parent.x) / 2;
+                drawPdfLine(c1.x + BOX_W, c1.y, riserX, c1.y);
+                drawPdfLine(c2.x + BOX_W, c2.y, riserX, c2.y);
+                drawPdfLine(riserX, c1.y, riserX, c2.y);
+                drawPdfLine(riserX, parent.y, parent.x, parent.y);
+              } else {
+                const riserX = (c1.x + parent.x + BOX_W) / 2;
+                drawPdfLine(c1.x, c1.y, riserX, c1.y);
+                drawPdfLine(c2.x, c2.y, riserX, c2.y);
+                drawPdfLine(riserX, c1.y, riserX, c2.y);
+                drawPdfLine(riserX, parent.y, parent.x + BOX_W, parent.y);
+              }
+            }
+          }
+        }
+
+        // Draw Bout badges on the connector lines
+        positions.forEach((roundPositions, k) => {
+          if (k < 1) return;
+          if (k === numRounds && !isClassic) return;
+          
+          roundPositions.forEach((pos, m) => {
+            const node = nodes[k]?.[m];
+            if (!node || typeof node.bout !== 'number') return;
+
+            const BOUT_BOX_W = isClassic ? 44 : 34;
+            const BOUT_BOX_H = isClassic ? 24 : 18;
+
+            let riserX = 0;
+            let riserY = pos.y;
+
+            if (k === numRounds) {
+               const c1 = positions[k - 1][0];
+               const c2 = positions[k - 1][1];
+               riserX = (c1.x + BOX_W + c2.x) / 2;
+            } else {
+               const c1 = positions[k - 1][2 * m];
+               const isLeftParent = m < roundPositions.length / 2;
+               riserX = isLeftParent
+                 ? (c1.x + BOX_W + pos.x) / 2
+                 : (c1.x + pos.x + BOX_W) / 2;
+            }
+
+            const rectLeft = mapX(riserX - BOUT_BOX_W / 2);
+            const rectTop = mapY(riserY - BOUT_BOX_H / 2);
+            const rectW = BOUT_BOX_W * scale;
+            const rectH = BOUT_BOX_H * scale;
+
+            pdf.setFillColor(255, 255, 255);
+            pdf.setDrawColor(30, 41, 59);
+            pdf.setLineWidth(0.3);
+            
+            if (isClassic) {
+              pdf.rect(rectLeft, rectTop, rectW, rectH, 'FD');
+            } else {
+              pdf.roundedRect(rectLeft, rectTop, rectW, rectH, 1 * scale, 1 * scale, 'FD');
+            }
+
+            const boutText = getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout);
+            pdf.setTextColor(30, 41, 59);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(isClassic ? Math.max(5, 11 * scale) : Math.max(4, 8.5 * scale));
+            pdf.text(boutText, rectLeft + rectW / 2, rectTop + rectH / 2 + (isClassic ? 1 * scale : 0.8 * scale), { align: 'center', baseline: 'middle' });
+          });
+        });
+
+        // Draw Player Nodes (with searchable, crystal-clear text!)
+        positions.forEach((roundPositions, k) => {
+          roundPositions.forEach((pos, i) => {
+            const node = nodes[k]?.[i];
+            if (!node) return;
+
+            const x = pos.x;
+            const y = pos.y - (k === numRounds ? 23 : BOX_H / 2);
+
+            const countInRound = size / Math.pow(2, k);
+            const isLeft = k < numRounds && (i < countInRound / 2);
+
+            const left = mapX(x);
+            const top = mapY(y);
+            const width = BOX_W * scale;
+            const height = BOX_H * scale;
+
+            if (k === 0) {
+              if (node.isBye) {
+                if (isClassic) {
+                  pdf.setTextColor(100, 116, 139);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(5, 28.5 * scale));
+                  
+                  const labelText = `${node.seed} - BYE`;
+                  const align = isLeft ? 'left' : 'right';
+                  const textX = isLeft ? left + 20 * scale : left + width - 20 * scale;
+                  // Shifted by +10px (+10 * scale) down
+                  pdf.text(labelText, textX, top + height / 2 - 10 * scale, { align });
+                } else {
+                  pdf.setFillColor(248, 250, 252);
+                  pdf.setDrawColor(226, 232, 240);
+                  pdf.setLineWidth(0.25);
+                  pdf.roundedRect(left, top, width, height, 1 * scale, 1 * scale, 'FD');
+
+                  pdf.setTextColor(148, 163, 184);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(5, 8.5 * scale));
+                  
+                  const seedText = String(node.seed);
+                  const byeText = 'BYE';
+                  
+                  if (isLeft) {
+                    pdf.text(seedText, left + 2.5 * scale, top + height / 2, { align: 'left', baseline: 'middle' });
+                    pdf.text(byeText, left + 8 * scale, top + height / 2, { align: 'left', baseline: 'middle' });
+                  } else {
+                    pdf.text(seedText, left + width - 2.5 * scale, top + height / 2, { align: 'right', baseline: 'middle' });
+                    pdf.text(byeText, left + width - 8 * scale, top + height / 2, { align: 'right', baseline: 'middle' });
+                  }
+                }
+              } else {
+                if (isClassic) {
+                  const nameAlign = isLeft ? 'left' : 'right';
+                  const textX = isLeft ? left + 20 * scale : left + width - 20 * scale;
+
+                  pdf.setTextColor(15, 23, 42);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(5, 56.5 * scale));
+                  const nameText = `${node.seed} - ${(node.name || '').toUpperCase()}`;
+                  // Shifted by +10px (+10 * scale) down
+                  pdf.text(nameText, textX, top + height / 2 - 10 * scale, { align: nameAlign });
+
+                  pdf.setTextColor(100, 116, 139);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(4, 54 * scale));
+                  const clubText = node.club || '(Ind.)';
+                  // Shifted by -10px (-10 * scale) up (moved up 1 row)
+                  pdf.text(clubText.toUpperCase(), textX, top + height / 2 + 24 * scale, { align: nameAlign });
+                } else {
+                  if (node.checked) {
+                    pdf.setFillColor(240, 253, 250);
+                    pdf.setDrawColor(16, 185, 129);
+                  } else {
+                    pdf.setFillColor(255, 255, 255);
+                    pdf.setDrawColor(30, 41, 59);
+                  }
+                  pdf.setLineWidth(0.35);
+                  pdf.roundedRect(left, top, width, height, 1 * scale, 1 * scale, 'FD');
+
+                  pdf.setTextColor(148, 163, 184);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(4, 8 * scale));
+                  const seedText = String(node.seed);
+                  const seedX = isLeft ? left + 2.5 * scale : left + width - 2.5 * scale;
+                  const seedAlign = isLeft ? 'left' : 'right';
+                  pdf.text(seedText, seedX, top + height / 2, { align: seedAlign, baseline: 'middle' });
+
+                  const contentAlign = isLeft ? 'left' : 'right';
+                  const contentX = isLeft ? left + 8 * scale : left + width - 8 * scale;
+                  
+                  pdf.setTextColor(15, 23, 42);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(5, 9 * scale));
+                  pdf.text((node.name || '').toUpperCase(), contentX, top + height / 3 + 0.5 * scale, { align: contentAlign, baseline: 'middle' });
+
+                  pdf.setTextColor(100, 116, 139);
+                  pdf.setFont('helvetica', 'normal');
+                  pdf.setFontSize(Math.max(4, 7.5 * scale));
+                  pdf.text((node.club || 'Ind.').toUpperCase(), contentX, top + (2 * height) / 3 + 0.5 * scale, { align: contentAlign, baseline: 'middle' });
+                }
+              }
+            } else if (k < numRounds) {
+              if (!node.isBye) {
+                if (isClassic) {
+                  if (node.name) {
+                    const nameAlign = isLeft ? 'left' : 'right';
+                    const textX = isLeft ? left + 20 * scale : left + width - 20 * scale;
+
+                    pdf.setTextColor(15, 23, 42);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(Math.max(5, 56.5 * scale));
+                    // Shifted by +10px (+10 * scale) down
+                    pdf.text((node.name || '').toUpperCase(), textX, top + height / 2 - 10 * scale, { align: nameAlign });
+
+                    if (node.club) {
+                      pdf.setTextColor(100, 116, 139);
+                      pdf.setFont('helvetica', 'bold');
+                      pdf.setFontSize(Math.max(4, 54 * scale));
+                      // Shifted by -10px (-10 * scale) up (moved up 1 row)
+                      pdf.text(node.club.toUpperCase(), textX, top + height / 2 + 24 * scale, { align: nameAlign });
+                    }
+                  }
+                } else {
+                  if (node.checked) {
+                    pdf.setFillColor(240, 253, 250);
+                    pdf.setDrawColor(16, 185, 129);
+                  } else {
+                    pdf.setFillColor(255, 255, 255);
+                    pdf.setDrawColor(30, 41, 59);
+                  }
+                  pdf.setLineWidth(0.35);
+                  pdf.roundedRect(left, top, width, height, 1 * scale, 1 * scale, 'FD');
+
+                  if (node.name) {
+                    const contentAlign = isLeft ? 'left' : 'right';
+                    const contentX = isLeft ? left + 4 * scale : left + width - 4 * scale;
+
+                    pdf.setTextColor(15, 23, 42);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(Math.max(5, 9 * scale));
+                    pdf.text((node.name || '').toUpperCase(), contentX, top + height / 2, { align: contentAlign, baseline: 'middle' });
+                  }
+                }
+              }
+            } else {
+              if (isClassic) {
+                const centerTextX = left + width / 2;
+                if (node.name) {
+                  pdf.setTextColor(15, 23, 42);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(6, 56.5 * scale));
+                  pdf.text((node.name || '').toUpperCase(), centerTextX, top + height / 2 - 10 * scale, { align: 'center' });
+                  
+                  const clubText = node.club || '(Ind.)';
+                  pdf.setTextColor(100, 116, 139);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(4, 54 * scale));
+                  pdf.text(clubText.toUpperCase(), centerTextX, top + height / 2 + 24 * scale, { align: 'center' });
+                } else {
+                  pdf.setTextColor(203, 213, 225);
+                  pdf.setFont('helvetica', 'bold');
+                  pdf.setFontSize(Math.max(6, 46.5 * scale));
+                  // pdf.text('CHAMPION', centerTextX, top + height / 2, { align: 'center' }); // Hidden per user request
+                }
+              } else {
+                const champHeight = 46 * scale;
+                pdf.setFillColor(254, 252, 232);
+                pdf.setDrawColor(245, 158, 11);
+                pdf.setLineWidth(0.5);
+                pdf.roundedRect(left, top, width, champHeight, 1.5 * scale, 1.5 * scale, 'FD');
+
+                const badgeText = node.bout ? `FINAL · ${getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout)}` : 'CHAMPION';
+                pdf.setFillColor(245, 158, 11);
+                pdf.rect(left + width / 4, top - 3 * scale, width / 2, 6 * scale, 'F');
+                pdf.setTextColor(15, 23, 42);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(Math.max(4, 7 * scale));
+                pdf.text(badgeText, left + width / 2, top, { align: 'center', baseline: 'middle' });
+
+                const champName = node.name ? node.name.toUpperCase() : ''; // GRAND CHAMPION hidden per user request
+                pdf.setTextColor(120, 53, 4);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(Math.max(5, 10 * scale));
+                if (champName) {
+                  pdf.text(`🏆  ${champName}`, left + width / 2, top + champHeight / 2 + 1 * scale, { align: 'center', baseline: 'middle' });
+                }
+              }
+            }
+          });
+        });
+
+        // Draw Final Standings Box (Vector with Searchable text) - Hidden per user request
+        /*
+        const standingsLeft = PAD + numRounds * gap + (BOX_W - 325) / 2;
+        const standingsTop = (positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2)) + (isClassic ? 75 : 95);
+        const standingsW = 325 * scale;
+        const standingsH = 100 * scale;
+
+        const stLeft = mapX(standingsLeft);
+        const stTop = mapY(standingsTop);
+
+        pdf.setFillColor(255, 255, 255);
+        pdf.setDrawColor(203, 213, 225);
+        pdf.setLineWidth(0.35);
+        pdf.roundedRect(stLeft, stTop, standingsW, standingsH, 1 * scale, 1 * scale, 'FD');
+
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(stLeft, stTop, standingsW, 18 * scale, 1 * scale, 1 * scale, 'F');
+        pdf.setDrawColor(203, 213, 225);
+        pdf.line(stLeft, stTop + 18 * scale, stLeft + standingsW, stTop + 18 * scale);
+
+        pdf.setTextColor(100, 116, 139);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(Math.max(5, 8.5 * scale));
+        pdf.text('FINAL STANDINGS', stLeft + standingsW / 2, stTop + 9 * scale, { align: 'center', baseline: 'middle' });
+
+        const currentStandings = [
+          bracket.standings?.[0] || '',
+          bracket.standings?.[1] || '',
+          bracket.standings?.[2] || '',
+          bracket.standings?.[3] || '',
+        ];
+        const default1 = nodes[numRounds]?.[0]?.name || '';
+        const default2 = (nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked))
+          ? (nodes[numRounds - 1]?.[0]?.checked ? (nodes[numRounds - 1]?.[1]?.name || '') : (nodes[numRounds - 1]?.[0]?.name || ''))
+          : '';
+
+        const medals = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place', '🥉 3rd Place'];
+
+        for (let idx = 0; idx < 4; idx++) {
+          const rowY = stTop + 18 * scale + idx * 20.5 * scale;
+          if (idx > 0) {
+            pdf.setDrawColor(241, 245, 249);
+            pdf.line(stLeft, rowY, stLeft + standingsW, rowY);
+          }
+
+          pdf.setTextColor(120, 53, 4);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(Math.max(4, 7.5 * scale));
+          pdf.text(medals[idx], stLeft + 6 * scale, rowY + 10.25 * scale, { align: 'left', baseline: 'middle' });
+
+          let athleteVal = currentStandings[idx];
+          if (athleteVal === '_REMOVED_') {
+            athleteVal = '';
+          } else if (!athleteVal) {
+            if (idx === 0) athleteVal = default1;
+            if (idx === 1) athleteVal = default2;
+          }
+
+          pdf.setTextColor(15, 23, 42);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(Math.max(5, 9 * scale));
+          const displayVal = athleteVal ? athleteVal.toUpperCase() : '—';
+          pdf.text(displayVal, stLeft + standingsW - 6 * scale, rowY + 10.25 * scale, { align: 'right', baseline: 'middle' });
+        }
+        */
+      }
+
+      const ringSuffix = activeFilter !== 'all' ? `_ring_${getRingLabel(activeFilter).toLowerCase()}` : '';
+      const filename = `${tournamentName ? tournamentName.toLowerCase().replace(/[^a-z0-9_]+/g, '_') : 'tournament_brackets'}${ringSuffix}_searchable.pdf`;
+      pdf.save(filename);
+      setPdfExportLoading(false);
+      setShowExportModal(false);
+      setStatusMessage({
+        text: `Successfully saved searchable PDF "${filename}" (${keysToExport.length} divisions exported).`,
+        type: 'ok',
+      });
+    } catch (err: any) {
       console.error(err);
       setPdfError(err?.message || String(err) || 'Failed to export PDF.');
       if (err?.stack) {
@@ -1238,7 +1955,7 @@ export default function App() {
     const hasMatchingAthlete = roster.some(
       (a) =>
         (a.weight || 'Unspecified') === key &&
-        (a.name.toLowerCase().includes(lowerQuery) || (a.club && a.club.toLowerCase().includes(lowerQuery)))
+        ((a.name || '').toLowerCase().includes(lowerQuery) || (a.club && a.club.toLowerCase().includes(lowerQuery)))
     );
     if (hasMatchingAthlete) return true;
     
@@ -1518,43 +2235,6 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
-                  <h3 className="text-lg font-black text-slate-800 tracking-tight mb-4 border-b border-slate-100 pb-4">Register New System Users</h3>
-                  <AuthScreen onLogin={() => {}} mode="register" onRegisterSuccess={refreshSystemUsers} />
-                </div>
-
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print gap-4 flex flex-col">
-                  <h3 className="text-lg font-black text-slate-800 tracking-tight border-b border-slate-100 pb-4">System Accounts</h3>
-                  <p className="text-sm text-slate-500 font-medium">Currently registered accounts in the system.</p>
-                  <div className="grid gap-3">
-                    {Object.entries(systemUsers).map(([uname, pwd]) => (
-                      <div key={uname} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50">
-                        <div className="flex gap-3 items-center">
-                          <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm text-slate-400">
-                            <Users className="w-4 h-4" />
-                          </div>
-                          <span className="font-bold text-slate-800 text-sm">{uname}</span>
-                        </div>
-                        <div className="flex gap-2 items-center">
-                          <div className="flex gap-2 items-center bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-                             <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                             <span className="text-xs font-mono text-slate-600 font-bold tracking-widest">{pwd}</span>
-                          </div>
-                          {uname !== 'admin' && uname !== currentUser && (
-                            <button
-                              onClick={() => handleDeleteUser(uname)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                              title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             ) : (!tournamentName || !currentEventId) && !isPublicReportOnly ? (
               <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
@@ -1749,6 +2429,7 @@ export default function App() {
                     boutLabelFormat={boutLabelFormat}
                     setBoutLabelFormat={setBoutLabelFormat}
                     onExportPdf={() => setShowExportModal(true)}
+                    onDownloadSearchablePdf={handleDownloadSearchablePdf}
                     hasBrackets={bracketKeys.length > 0}
                     onDeleteCategory={handleDeleteCategory}
                     onResetBrackets={handleResetBrackets}
@@ -1923,8 +2604,8 @@ export default function App() {
                         <BracketCanvas
                           key={key}
                           bracket={model}
-                          ring={getRingLabel(cat.ring || 1)}
-                          entrantCount={cat.count}
+                          ring={getRingLabel(cat?.ring || 1)}
+                          entrantCount={cat?.count || 0}
                           layout={bracketLayout}
                           boutLabelFormat={boutLabelFormat}
                           onReshuffle={() => handleReshuffleSingleCategory(key)}
@@ -2097,33 +2778,58 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* OPTION 1: PROGRAMMATIC PDF DOWNLOAD */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* OPTION 1: DOWNLOAD SEARCHABLE VECTOR PDF */}
+                    <button
+                      type="button"
+                      onClick={handleDownloadSearchablePdf}
+                      className="bg-amber-500/5 hover:bg-amber-500/10 border-2 border-amber-500/60 hover:border-amber-500 p-5 rounded-2xl text-left transition-all cursor-pointer group shadow-xs hover:shadow-md flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="w-10 h-10 bg-amber-500 text-slate-950 rounded-xl flex items-center justify-center font-black shadow-sm group-hover:scale-110 transition-transform">
+                          <Search className="w-5 h-5 text-slate-950" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-slate-900 text-base leading-tight group-hover:text-amber-600 transition-colors">
+                            Download PDF (Searchable)
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed mt-1.5 font-medium">
+                            RECOMMENDED. High-speed vector PDF download. Fully searchable and selectable player/club text. Perfect physical print quality.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-amber-600">
+                        <span>Save Searchable PDF (.pdf)</span>
+                        <span className="text-lg">→</span>
+                      </div>
+                    </button>
+
+                    {/* OPTION 2: PROGRAMMATIC PDF DOWNLOAD (AS IMAGE) */}
                     <button
                       type="button"
                       onClick={handleDownloadProgrammaticPdf}
                       className="bg-slate-50/50 hover:bg-slate-100/50 border border-slate-200 hover:border-amber-400 p-5 rounded-2xl text-left transition-all cursor-pointer group shadow-xs hover:shadow-md flex flex-col justify-between"
                     >
                       <div className="space-y-3">
-                        <div className="w-10 h-10 bg-amber-500 text-slate-950 rounded-xl flex items-center justify-center font-black shadow-sm group-hover:scale-110 transition-transform">
-                          <Trophy className="w-5 h-5 text-slate-950 animate-pulse" />
+                        <div className="w-10 h-10 bg-slate-800 text-white rounded-xl flex items-center justify-center font-black shadow-sm group-hover:scale-110 transition-transform">
+                          <Trophy className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <h4 className="font-black text-slate-900 text-base leading-tight group-hover:text-amber-600 transition-colors">
-                            Download PDF (Image Backup)
+                          <h4 className="font-black text-slate-900 text-base leading-tight">
+                            Download PDF (As Image)
                           </h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-1.5 font-medium">
-                            Compiles bracket sheets into a landscape PDF. NOTE: This is an image-based backup and text won't be searchable.
+                            Alternative rasterized image-based PDF download. Legacy compatibility if vector fonts fail to render.
                           </p>
                         </div>
                       </div>
-                      <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-amber-600">
+                      <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-slate-700">
                         <span>Save Image PDF (.pdf)</span>
                         <span className="text-lg">→</span>
                       </div>
                     </button>
 
-                    {/* OPTION 2: NATIVE BROWSER PRINT */}
+                    {/* OPTION 3: NATIVE BROWSER PRINT */}
                     <button
                       type="button"
                       onClick={() => {
@@ -2139,15 +2845,15 @@ export default function App() {
                         </div>
                         <div>
                           <h4 className="font-black text-slate-900 text-base leading-tight">
-                            Text-Searchable PDF / Print
+                            Local Browser Printer
                           </h4>
                           <p className="text-xs text-slate-500 leading-relaxed mt-1.5 font-medium">
-                            Uses the browser printer. Choose "Save as PDF" for a text-searchable, high-quality vector PDF document.
+                            Opens the system printer driver controls. Directly output to hardware printer or customize browser-managed PDF parameters.
                           </p>
                         </div>
                       </div>
                       <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-slate-700">
-                        <span>Browser Print (Save as PDF)</span>
+                        <span>Physical Print / Browser driver</span>
                         <span className="text-lg">→</span>
                       </div>
                     </button>

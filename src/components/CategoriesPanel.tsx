@@ -16,6 +16,7 @@ interface CategoriesPanelProps {
   boutLabelFormat: 'alpha-2' | 'thousands-3';
   setBoutLabelFormat: (format: 'alpha-2' | 'thousands-3') => void;
   onExportPdf: () => void;
+  onDownloadSearchablePdf?: (ringFilter: 'all' | number) => void;
   hasBrackets: boolean;
   onDeleteCategory?: (categoryKey: string) => void;
   onResetBrackets?: () => void;
@@ -35,6 +36,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   boutLabelFormat,
   setBoutLabelFormat,
   onExportPdf,
+  onDownloadSearchablePdf,
   hasBrackets,
   onDeleteCategory,
   onResetBrackets,
@@ -43,6 +45,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
   const [dragOverRing, setDragOverRing] = useState<number | null>(null);
   const [selectedGenRing, setSelectedGenRing] = useState<string>('all');
+  const [selectedDownloadRing, setSelectedDownloadRing] = useState<string>('all');
 
   const catKeys = Object.keys(categories);
   const eligibleKeys = catKeys.filter(k => categories[k].count >= 1);
@@ -575,6 +578,43 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   <RotateCcw className="w-4 h-4 text-rose-500 shrink-0" />
                   <span>Reset Brackets</span>
                 </button>
+              )}
+              
+              {hasBrackets && onDownloadSearchablePdf && (
+                <div className="flex items-stretch overflow-hidden border border-amber-650/30 rounded-xl shadow-xs bg-amber-500 hover:bg-amber-400 group w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => onDownloadSearchablePdf(selectedDownloadRing === 'all' ? 'all' : Number(selectedDownloadRing))}
+                    disabled={!hasBrackets}
+                    className="px-6 py-3 text-sm font-bold bg-amber-500 hover:bg-amber-450 text-slate-950 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2 border-r border-amber-650/20 flex-1 sm:flex-none"
+                    title="Download fully searchable vector PDF file of brackets"
+                  >
+                    <Search className="w-4 h-4 text-slate-950 shrink-0" />
+                    <span>
+                      {selectedDownloadRing === 'all'
+                        ? 'Download PDF'
+                        : `Download Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + Number(selectedDownloadRing)) : selectedDownloadRing} PDF`}
+                    </span>
+                  </button>
+                  <select
+                    value={selectedDownloadRing}
+                    onChange={(e) => setSelectedDownloadRing(e.target.value)}
+                    disabled={!hasBrackets}
+                    className="bg-amber-500 text-slate-950 font-extrabold text-xs px-2.5 py-3 h-full outline-none cursor-pointer hover:bg-amber-400 transition-colors border-none min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Select whether to download all rings or a specific ring's brackets"
+                  >
+                    <option value="all">All Rings</option>
+                    {Array.from({ length: ringCount }, (_, idx) => {
+                      const rVal = idx + 1;
+                      const rLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + rVal) : String(rVal);
+                      return (
+                        <option key={rVal} value={rVal}>
+                          Ring {rLabel}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
               )}
               
               <button

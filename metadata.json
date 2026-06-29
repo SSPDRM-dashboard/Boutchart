@@ -1,5 +1,5 @@
 {
-  "name": "Tournament Bracket Builder",
+  "name": "MY-TKD Tournament Manager",
   "description": "A clean, responsive single-screen tournament bracket manager that supports CSV or spreadsheet copy-paste roster imports, weight-class grouping, ring layout assignments, auto-advancing interactive matches, and high-quality landscape bracket printing.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

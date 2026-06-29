@@ -29,15 +29,15 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/25">
-            <Trophy className="w-6 h-6 text-amber-400" />
+          <div className="bg-red-600 p-2.5 rounded-xl shadow-sm shadow-red-600/20">
+            <Trophy className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight bg-gradient-to-r from-amber-200 to-amber-400 bg-clip-text text-transparent">
-              Bracket Builder
+            <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
+              MY-TKD
             </h1>
-            <p className="text-xs text-slate-400 font-mono tracking-wider uppercase mt-0.5">
-              Name · Club · Weight class
+            <p className="text-xs text-sky-400 font-bold tracking-wider uppercase mt-0.5">
+              TOURNAMENT MANAGER
             </p>
           </div>
         </div>

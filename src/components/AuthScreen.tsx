@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Trophy, KeyRound, User, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ShieldCheck, ArrowRight, KeyRound } from 'lucide-react';
+import { auth, provider, signInWithPopup } from '../lib/firebase';
 
 interface AuthScreenProps {
   onLogin: (username: string) => void;
@@ -7,59 +8,23 @@ interface AuthScreenProps {
   onRegisterSuccess?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login', onRegisterSuccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' }) => {
   const isRegister = mode === 'register';
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setError(null);
-    setSuccess(null);
-
-    const cleanUsername = username.trim().toLowerCase();
-    const cleanPassword = password.trim();
-    if (!cleanUsername || !cleanPassword) {
-      setError('Please fill in all fields.');
-      return;
-    }
-
-    // Local Storage mock database
-    const usersStr = localStorage.getItem('bracket_builder_users_db');
-    const usersDb: Record<string, string> = usersStr ? JSON.parse(usersStr) : {};
-
-    // Always guarantee that the default 'admin' system account is present in the database
-    if (!usersDb['admin']) {
-      usersDb['admin'] = 'admin';
-      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
-    }
-
-    if (isRegister) {
-      // Registration Flow
-      if (usersDb[cleanUsername]) {
-        setError('Username already exists. Please choose another.');
-        return;
+    setLoading(true);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      if (result.user.email) {
+        onLogin(result.user.email);
       }
-      usersDb[cleanUsername] = cleanPassword; // Safe local mock storage
-      localStorage.setItem('bracket_builder_users_db', JSON.stringify(usersDb));
-      setSuccess(`Account '${cleanUsername}' created successfully.`);
-      setUsername('');
-      setPassword('');
-      onRegisterSuccess?.();
-      // Wait to inform user, we don't automatically log in the new user when an admin creates them.
-    } else {
-      // Login Flow
-      if (!usersDb[cleanUsername]) {
-        setError('Account not found. Please contact an admin to register.');
-        return;
-      }
-      if (usersDb[cleanUsername] !== cleanPassword) {
-        setError('Incorrect password. Please try again.');
-        return;
-      }
-      onLogin(cleanUsername);
+    } catch (e: any) {
+      setError(e.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,65 +46,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login',
               </div>
             )}
 
-            {success && (
-              <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-100/50 text-emerald-600 text-sm font-semibold flex items-start gap-2">
-                <div className="mt-0.5">✅</div>
-                <p>{success}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Username</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all outline-none"
-                    placeholder="Enter your username"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all outline-none"
-                    placeholder="••••••••"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full relative group bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3.5 px-4 font-bold text-sm transition-all focus:ring-4 focus:ring-slate-900/10 flex items-center justify-center gap-2 overflow-hidden"
-              >
-                <span className="relative z-10">{isRegister ? 'Register Account' : 'Secure Login'}</span>
-                <ArrowRight className="w-4 h-4 relative z-10 group-hover:translate-x-1 transition-transform" />
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-amber-500/0 group-hover:translate-x-full transition-transform duration-1000 -translate-x-full"></div>
-              </button>
-            </form>
+            <button
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full relative group bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl py-3.5 px-4 font-bold text-sm transition-all focus:ring-4 focus:ring-slate-900/10 flex items-center justify-center gap-2 overflow-hidden"
+            >
+              <span className="relative z-10">{loading ? 'Please wait...' : 'Continue with Google'}</span>
+              {!loading && <ArrowRight className="w-4 h-4 relative z-10 group-hover:translate-x-1 transition-transform" />}
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-amber-500/0 group-hover:translate-x-full transition-transform duration-1000 -translate-x-full"></div>
+            </button>
           </div>
         </div>
 
         <div className="text-center mt-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-100/50 text-emerald-700 text-xs font-semibold border border-emerald-200/50">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100/50 text-blue-700 text-xs font-semibold border border-blue-200/50">
             <KeyRound className="w-3 h-3" />
-            <span>Local Secure Authentication Active</span>
+            <span>Firebase Secure Authentication Active</span>
           </div>
         </div>
       </div>
     </div>
   );
 };
+

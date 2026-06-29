@@ -3,6 +3,15 @@ import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, A
 import { Athlete, WeightCategory, BracketModel } from '../types';
 import { compressToGzipBase64 } from '../utils/compression';
 
+const safeConfirm = (message: string): boolean => {
+  try {
+    return window.confirm(message);
+  } catch (e) {
+    console.warn('window.confirm blocked or unavailable in this environment, auto-confirming action.', e);
+    return true;
+  }
+};
+
 interface ClubReportPanelProps {
   categories: Record<string, WeightCategory>;
   brackets: Record<string, BracketModel>;
@@ -50,6 +59,35 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   const [shareStatus, setShareStatus] = useState<'silent' | 'loading' | 'copied' | 'error'>('silent');
   const [shareUrl, setShareUrl] = useState('');
 
+  const copyToClipboardFallback = (text: string): boolean => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.setAttribute('readonly', '');
+      el.style.position = 'absolute';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(el);
+      return success;
+    } catch (err) {
+      console.warn('Fallback copying failed', err);
+      return false;
+    }
+  };
+
+  const copyText = (text: string) => {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).catch(e => {
+        console.warn('Clipboard write access blocked, using fallback', e);
+        copyToClipboardFallback(text);
+      });
+    } else {
+      copyToClipboardFallback(text);
+    }
+  };
+
   const generateAndCopyShareLink = () => {
     try {
       setShareStatus('loading');
@@ -79,7 +117,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           const shareLink = `${baseUrl}?view=club-report&id=${resData.id}`;
           
           setShareUrl(shareLink);
-          navigator.clipboard.writeText(shareLink);
+          copyText(shareLink);
           setShareStatus('copied');
         } else {
           throw new Error('No ID returned');
@@ -95,7 +133,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             const shareLink = `${baseUrl}?view=club-report&data=${base64Str}`;
             
             setShareUrl(shareLink);
-            navigator.clipboard.writeText(shareLink);
+            copyText(shareLink);
             setShareStatus('copied');
           })
           .catch(fbErr => {
@@ -176,13 +214,13 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       }
     }
 
-    const key = `${a.name.trim().toLowerCase()}||${a.club.trim().toLowerCase()}||${a.weight.trim().toLowerCase()}`;
+    const key = `${(a.name || '').trim().toLowerCase()}||${(a.club || '').trim().toLowerCase()}||${(a.weight || '').trim().toLowerCase()}`;
     if (!athleteKeySet.has(key)) {
       athleteKeySet.add(key);
       athleteList.push({
-        name: a.name.trim(),
-        club: a.club.trim() || 'Unassigned Club',
-        weight: a.weight.trim()
+        name: (a.name || '').trim(),
+        club: (a.club || '').trim() || 'Unassigned Club',
+        weight: (a.weight || '').trim()
       });
     }
   });
@@ -281,7 +319,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       if (model.nodes[0]) {
         for (let i = 0; i < model.nodes[0].length; i++) {
           const leafNode = model.nodes[0][i];
-          if (leafNode && !leafNode.isBye) {
+          if (leafNode && !leafNode.isBye && leafNode.name) {
             const nameMatch = leafNode.name.trim().toLowerCase() === athlete.name.trim().toLowerCase();
             const clubMatch = (leafNode.club || '').trim().toLowerCase() === athlete.club.trim().toLowerCase();
             if (nameMatch && (leafNode.club ? clubMatch : true)) {
@@ -318,16 +356,19 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         // Fallback approach: Scan each node of the tree for current position
         for (let k = 1; k <= model.numRounds; k++) {
           const round = model.nodes[k];
+          if (!round) continue;
           for (let i = 0; i < round.length; i++) {
             const node = round[i];
             if (typeof node.bout === 'number') {
-              const oppA = model.nodes[k - 1][2 * i];
-              const oppB = model.nodes[k - 1][2 * i + 1];
+              const prevRound = model.nodes[k - 1];
+              if (!prevRound) continue;
+              const oppA = prevRound[2 * i];
+              const oppB = prevRound[2 * i + 1];
 
-              const aNameMatch = oppA.name.trim().toLowerCase() === athlete.name.trim().toLowerCase();
-              const aClubMatch = oppA.club.trim().toLowerCase() === athlete.club.trim().toLowerCase();
-              const bNameMatch = oppB.name.trim().toLowerCase() === athlete.name.trim().toLowerCase();
-              const bClubMatch = oppB.club.trim().toLowerCase() === athlete.club.trim().toLowerCase();
+              const aNameMatch = oppA && oppA.name ? oppA.name.trim().toLowerCase() === athlete.name.trim().toLowerCase() : false;
+              const aClubMatch = oppA && oppA.club ? oppA.club.trim().toLowerCase() === athlete.club.trim().toLowerCase() : false;
+              const bNameMatch = oppB && oppB.name ? oppB.name.trim().toLowerCase() === athlete.name.trim().toLowerCase() : false;
+              const bClubMatch = oppB && oppB.club ? oppB.club.trim().toLowerCase() === athlete.club.trim().toLowerCase() : false;
 
               const isA = aNameMatch && (oppA.club ? aClubMatch : true);
               const isB = bNameMatch && (oppB.club ? bClubMatch : true);
@@ -779,7 +820,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             <button
               type="button"
               onClick={() => {
-                navigator.clipboard.writeText(shareUrl);
+                copyText(shareUrl);
                 setShareStatus('copied');
               }}
               className="bg-slate-100 hover:bg-slate-200 text-slate-800 p-2.5 rounded-xl cursor-pointer active:scale-95 flex items-center justify-center shrink-0 border border-slate-250"
@@ -1433,7 +1474,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                                     type="button"
                                                     onClick={(e) => {
                                                       e.stopPropagation();
-                                                      if (window.confirm(`Are you sure you want to remove ${med.athleteName} from the medal standings in ${categories[med.division]?.name || med.division}?`)) {
+                                                      if (safeConfirm(`Are you sure you want to remove ${med.athleteName} from the medal standings in ${categories[med.division]?.name || med.division}?`)) {
                                                         handleRemoveMedalist(med.division, med.slotIdx);
                                                       }
                                                     }}
