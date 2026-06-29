@@ -34,7 +34,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
-              MY-TKD
+              MY-TKD BBUIDER
             </h1>
             <p className="text-xs text-sky-400 font-bold tracking-wider uppercase mt-0.5">
               TOURNAMENT MANAGER

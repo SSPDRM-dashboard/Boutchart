@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download, Share2, Copy, Check, Trash2 } from 'lucide-react';
 import { Athlete, WeightCategory, BracketModel } from '../types';
 import { compressToGzipBase64 } from '../utils/compression';
+import { CertificateModal } from './CertificateModal';
 
 const safeConfirm = (message: string): boolean => {
   try {
@@ -51,6 +52,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   const [selectedClub, setSelectedClub] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showOnlyScheduled, setShowOnlyScheduled] = useState<boolean>(true);
+  const [certificateData, setCertificateData] = useState<{ athleteName: string; club: string; category: string } | null>(null);
   
   // Choose between 'photo-matrix', 'classic-cards', or 'medal-standings'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings'>('photo-matrix');
@@ -1469,6 +1471,22 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                               </div>
                                               <div className="flex items-center gap-2">
                                                 {medalBadge}
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setCertificateData({
+                                                      athleteName: med.athleteName,
+                                                      club: club.clubName,
+                                                      category: med.division,
+                                                    });
+                                                  }}
+                                                  className="p-1.5 text-amber-600 hover:text-white hover:bg-amber-500 border border-transparent rounded bg-slate-50 hover:border-amber-600 transition-all cursor-pointer no-print flex items-center justify-center gap-1 text-[10px] font-bold"
+                                                  title="Print certificate of achievement for this medalist"
+                                                >
+                                                  <Award className="w-3.5 h-3.5" />
+                                                  <span>Cert</span>
+                                                </button>
                                                 {!isPublicView && (
                                                   <button
                                                     type="button"
@@ -1519,6 +1537,15 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           })()}
 
         </div>
+      )}
+      {certificateData && (
+        <CertificateModal
+          athleteName={certificateData.athleteName}
+          club={certificateData.club}
+          category={certificateData.category}
+          tournamentName={tournamentName}
+          onClose={() => setCertificateData(null)}
+        />
       )}
     </section>
   );

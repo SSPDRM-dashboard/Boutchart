@@ -5,6 +5,7 @@ import { CategoriesPanel } from './components/CategoriesPanel';
 import { BracketCanvas } from './components/BracketCanvas';
 import { ClubReportPanel } from './components/ClubReportPanel';
 import { StatisticsPanel } from './components/StatisticsPanel';
+import { CertificateBuilderPanel } from './components/CertificateBuilderPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged } from './lib/firebase';
@@ -103,7 +104,7 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket'>('brackets');
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>('brackets');
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
@@ -1617,8 +1618,8 @@ export default function App() {
             const node = nodes[k]?.[m];
             if (!node || typeof node.bout !== 'number') return;
 
-            const BOUT_BOX_W = isClassic ? 44 : 34;
-            const BOUT_BOX_H = isClassic ? 24 : 18;
+            const BOUT_BOX_W = isClassic ? 110 : 100;
+            const BOUT_BOX_H = isClassic ? 52 : 52;
 
             let riserX = 0;
             let riserY = pos.y;
@@ -1653,8 +1654,8 @@ export default function App() {
             const boutText = getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout);
             pdf.setTextColor(30, 41, 59);
             pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(isClassic ? Math.max(5, 11 * scale) : Math.max(4, 8.5 * scale));
-            pdf.text(boutText, rectLeft + rectW / 2, rectTop + rectH / 2 + (isClassic ? 1 * scale : 0.8 * scale), { align: 'center', baseline: 'middle' });
+            pdf.setFontSize(Math.max(8, 60 * scale));
+            pdf.text(boutText, rectLeft + rectW / 2, rectTop + rectH / 2 + (isClassic ? 2 * scale : 1.5 * scale), { align: 'center', baseline: 'middle' });
           });
         });
 
@@ -2118,6 +2119,22 @@ export default function App() {
 
                   <button
                     type="button"
+                    onClick={() => setActiveTab('certificates')}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
+                      activeTab === 'certificates'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="text-base">🏆</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Award Certificates</span>
+                    <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0">
+                      NEW
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setActiveTab('account')}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
                       activeTab === 'account'
@@ -2507,6 +2524,16 @@ export default function App() {
                 onImport={handleImportPdfDivisions}
                 onShowMessage={setStatusMessage}
               />
+            )}
+
+            {/* 2.6 CERTIFICATES VIEW */}
+            {activeTab === 'certificates' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <CertificateBuilderPanel
+                  roster={roster}
+                  tournamentName={tournamentName}
+                />
+              </div>
             )}
 
             {/* 3. ACCOUNT / AUTHENTICATION VIEW */}

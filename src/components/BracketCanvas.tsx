@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BracketModel, BracketNode } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
+import { CertificateModal } from './CertificateModal';
 
 const BOX_W = 240;
 const BOX_H = 40;
@@ -89,6 +90,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [certificateAthlete, setCertificateAthlete] = useState<{ name: string; club: string; category: string } | null>(null);
 
   if (!bracket || !bracket.nodes) {
     return (
@@ -456,8 +459,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 const hasBout = typeof node.bout === 'number';
                 if (!hasBout) return null;
 
-                const BOUT_BOX_W = isClassic ? 44 : 34;
-                const BOUT_BOX_H = isClassic ? 24 : 18;
+                const BOUT_BOX_W = isClassic ? 110 : 100;
+                const BOUT_BOX_H = isClassic ? 52 : 52;
 
                 if (k === numRounds) {
                    const c1 = positions[k - 1][0];
@@ -467,7 +470,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                    return (
                      <div
                         key={`riser-bout-final`}
-                        className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white ${isClassic ? 'text-[15px] font-bold' : 'text-[11px] font-medium'}`}
+                        className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white font-bold print:text-[40px] ${isClassic ? 'text-[25px]' : 'text-[18px]'}`}
                         style={{
                           left: `${riserX - BOUT_BOX_W / 2}px`,
                           top: `${riserY - BOUT_BOX_H / 2}px`,
@@ -490,7 +493,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 return (
                   <div
                     key={`riser-bout-${k}-${m}`}
-                    className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white ${isClassic ? 'text-[15px] font-bold' : 'text-[11px] font-medium rounded-sm shadow-sm font-extrabold font-mono text-[10px]'}`}
+                    className={`absolute bg-white border border-slate-900 flex items-center justify-center tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white font-bold print:text-[40px] ${isClassic ? 'font-sans text-[25px]' : 'rounded-sm shadow-sm font-mono text-[18px]'}`}
                     style={{
                       left: `${riserX - BOUT_BOX_W / 2}px`,
                       top: `${riserY - BOUT_BOX_H / 2}px`,
@@ -646,10 +649,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            {/* Player Name ON TOP of the line */}
                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="text-[17.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[32.5px] font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto" title={node.name}>{node.name}</span>
+                              <span className="text-[22.5px] print:text-[32.5px] font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto" title={node.name}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[19.5px] print:text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || '(Ind.)'}</span>
                            </div>
                         </div>
@@ -746,7 +749,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            <div className={`h-[20px] flex items-end w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <input
                                 type="text"
-                                className={`w-full min-w-[240px] bg-transparent border-none outline-none text-[32.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
+                                className={`w-full min-w-[240px] bg-transparent border-none outline-none text-[22.5px] print:text-[32.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder=""
@@ -755,7 +758,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                               />
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[19.5px] print:text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || ''}</span>
                            </div>
                         </div>
@@ -1133,10 +1136,28 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
             {/* Modal actions */}
             <div className="flex gap-2.5 justify-end mt-6 pt-3 border-t border-slate-100">
+              {!editIsBye && editName && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCertificateAthlete({
+                      name: editName,
+                      club: editClub,
+                      category: bracket.categoryName || '',
+                    });
+                    setShowCertificateModal(true);
+                  }}
+                  className="mr-auto px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  title="Print custom tournament certificate"
+                >
+                  <span>🥋</span>
+                  <span>Print Certificate</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 hover:bg-slate-100 text-slate-550 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                className="px-4 py-2 hover:bg-slate-100 text-slate-555 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -1167,6 +1188,20 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Certificate Modal Overlay */}
+      {showCertificateModal && certificateAthlete && (
+        <CertificateModal
+          athleteName={certificateAthlete.name}
+          club={certificateAthlete.club}
+          category={certificateAthlete.category}
+          tournamentName={tournamentName}
+          onClose={() => {
+            setShowCertificateModal(false);
+            setCertificateAthlete(null);
+          }}
+        />
       )}
     </div>
   );

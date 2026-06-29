@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Printer, Trash2 } from 'lucide-react';
+import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2 } from 'lucide-react';
 import { WeightCategory } from '../types';
 
 interface CategoriesPanelProps {
@@ -617,15 +617,6 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                 </div>
               )}
               
-              <button
-                type="button"
-                onClick={onExportPdf}
-                disabled={!hasBrackets}
-                className="w-full sm:w-auto px-8 py-3 text-sm font-bold bg-slate-800 border border-slate-700 hover:bg-slate-700 text-white rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4 text-emerald-400" />
-                <span>Export / Print Data</span>
-              </button>
             </div>
           </div>
         </>

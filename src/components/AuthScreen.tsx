@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ShieldCheck, ArrowRight, KeyRound } from 'lucide-react';
-import { auth, provider, signInWithPopup } from '../lib/firebase';
+import { ShieldCheck, ArrowRight, KeyRound, Mail, Lock } from 'lucide-react';
+import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from '../lib/firebase';
 
 interface AuthScreenProps {
   onLogin: (username: string) => void;
@@ -9,9 +9,38 @@ interface AuthScreenProps {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' }) => {
-  const isRegister = mode === 'register';
+  const [isRegister, setIsRegister] = useState(mode === 'register');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      if (isRegister) {
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        if (result.user.email) {
+          onLogin(result.user.email);
+        }
+      } else {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        if (result.user.email) {
+          onLogin(result.user.email);
+        }
+      }
+    } catch (e: any) {
+      setError(e.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setError(null);
@@ -61,15 +90,77 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
               </div>
             )}
 
+            <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all bg-slate-50/50"
+                    placeholder="admin@example.com"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all bg-slate-50/50"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full relative group bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl py-3 px-4 font-bold text-sm transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? 'Please wait...' : (isRegister ? 'Sign Up' : 'Sign In')}
+                {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+              </button>
+            </form>
+
+            <div className="relative flex items-center justify-center mb-6">
+              <div className="border-t border-slate-200 w-full"></div>
+              <span className="bg-white px-3 text-xs text-slate-400 font-semibold uppercase absolute">or</span>
+            </div>
+
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full relative group bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl py-3.5 px-4 font-bold text-sm transition-all focus:ring-4 focus:ring-slate-900/10 flex items-center justify-center gap-2 overflow-hidden"
+              type="button"
+              className="w-full bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-700 rounded-xl py-3 px-4 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-sm"
             >
-              <span className="relative z-10">{loading ? 'Please wait...' : 'Continue with Google'}</span>
-              {!loading && <ArrowRight className="w-4 h-4 relative z-10 group-hover:translate-x-1 transition-transform" />}
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-amber-500/0 group-hover:translate-x-full transition-transform duration-1000 -translate-x-full"></div>
+              Continue with Google
             </button>
+            
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegister(!isRegister);
+                  setError(null);
+                }}
+                className="text-sm font-semibold text-amber-600 hover:text-amber-700 transition-colors"
+              >
+                {isRegister ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+              </button>
+            </div>
           </div>
         </div>
 

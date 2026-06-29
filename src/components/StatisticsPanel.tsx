@@ -35,7 +35,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, catego
   let totalSilver = 0;
   let totalBronze = 0;
 
-  Object.values(categories).forEach(cat => {
+  (Object.values(categories) as WeightCategory[]).forEach(cat => {
     const count = cat.count;
     if (count >= 1) totalGold += 1;
     if (count >= 2) totalSilver += 1;
