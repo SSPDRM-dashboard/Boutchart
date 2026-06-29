@@ -4,6 +4,7 @@ import { RosterPanel } from './components/RosterPanel';
 import { CategoriesPanel } from './components/CategoriesPanel';
 import { BracketCanvas } from './components/BracketCanvas';
 import { ClubReportPanel } from './components/ClubReportPanel';
+import { StatisticsPanel } from './components/StatisticsPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged } from './lib/firebase';
@@ -75,23 +76,23 @@ const safeConfirm = (message: string): boolean => {
   }
 };
 
-const DEMO_DATA = `Name,Club,Category
-John Tan,Eagle Judo Club,-60kg
-Ali bin Hassan,Tiger Gym,-60kg
-Lim Wei Jian,Eagle Judo Club,-60kg
-Raj Kumar,Phoenix Club,-60kg
-Hafiz Rahman,Lotus Gym,-60kg
-Marcus Lee,Star Gym,-66kg
-Kavin Selvam,Dragon Club,-66kg
-Yusuf Ibrahim,Tiger Gym,-66kg
-Daniel Wong,Eagle Judo Club,-66kg
-Amir Hakim,Phoenix Club,-73kg
-Brandon Goh,Star Gym,-73kg
-Faiz Rosli,Lotus Gym,-73kg
-Sophia Loren,Eagle Judo Club,-52kg
-Emma Watson,Iron Academy,-52kg
-Jane Doe,Tiger Gym,-57kg
-Clara Oswald,Phoenix Club,-57kg`;
+const DEMO_DATA = `Name,Club,Category,School,Gender
+John Tan,Eagle Judo Club,-60kg,SMU,Male
+Ali bin Hassan,Tiger Gym,-60kg,NUS,Male
+Lim Wei Jian,Eagle Judo Club,-60kg,NTU,Male
+Raj Kumar,Phoenix Club,-60kg,SIT,Male
+Hafiz Rahman,Lotus Gym,-60kg,SUSS,Male
+Marcus Lee,Star Gym,-66kg,NUS,Male
+Kavin Selvam,Dragon Club,-66kg,NTU,Male
+Yusuf Ibrahim,Tiger Gym,-66kg,SMU,Male
+Daniel Wong,Eagle Judo Club,-66kg,SIT,Male
+Amir Hakim,Phoenix Club,-73kg,SMU,Male
+Brandon Goh,Star Gym,-73kg,NUS,Male
+Faiz Rosli,Lotus Gym,-73kg,NTU,Male
+Sophia Loren,Eagle Judo Club,-52kg,NTU,Female
+Emma Watson,Iron Academy,-52kg,SMU,Female
+Jane Doe,Tiger Gym,-57kg,NUS,Female
+Clara Oswald,Phoenix Club,-57kg,SIT,Female`;
 
 export default function App() {
   const [tournamentName, setTournamentName] = useState('');
@@ -102,7 +103,7 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'account' | 'pdf-bracket'>('brackets');
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket'>('brackets');
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
@@ -2080,6 +2081,27 @@ export default function App() {
 
                   <button
                     type="button"
+                    onClick={() => {
+                      if (bracketKeys.length > 0) {
+                        setActiveTab('statistics');
+                      }
+                    }}
+                    disabled={bracketKeys.length === 0}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
+                      bracketKeys.length === 0
+                        ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
+                        : activeTab === 'statistics'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
+                    }`}
+                    title={bracketKeys.length === 0 ? "Generate brackets to view statistics" : "View tournament statistics and medals"}
+                  >
+                    <span className="text-base">📊</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Statistics & Medals</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setActiveTab('pdf-bracket')}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
                       activeTab === 'pdf-bracket'
@@ -2462,6 +2484,16 @@ export default function App() {
                       };
                     });
                   }}
+                />
+              </div>
+            )}
+
+            {/* 2.2 STATISTICS VIEW */}
+            {activeTab === 'statistics' && bracketKeys.length > 0 && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <StatisticsPanel
+                  roster={roster}
+                  categories={categories}
                 />
               </div>
             )}

@@ -42,7 +42,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
             {error && (
               <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-100/50 text-rose-600 text-sm font-semibold flex items-start gap-2">
                 <div className="mt-0.5">⚠️</div>
-                <p>{error}</p>
+                <div className="flex-1">
+                  <p>{error}</p>
+                  {error.includes('unauthorized-domain') && (
+                    <div className="mt-3 p-3 bg-white/60 rounded-lg text-xs font-medium text-slate-700 space-y-2 border border-rose-100">
+                      <p><strong>To fix this:</strong></p>
+                      <ol className="list-decimal pl-4 space-y-1">
+                        <li>Go to your <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Firebase Console</a>.</li>
+                        <li>Select your project, then go to <strong>Authentication</strong> &gt; <strong>Settings</strong> &gt; <strong>Authorized domains</strong>.</li>
+                        <li>Click <strong>Add domain</strong> and paste this exact domain:</li>
+                      </ol>
+                      <code className="block bg-slate-100 p-2 rounded text-slate-800 break-all select-all">
+                        {window.location.hostname}
+                      </code>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

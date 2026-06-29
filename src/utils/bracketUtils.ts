@@ -1,8 +1,10 @@
 import { Athlete, WeightCategory, BracketModel, BracketNode, DuplicateGroup } from '../types';
 
 export const NAME_KEYS = ['name', 'player', 'player name', 'athlete', 'athlete name', 'full name', 'competitor', 'competitor name'];
-export const CLUB_KEYS = ['club', 'team', 'school', 'academy', 'gym', 'organisation', 'organization'];
+export const CLUB_KEYS = ['club', 'team', 'academy', 'gym', 'organisation', 'organization'];
 export const WEIGHT_KEYS = ['weight', 'wt', 'weight class', 'weight category', 'category', 'division', 'kg', 'class'];
+export const SCHOOL_KEYS = ['school'];
+export const GENDER_KEYS = ['gender', 'sex', 'm/f'];
 
 export function nextPow2(n: number): number {
   let p = 1;
@@ -58,6 +60,8 @@ export function buildRosterFromText(text: string): Athlete[] {
   let nameIdx = -1;
   let clubIdx = -1;
   let weightIdx = -1;
+  let schoolIdx = -1;
+  let genderIdx = -1;
   let headerRow = false;
 
   // 1. Exact list matching
@@ -65,6 +69,8 @@ export function buildRosterFromText(text: string): Athlete[] {
     if (NAME_KEYS.includes(c)) { nameIdx = idx; headerRow = true; }
     if (CLUB_KEYS.includes(c)) { clubIdx = idx; headerRow = true; }
     if (WEIGHT_KEYS.includes(c)) { weightIdx = idx; headerRow = true; }
+    if (SCHOOL_KEYS.includes(c)) { schoolIdx = idx; headerRow = true; }
+    if (GENDER_KEYS.includes(c)) { genderIdx = idx; headerRow = true; }
   });
 
   // 2. Substring fallback matching for rich/expanded headers (e.g., 'Student Name', 'Registered Gym', etc.)
@@ -73,12 +79,20 @@ export function buildRosterFromText(text: string): Athlete[] {
     if (nameIdx !== -1) headerRow = true;
   }
   if (clubIdx === -1) {
-    clubIdx = firstCells.findIndex(c => c.includes('club') || c.includes('team') || c.includes('school') || c.includes('academy') || c.includes('gym') || c.includes('dojo') || c.includes('affiliation') || c.includes('organisation') || c.includes('organization'));
+    clubIdx = firstCells.findIndex(c => c.includes('club') || c.includes('team') || c.includes('academy') || c.includes('gym') || c.includes('dojo') || c.includes('affiliation') || c.includes('organisation') || c.includes('organization'));
     if (clubIdx !== -1) headerRow = true;
   }
   if (weightIdx === -1) {
     weightIdx = firstCells.findIndex(c => c.includes('weight') || c.includes('wt') || c.includes('class') || c.includes('category') || c.includes('division') || c.includes('kg'));
     if (weightIdx !== -1) headerRow = true;
+  }
+  if (schoolIdx === -1) {
+    schoolIdx = firstCells.findIndex(c => c.includes('school') || c.includes('college') || c.includes('university'));
+    if (schoolIdx !== -1) headerRow = true;
+  }
+  if (genderIdx === -1) {
+    genderIdx = firstCells.findIndex(c => c.includes('gender') || c.includes('sex') || c === 'm/f');
+    if (genderIdx !== -1) headerRow = true;
   }
 
   let dataLines = lines;
@@ -87,10 +101,13 @@ export function buildRosterFromText(text: string): Athlete[] {
     if (nameIdx === -1) nameIdx = 0;
     if (clubIdx === -1) clubIdx = 1;
     if (weightIdx === -1) weightIdx = 2;
+    // For school and gender, we don't assume index if not found in header
   } else {
     nameIdx = 0;
     clubIdx = 1;
     weightIdx = 2;
+    schoolIdx = 3;
+    genderIdx = 4;
   }
 
   const roster: Athlete[] = [];
@@ -100,7 +117,14 @@ export function buildRosterFromText(text: string): Athlete[] {
     if (!name) return;
     const club = (cells[clubIdx] || '').trim();
     const weight = (cells[weightIdx] || '').trim() || 'Unspecified';
-    roster.push({ name, club, weight });
+    const school = schoolIdx !== -1 ? (cells[schoolIdx] || '').trim() : undefined;
+    const gender = genderIdx !== -1 ? (cells[genderIdx] || '').trim() : undefined;
+    
+    const athlete: Athlete = { name, club, weight };
+    if (school) athlete.school = school;
+    if (gender) athlete.gender = gender;
+    
+    roster.push(athlete);
   });
 
   return roster;

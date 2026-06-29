@@ -2,6 +2,8 @@ export interface Athlete {
   name: string;
   club: string;
   weight: string;
+  school?: string;
+  gender?: string;
 }
 
 export interface WeightCategory {
