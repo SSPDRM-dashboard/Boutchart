@@ -3,6 +3,7 @@ import { BracketModel, BracketNode } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
+import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
 
 const BOX_W = 240;
 const BOX_H = 40;
@@ -92,6 +93,92 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [certificateAthlete, setCertificateAthlete] = useState<{ name: string; club: string; category: string } | null>(null);
+
+  const [dbClubs, setDbClubs] = useState<string[]>([]);
+  const [clubSearchFocused, setClubSearchFocused] = useState(false);
+
+  useEffect(() => {
+    if (!showModal) return;
+
+    const loadClubs = async () => {
+      let localClubs: string[] = [];
+      try {
+        const stored = localStorage.getItem('bracket_builder_saved_clubs');
+        if (stored) {
+          localClubs = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('Failed to parse local saved clubs', e);
+      }
+
+      const bracketClubs: string[] = [];
+      if (bracket && bracket.nodes && bracket.nodes[0]) {
+        bracket.nodes[0].forEach((node) => {
+          if (node && node.club && node.club.trim() && !node.isBye) {
+            bracketClubs.push(node.club.trim());
+          }
+        });
+      }
+
+      let firestoreClubs: string[] = [];
+      const user = auth.currentUser;
+      if (user && user.email) {
+        try {
+          const docRef = doc(db, `users/${user.email}/clubs/all`);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data && Array.isArray(data.names)) {
+              firestoreClubs = data.names;
+            }
+          }
+        } catch (err) {
+          console.error('Error loading clubs from Firestore:', err);
+        }
+      }
+
+      const merged = Array.from(
+        new Set([
+          ...localClubs,
+          ...bracketClubs,
+          ...firestoreClubs
+        ])
+      )
+        .map(c => c.trim())
+        .filter(c => c.length > 0 && c.toUpperCase() !== 'BYE')
+        .sort((a, b) => a.localeCompare(b));
+
+      setDbClubs(merged);
+    };
+
+    loadClubs();
+  }, [showModal, bracket]);
+
+  const saveClubToDatabase = async (clubName: string) => {
+    const trimmed = clubName.trim();
+    if (!trimmed || trimmed.toUpperCase() === 'BYE') return;
+
+    const updatedClubs = Array.from(new Set([...dbClubs, trimmed])).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    setDbClubs(updatedClubs);
+
+    try {
+      localStorage.setItem('bracket_builder_saved_clubs', JSON.stringify(updatedClubs));
+    } catch (e) {
+      console.warn('Failed to save to localStorage', e);
+    }
+
+    const user = auth.currentUser;
+    if (user && user.email) {
+      try {
+        const docRef = doc(db, `users/${user.email}/clubs/all`);
+        await setDoc(docRef, { names: updatedClubs });
+      } catch (err) {
+        console.error('Error saving club to Firestore:', err);
+      }
+    }
+  };
 
   if (!bracket || !bracket.nodes) {
     return (
@@ -235,8 +322,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const canvasWidth = PAD * 2 + 2 * numRounds * gap + BOX_W;
   const baseCanvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
   const finalY = positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2);
-  const minRequiredHeight = finalY + (isClassic ? 75 : 95) + 180 + PAD;
-  const canvasHeight = Math.max(baseCanvasHeight, minRequiredHeight);
+  // Relocate Final Standings box to the very bottom (below baseCanvasHeight) and double its size.
+  // Standings box height is now around 320px with the double size padding/fonts, so we allocate 350px.
+  const minRequiredHeight = baseCanvasHeight + 350 + PAD;
+  const canvasHeight = minRequiredHeight;
 
   const MAX_PRINT_WIDTH = 1060; // landscape width inside margins
   const MAX_PRINT_HEIGHT = 630; // landscape height leaving room for headers
@@ -849,15 +938,15 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
               });
             })}
             <div
-              className="absolute border border-slate-350 rounded-lg bg-white overflow-hidden text-xs shadow-sm select-none z-30"
+              className="absolute border border-slate-350 rounded-xl bg-white overflow-hidden text-xs shadow-md select-none z-30"
               style={{
-                width: '325px',
-                left: `${PAD + numRounds * gap + (BOX_W - 325) / 2}px`,
-                top: `${(positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2)) + (isClassic ? 75 : 95)}px`,
+                width: '650px',
+                left: `${PAD + numRounds * gap + (BOX_W - 650) / 2}px`,
+                top: `${baseCanvasHeight + 20}px`,
               }}
             >
-              <div className="bg-slate-50 border-b border-slate-350 px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
-                Final Standings
+              <div className="bg-slate-50 border-b border-slate-350 px-6 py-3.5 text-[14px] font-black text-slate-600 uppercase tracking-widest text-center flex items-center justify-center gap-2">
+                🏆 Final Standings 🏆
               </div>
               <div className="divide-y divide-slate-200">
                 {(() => {
@@ -926,13 +1015,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           }
                         }}
                         onDrop={(e) => handleDropToStanding(e, slotIdx)}
-                        className={`px-3.5 py-2.5 flex items-center gap-2 transition-all group/slot relative ${
+                        className={`px-6 py-4 flex items-center gap-4 transition-all group/slot relative ${
                           isOver
-                            ? 'bg-amber-50 border-y border-amber-300 scale-[1.02] shadow-sm z-10'
+                            ? 'bg-amber-50 border-y border-amber-300 scale-[1.01] shadow-sm z-10'
                             : 'hover:bg-slate-50/50'
                         }`}
                       >
-                        <span className={`font-black w-4 text-[13px] ${labelColor}`}>
+                        <span className={`font-black w-6 text-[18px] ${labelColor}`}>
                           {slotIdx + 1}.
                         </span>
                         <div className="flex-1 flex items-center min-w-0">
@@ -944,7 +1033,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                               nextS[slotIdx] = e.target.value;
                               if (onUpdateStandings) onUpdateStandings(nextS);
                             }}
-                            className={`w-full bg-transparent border-none outline-none text-[13.5px] font-semibold p-0 placeholder-slate-400 truncate focus:ring-0 ${
+                            className={`w-full bg-transparent border-none outline-none text-[16px] p-0 placeholder-slate-400 truncate focus:ring-0 ${
                               val && val !== '_REMOVED_'
                                 ? 'text-slate-950 font-black' 
                                 : isComputed 
@@ -956,7 +1045,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         </div>
 
                         {/* Badges/Controls */}
-                        <div className="flex items-center gap-1.5 shrink-0 select-none">
+                        <div className="flex items-center gap-2 shrink-0 select-none">
                           {!val && isComputed && (
                             <button
                               type="button"
@@ -965,18 +1054,19 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                                 nextS[slotIdx] = '_REMOVED_';
                                 if (onUpdateStandings) onUpdateStandings(nextS);
                               }}
-                              className="bg-rose-50 hover:bg-rose-105 active:scale-95 text-rose-600 hover:text-white border border-transparent hover:border-rose-300 p-1 rounded-md cursor-pointer transition-all no-print flex items-center justify-center gap-0.5 text-[8px] font-semibold"
+                              className="bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-600 hover:text-rose-700 border border-rose-200 px-2.5 py-1 rounded-md cursor-pointer transition-all no-print flex items-center justify-center gap-1.5 text-[11px] font-bold"
                               title="Exclude this competitor from final standings"
                             >
-                              <Trash2 className="w-2.5 h-2.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                               <span>Remove</span>
                             </button>
                           )}
 
                           {val && val !== '_REMOVED_' && (
                             <button
+                              type="button"
                               onClick={() => clearStandingSlot(slotIdx)}
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px] cursor-pointer transition-all no-print"
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full w-6 h-6 flex items-center justify-center text-[14px] font-bold cursor-pointer transition-all no-print"
                               title="Clear custom result"
                             >
                               ×
@@ -985,8 +1075,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                           {val === '_REMOVED_' && (
                             <button
+                              type="button"
                               onClick={() => clearStandingSlot(slotIdx)}
-                              className="bg-amber-100 hover:bg-amber-200 text-amber-700 hover:text-amber-900 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider cursor-pointer transition-all no-print"
+                              className="bg-amber-100 hover:bg-amber-200 text-amber-700 hover:text-amber-900 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all no-print"
                               title="Restore automatic medalist calculations"
                             >
                               Restore
@@ -994,13 +1085,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           )}
                           
                           {!displayName && !val && (
-                            <span className="text-[8px] text-slate-350 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded font-black uppercase tracking-wider group-hover/slot:opacity-0 transition-opacity no-print">
+                            <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded font-black uppercase tracking-wider group-hover/slot:opacity-0 transition-opacity no-print">
                               Drop
                             </span>
                           )}
 
                           {val && val !== '_REMOVED_' && (
-                            <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded font-black uppercase tracking-wider scale-90 no-print">
+                            <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-black uppercase tracking-wider no-print">
                               Custom
                             </span>
                           )}
@@ -1011,6 +1102,39 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 })()}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Manual Writing Final Standings Card at the bottom center (for manual writing after download) */}
+      <div className="mt-8 flex justify-center w-full no-print-break-inside manual-standings-box-wrapper">
+        <div className="w-[450px] border border-slate-300 rounded-2xl bg-white overflow-hidden shadow-sm">
+          <div className="bg-slate-50 border-b border-slate-300 px-6 py-3.5 text-[14px] font-black text-slate-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">
+            🏆 FINAL STANDINGS 🏆
+          </div>
+          <div className="divide-y divide-slate-250">
+            {[1, 2, 3, 4].map((num) => {
+              const labelColor =
+                num === 1
+                  ? 'text-amber-500'
+                  : num === 2
+                  ? 'text-slate-400'
+                  : num === 3
+                  ? 'text-amber-700/60'
+                  : 'text-slate-500';
+              return (
+                <div key={num} className="px-6 py-4 flex items-center justify-between text-base bg-white">
+                  <div className="flex items-center gap-4">
+                    <span className={`font-black w-6 text-[18px] ${labelColor}`}>
+                      {num}.
+                    </span>
+                    {/* Empty space for manual writing */}
+                    <div className="w-[300px] h-6"></div>
+                  </div>
+                  <span className="text-slate-300 font-bold text-lg pr-2">]</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1068,17 +1192,59 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     />
                   </div>
 
-                  <div>
+                  <div className="relative">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
                       Club / Team
                     </label>
                     <input
                       type="text"
                       value={editClub}
-                      onChange={(e) => setEditClub(e.target.value)}
+                      onChange={(e) => {
+                        setEditClub(e.target.value);
+                        setClubSearchFocused(true);
+                      }}
+                      onFocus={() => setClubSearchFocused(true)}
+                      onBlur={() => {
+                        // Delay blurring so user can click a suggestion button
+                        setTimeout(() => setClubSearchFocused(false), 200);
+                      }}
                       placeholder="e.g. Phoenix Judo Club (or leave blank)"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
                     />
+                    {clubSearchFocused && (
+                      (() => {
+                        const search = editClub.trim().toLowerCase();
+                        const filtered = dbClubs.filter(name => {
+                          if (!search) return true; // Show all on empty search focus
+                          return name.toLowerCase().includes(search) && name.toLowerCase() !== search;
+                        }).slice(0, 8);
+
+                        if (filtered.length === 0) return null;
+
+                        return (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100 no-print">
+                            {filtered.map((clubName, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  // Use onMouseDown to prevent focus loss before click completes
+                                  e.preventDefault();
+                                }}
+                                onClick={() => {
+                                  setEditClub(clubName);
+                                  setClubSearchFocused(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer flex items-center justify-between"
+                              >
+                                <span>{clubName}</span>
+                                <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Select</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    )}
                   </div>
                 </>
               )}
@@ -1177,6 +1343,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   } else {
                     if (onUpdateLeafNode) {
                       onUpdateLeafNode(selectedLeafIndex, editName, editClub, editIsBye);
+                    }
+                    if (editClub.trim() && !editIsBye) {
+                      saveClubToDatabase(editClub);
                     }
                   }
                   setShowModal(false);

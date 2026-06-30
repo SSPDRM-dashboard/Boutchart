@@ -49,6 +49,22 @@
   .scale-wrap {
     overflow: visible !important;
   }
+}/* Hide manual standings box by default on screen */
+.manual-standings-box-wrapper {
+  display: none !important;
 }
 
+/* Show it on paper/print */
+@media print {
+  .manual-standings-box-wrapper {
+    display: flex !important;
+    margin-top: 4.5rem !important; /* Shifted down 5 more Tailwind rows / units */
+  }
+}
 
+/* Show it when exporting to PDF */
+.exporting-pdf .manual-standings-box-wrapper,
+.exporting-active .manual-standings-box-wrapper {
+  display: flex !important;
+  margin-top: 4.5rem !important; /* Shifted down 5 more Tailwind rows / units */
+}

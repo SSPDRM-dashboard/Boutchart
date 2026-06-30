@@ -17,6 +17,19 @@
       "properties": {
         "tournamentName": { "type": "string" }
       }
+    },
+    "SavedClubs": {
+      "title": "Saved Clubs",
+      "description": "Unique list of club names saved by the user for search and autocomplete",
+      "type": "object",
+      "properties": {
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "firestore": {
@@ -27,6 +40,10 @@
     "users/{userEmail}/current/{stateId}": {
       "schema": "#/entities/CurrentState",
       "description": "Current unsaved state for a user"
+    },
+    "users/{userEmail}/clubs/{docId}": {
+      "schema": "#/entities/SavedClubs",
+      "description": "Saved club names for autocomplete searching"
     }
   }
 }

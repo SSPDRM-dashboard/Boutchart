@@ -54,9 +54,25 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   const [showOnlyScheduled, setShowOnlyScheduled] = useState<boolean>(true);
   const [certificateData, setCertificateData] = useState<{ athleteName: string; club: string; category: string } | null>(null);
   
-  // Choose between 'photo-matrix', 'classic-cards', or 'medal-standings'
-  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings'>('photo-matrix');
+  // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
+  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>(
+    isPublicView ? 'classic-cards' : 'photo-matrix'
+  );
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
+  const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const playerParam = urlParams.get('player') || urlParams.get('search');
+      if (playerParam) {
+        setSearchQuery(playerParam);
+        setReportStyle('individual-lookup');
+      }
+    } catch (e) {
+      console.warn('URL params parsing failed inside ClubReportPanel', e);
+    }
+  }, []);
 
   const [shareStatus, setShareStatus] = useState<'silent' | 'loading' | 'copied' | 'error'>('silent');
   const [shareUrl, setShareUrl] = useState('');
@@ -115,8 +131,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       })
       .then(resData => {
         if (resData && resData.id) {
-          const baseUrl = window.location.origin + window.location.pathname;
-          const shareLink = `${baseUrl}?view=club-report&id=${resData.id}`;
+          const baseUrl = window.location.origin;
+          const shareLink = `${baseUrl}/report/${resData.id}`;
           
           setShareUrl(shareLink);
           copyText(shareLink);
@@ -848,7 +864,20 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               {/* layout switcher segmented control */}
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
-                <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1">
+                <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('individual-lookup')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'individual-lookup'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <Search className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Find Player Schedule (Public View)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setReportStyle('photo-matrix')}
@@ -862,34 +891,31 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     <span>Taekwondo Matrix Grid (Reference Photo)</span>
                   </button>
                   
-                  {!isPublicView && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setReportStyle('classic-cards')}
-                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'classic-cards'
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                        }`}
-                      >
-                        <AlignJustify className="w-3.5 h-3.5" />
-                        <span>Classic Card Deck (Matchups Style)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setReportStyle('medal-standings')}
-                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'medal-standings'
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                        }`}
-                      >
-                        <Award className="w-3.5 h-3.5 text-amber-500" />
-                        <span>🏆 Club Medal Standings &amp; Points</span>
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('classic-cards')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'classic-cards'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <AlignJustify className="w-3.5 h-3.5" />
+                    <span>Classic Card Deck (Matchups Style)</span>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('medal-standings')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'medal-standings'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <span>🏆 Club Medal Standings &amp; Points</span>
+                  </button>
                 </div>
               </div>
 
@@ -1088,6 +1114,330 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               </div>
             )
           )}
+
+          {/* STYLE 4: INDIVIDUAL LOOKUP LAYOUT */}
+          {reportStyle === 'individual-lookup' && (() => {
+            // Filter athlete list based on searchQuery and selectedClub
+            const filteredAthletesForLookup = athleteList.filter(ath => {
+              const matchesSearch = searchQuery.trim() === '' || 
+                ath.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                ath.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                ath.weight.toLowerCase().includes(searchQuery.toLowerCase());
+              const matchesClub = selectedClub === 'all' || ath.club === selectedClub;
+              return matchesSearch && matchesClub;
+            });
+
+            // Sort them by name
+            filteredAthletesForLookup.sort((a, b) => a.name.localeCompare(b.name));
+
+            return (
+              <div className="space-y-6">
+                {/* Search / Explanation Header */}
+                <div className="bg-slate-900 border border-slate-850 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-md">
+                  {/* Backdrop decoration */}
+                  <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none rounded-r-3xl" />
+                  
+                  <div className="relative z-10 space-y-4 max-w-2xl">
+                    <div className="inline-flex bg-amber-500/10 border border-amber-500/25 px-3 py-1 rounded-full text-xs font-black text-amber-400 font-mono uppercase tracking-widest leading-none">
+                      🥋 Public Fighter Portal
+                    </div>
+                    <h3 className="text-xl md:text-2xl font-black tracking-tight text-white font-sans">
+                      Find Competitor Ring &amp; Live Match Schedule
+                    </h3>
+                    <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
+                      Coaches, parents, and athletes: type your name or club below to load your personalized **Fighter Pass** instantly. Get live ring allocations, round schedules, opponent records, and corner assignments.
+                    </p>
+
+                    {/* Prominent centered search bar for easy typing on mobile */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <div className="flex-1 flex items-center gap-3 bg-slate-800/80 border border-slate-700/80 focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/20 rounded-2xl px-4 py-3.5 transition-all">
+                        <Search className="w-5 h-5 text-amber-400 shrink-0" />
+                        <input
+                          type="text"
+                          placeholder="Type competitor's name (e.g. John Doe)..."
+                          className="bg-transparent border-none outline-none text-sm text-white placeholder-slate-400 w-full font-bold uppercase tracking-wide"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                          <button 
+                            type="button" 
+                            onClick={() => setSearchQuery('')}
+                            className="text-xs font-bold text-slate-400 hover:text-white uppercase px-1.5 py-0.5 rounded hover:bg-slate-700/50 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+
+                      {selectedClub !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedClub('all')}
+                          className="px-4 py-3 bg-slate-800 border border-slate-750 hover:bg-slate-750 text-xs font-bold rounded-2xl text-amber-400 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          Reset Club Filter
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Pre-filtered Quick Suggestions if empty search query */}
+                    {searchQuery.trim() === '' && (
+                      <div className="pt-2 text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                        <span className="font-bold">Suggested Quick Search:</span>
+                        {clubList.slice(0, 5).map(club => (
+                          <button
+                            key={club}
+                            type="button"
+                            onClick={() => setSearchQuery(club)}
+                            className="bg-slate-800 hover:bg-slate-750 hover:text-white border border-slate-700/60 rounded-lg px-2.5 py-1 text-[11px] font-extrabold text-slate-300 transition-colors cursor-pointer"
+                          >
+                            {club}
+                          </button>
+                        ))}
+                        {clubList.length > 5 && <span className="italic">and {clubList.length - 5} more</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Athlete lookup cards list */}
+                {searchQuery.trim() === '' ? (
+                  <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
+                    <div className="inline-flex bg-amber-500/10 text-amber-600 p-4 rounded-full border border-amber-500/15">
+                      <Search className="w-6 h-6 text-amber-500" />
+                    </div>
+                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Awaiting Search Query</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto font-medium">
+                      Please enter a competitor name, partial name, or academy/club above to search through the roster and matches database.
+                    </p>
+                  </div>
+                ) : filteredAthletesForLookup.length === 0 ? (
+                  <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
+                    <div className="inline-flex bg-rose-50 text-rose-600 p-4 rounded-full border border-rose-100">
+                      <ShieldAlert className="w-6 h-6 text-rose-500" />
+                    </div>
+                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">No Players Found</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto font-medium">
+                      No competitor names or clubs matched <strong className="text-slate-900 font-extrabold font-mono bg-slate-200 px-1.5 py-0.5 rounded">"{searchQuery}"</strong>. Please verify spelling or search using a different keyword.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredAthletesForLookup.map(ath => {
+                      const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+                      const fightInfo = playersMap[athKey];
+                      const athleteBouts = fightInfo?.bouts || [];
+                      const isCopied = !!copiedPlayerMap[athKey];
+
+                      const getPlayerShareLink = () => {
+                        const baseUrl = window.location.origin;
+                        const urlParams = new URLSearchParams(window.location.search);
+                        let idParam = urlParams.get('id');
+                        const dataParam = urlParams.get('data');
+                        const pathname = window.location.pathname;
+                        
+                        const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+                        if (isReportPath) {
+                          const parts = pathname.split('/');
+                          const possibleId = parts[parts.length - 1];
+                          if (possibleId && possibleId !== 'report' && possibleId !== 'club-report') {
+                            idParam = possibleId;
+                          }
+                        }
+                        
+                        let link = `${baseUrl}`;
+                        if (idParam) {
+                          link += `/report/${idParam}?player=${encodeURIComponent(ath.name)}`;
+                        } else if (dataParam) {
+                          link += `?view=club-report&data=${dataParam}&player=${encodeURIComponent(ath.name)}`;
+                        } else {
+                          link += `?view=club-report&player=${encodeURIComponent(ath.name)}`;
+                        }
+                        
+                        return link;
+                      };
+
+                      return (
+                        <div 
+                          key={athKey} 
+                          className="bg-white border-2 border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+                        >
+                          {/* Fighter pass header block */}
+                          <div className="bg-slate-900 text-white p-5 relative overflow-hidden">
+                            <div className="absolute right-4 top-2 text-[60px] opacity-10 select-none font-black text-slate-600 font-sans pointer-events-none">
+                              🥋
+                            </div>
+                            
+                            <div className="flex items-start justify-between gap-4 relative z-10">
+                              <div className="space-y-1">
+                                <span className="bg-amber-450/20 text-amber-300 text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded border border-amber-500/20">
+                                  Official Fighter Pass
+                                </span>
+                                <h4 className="font-black text-base tracking-tight uppercase font-sans text-white mt-1.5 leading-snug">
+                                  {ath.name}
+                                </h4>
+                                <p className="text-[10px] text-amber-400 font-extrabold uppercase flex items-center gap-1">
+                                  <span>🏠</span>
+                                  <span>{ath.club}</span>
+                                </p>
+                              </div>
+
+                              {/* Ring allocation badge */}
+                              <div className="text-right shrink-0">
+                                <span className={`inline-block text-[10px] font-black uppercase tracking-wider rounded-lg px-2.5 py-1 text-center shadow-sm font-sans ${
+                                  fightInfo?.ringLabel === 'Unassigned' 
+                                    ? 'bg-slate-800 text-slate-400 border border-slate-700' 
+                                    : 'bg-emerald-500 text-white font-black animate-pulse border border-emerald-400'
+                                }`}>
+                                  {fightInfo?.ringLabel === 'Unassigned' ? 'RING: TBD' : `RING ${fightInfo?.ringLabel}`}
+                                </span>
+                                <div className="text-[9px] text-slate-400 font-black mt-1 uppercase font-mono tracking-widest">
+                                  {ath.weight}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bouts scheduled body list */}
+                          <div className="p-5 flex-1 flex flex-col justify-between space-y-4 bg-slate-50/30">
+                            <div>
+                              <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2 mb-3">
+                                Match schedule details
+                              </h5>
+
+                              {athleteBouts.length === 0 ? (
+                                (() => {
+                                  const hasBracket = !!brackets[ath.weight];
+                                  if (!hasBracket) {
+                                    return (
+                                      <div className="bg-white border border-slate-200/70 rounded-xl p-3.5 flex items-center gap-3">
+                                        <ShieldAlert className="w-5 h-5 text-slate-400 shrink-0" />
+                                        <div>
+                                          <p className="text-xs font-bold text-slate-700 leading-snug">
+                                            No Bracket Drawn Yet
+                                          </p>
+                                          <p className="text-[10px] text-slate-500 mt-0.5">
+                                            This category has not been drawn to generate competition matches.
+                                          </p>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="bg-white border border-slate-200/70 rounded-xl p-3.5 flex items-center gap-3">
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                                      <div>
+                                        <p className="text-xs font-bold text-slate-800 leading-snug">
+                                          Bye Allocation
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                          Fighter starts with a direct walkover slot on the bracket tree.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="space-y-3">
+                                  {athleteBouts.map(bout => {
+                                    const isRed = bout.corner === 'H';
+                                    return (
+                                      <div 
+                                        key={bout.formattedId}
+                                        className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-3xs flex items-center justify-between gap-4 hover:border-slate-350 transition-colors"
+                                      >
+                                        <div className="space-y-1.5 min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="bg-slate-900 text-amber-400 text-[9px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                              Bout {bout.formattedId}
+                                            </span>
+                                            <span className="text-[9px] bg-slate-100 font-extrabold text-slate-600 px-1.5 py-0.5 rounded uppercase tracking-wide font-sans">
+                                              {bout.roundName}
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Opponent row */}
+                                          <p className="text-xs font-extrabold text-slate-800 truncate">
+                                            <span className="text-[10px] text-slate-450 uppercase font-mono font-normal tracking-wide pr-1">VS</span>
+                                            {bout.opponentName}
+                                          </p>
+                                          
+                                          {bout.opponentClub && !bout.opponentName.startsWith('Winner of') && (
+                                            <p className="text-[9px] text-slate-500 font-extrabold uppercase italic flex items-center gap-1 pl-4">
+                                              <span>🏠</span>
+                                              <span className="truncate">{bout.opponentClub}</span>
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        {/* Corner assignment visually high contrast */}
+                                        <div className="shrink-0 text-center">
+                                          <span className={`w-14 text-center py-1.5 rounded-lg text-[10px] font-black text-white flex flex-col items-center justify-center shadow-3xs leading-none uppercase tracking-wide ${
+                                            isRed ? 'bg-[#dc2626]' : 'bg-[#1e40af]'
+                                          }`}>
+                                            <span className="text-[7px] text-white/70 tracking-widest font-bold uppercase block mb-0.5">Corner</span>
+                                            {isRed ? 'RED' : 'BLUE'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Actions footer for single fighter card */}
+                            <div className="flex gap-2 pt-3 border-t border-slate-150/80 no-print">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const link = getPlayerShareLink();
+                                  copyText(link);
+                                  setCopiedPlayerMap(prev => ({ ...prev, [athKey]: true }));
+                                  setTimeout(() => {
+                                    setCopiedPlayerMap(prev => ({ ...prev, [athKey]: false }));
+                                  }, 2000);
+                                }}
+                                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-250 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span className="text-emerald-700">Link Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Share2 className="w-3.5 h-3.5" />
+                                    <span>Copy Athlete Link</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* Print single card button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const origTitle = document.title;
+                                  document.title = `${ath.name} - Fighter Pass`;
+                                  window.print();
+                                  document.title = origTitle;
+                                }}
+                                className="px-3 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl transition-all cursor-pointer border border-slate-800 flex items-center justify-center active:scale-95"
+                                title="Print this individual card"
+                              >
+                                <Printer className="w-4 h-4 text-amber-400" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* STYLE 2: CLASSIC CARD DECK LAYOUT */}
           {reportStyle === 'classic-cards' && (

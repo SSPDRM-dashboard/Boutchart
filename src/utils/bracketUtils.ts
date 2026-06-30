@@ -515,20 +515,19 @@ export function handleSwapLeafNodes(
     club: nodeA.club,
     weight: nodeA.weight,
     isBye: nodeA.isBye,
-    checked: nodeA.checked,
   };
 
   nodeA.name = nodeB.name;
   nodeA.club = nodeB.club;
   nodeA.weight = nodeB.weight;
   nodeA.isBye = nodeB.isBye;
-  nodeA.checked = nodeB.checked;
+  nodeA.checked = false; // Reset winner checked status when swapped
 
   nodeB.name = temp.name;
   nodeB.club = temp.club;
   nodeB.weight = temp.weight;
   nodeB.isBye = temp.isBye;
-  nodeB.checked = temp.checked;
+  nodeB.checked = false; // Reset winner checked status when swapped
 
   [i, j].forEach((idx) => {
     const parentIdx = Math.floor(idx / 2);
@@ -551,22 +550,16 @@ export function handleSwapLeafNodes(
       model.nodes[1][parentIdx].isBye = false;
       invalidateAbove(model.nodes, model.numRounds, 1, parentIdx);
     } else {
-      if (n.checked) {
-        model.nodes[1][parentIdx].name = n.name;
-        model.nodes[1][parentIdx].club = n.club;
-        model.nodes[1][parentIdx].weight = n.weight;
-        model.nodes[1][parentIdx].isBye = false;
-      } else if (sib && sib.checked) {
-        model.nodes[1][parentIdx].name = sib.name;
-        model.nodes[1][parentIdx].club = sib.club;
-        model.nodes[1][parentIdx].weight = sib.weight;
-        model.nodes[1][parentIdx].isBye = false;
-      } else {
-        model.nodes[1][parentIdx].name = '';
-        model.nodes[1][parentIdx].club = '';
-        model.nodes[1][parentIdx].isBye = (n.isBye && (!sib || sib.isBye));
-        fullClear(model.nodes, model.numRounds, 1, parentIdx);
+      // Neither is a BYE, or both are BYEs - we must reset this match's winner state
+      n.checked = false;
+      if (sib) {
+        sib.checked = false;
       }
+      model.nodes[1][parentIdx].name = '';
+      model.nodes[1][parentIdx].club = '';
+      model.nodes[1][parentIdx].weight = '';
+      model.nodes[1][parentIdx].isBye = (n.isBye && (!sib || sib.isBye));
+      fullClear(model.nodes, model.numRounds, 1, parentIdx);
     }
   });
 

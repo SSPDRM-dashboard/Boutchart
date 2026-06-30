@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Header } from './components/Header';
 import { RosterPanel } from './components/RosterPanel';
 import { CategoriesPanel } from './components/CategoriesPanel';
@@ -109,6 +109,7 @@ export default function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
   const [pdfError, setPdfError] = useState('');
@@ -261,10 +262,21 @@ export default function App() {
       
       const urlParams = new URLSearchParams(window.location.search);
       const viewType = urlParams.get('view');
-      const dataParam = urlParams.get('data');
-      const idParam = urlParams.get('id');
+      let dataParam = urlParams.get('data');
+      let idParam = urlParams.get('id');
+      const pathname = window.location.pathname;
+
+      const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
       
-      if (viewType === 'club-report') {
+      if (isReportPath) {
+        const parts = pathname.split('/');
+        const possibleId = parts[parts.length - 1];
+        if (possibleId && possibleId !== 'report' && possibleId !== 'club-report') {
+          idParam = possibleId;
+        }
+      }
+
+      if (viewType === 'club-report' || isReportPath) {
         setIsPublicReportOnly(true);
         setActiveTab('club-report');
         
@@ -1269,9 +1281,10 @@ export default function App() {
       setPdfProgress({ current: 0, total: elements.length });
 
       document.body.classList.add('exporting-pdf');
+      elements.forEach((el) => el.classList.add('exporting-active'));
 
-      // Wait a moment for the DOM layout to update after scaling back to 1
-      await new Promise(r => setTimeout(r, 100));
+      // Wait a moment for the DOM layout to update after scaling back to 1 and showing the standings box
+      await new Promise(r => setTimeout(r, 200));
 
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -1346,6 +1359,7 @@ export default function App() {
       }
 
       document.body.classList.remove('exporting-pdf');
+      elements.forEach((el) => el.classList.remove('exporting-active'));
 
       const ringSuffix = selectedRingFilter !== 'all' ? `_ring_${getRingLabel(selectedRingFilter).toLowerCase()}` : '';
       const filename = `${tournamentName ? tournamentName.toLowerCase().replace(/[^a-z0-9_]+/g, '_') : 'tournament_brackets'}${ringSuffix}.pdf`;
@@ -1358,6 +1372,8 @@ export default function App() {
       });
     } catch (err: any) {
       document.body.classList.remove('exporting-pdf');
+      const elements = Array.from(document.querySelectorAll('.bracket-page-card')) as HTMLElement[];
+      elements.forEach((el) => el.classList.remove('exporting-active'));
       console.error(err);
       setPdfError(err?.message || String(err) || 'Failed to export PDF.');
       if (err?.stack) {
@@ -1850,71 +1866,57 @@ export default function App() {
           });
         });
 
-        // Draw Final Standings Box (Vector with Searchable text) - Hidden per user request
-        /*
-        const standingsLeft = PAD + numRounds * gap + (BOX_W - 325) / 2;
-        const standingsTop = (positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2)) + (isClassic ? 75 : 95);
-        const standingsW = 325 * scale;
-        const standingsH = 100 * scale;
-
-        const stLeft = mapX(standingsLeft);
-        const stTop = mapY(standingsTop);
+        // Draw Blank Manual Standings Box at the bottom center of each category (for manual writing after download)
+        const standingsW = 110; // mm
+        const standingsH = 34; // mm
+        const stLeft = startX + (canvasWidth * scale) / 2 - (standingsW / 2);
+        const stTop = startY + canvasHeight * scale - standingsH + 3; // Shifted down 5mm (from -2 to +3)
 
         pdf.setFillColor(255, 255, 255);
-        pdf.setDrawColor(203, 213, 225);
+        pdf.setDrawColor(203, 213, 225); // slate-300
         pdf.setLineWidth(0.35);
-        pdf.roundedRect(stLeft, stTop, standingsW, standingsH, 1 * scale, 1 * scale, 'FD');
+        pdf.roundedRect(stLeft, stTop, standingsW, standingsH, 2, 2, 'FD');
 
-        pdf.setFillColor(248, 250, 252);
-        pdf.roundedRect(stLeft, stTop, standingsW, 18 * scale, 1 * scale, 1 * scale, 'F');
-        pdf.setDrawColor(203, 213, 225);
-        pdf.line(stLeft, stTop + 18 * scale, stLeft + standingsW, stTop + 18 * scale);
+        pdf.setFillColor(248, 250, 252); // slate-50
+        pdf.roundedRect(stLeft, stTop, standingsW, 7, 2, 2, 'F');
+        pdf.rect(stLeft, stTop + 4, standingsW, 3, 'F');
+        pdf.setDrawColor(203, 213, 225); // slate-300
+        pdf.line(stLeft, stTop + 7, stLeft + standingsW, stTop + 7);
 
-        pdf.setTextColor(100, 116, 139);
+        pdf.setTextColor(51, 65, 85); // slate-700
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(Math.max(5, 8.5 * scale));
-        pdf.text('FINAL STANDINGS', stLeft + standingsW / 2, stTop + 9 * scale, { align: 'center', baseline: 'middle' });
+        pdf.setFontSize(7.5);
+        pdf.text('🏆 FINAL STANDINGS 🏆', stLeft + standingsW / 2, stTop + 3.5, { align: 'center', baseline: 'middle' });
 
-        const currentStandings = [
-          bracket.standings?.[0] || '',
-          bracket.standings?.[1] || '',
-          bracket.standings?.[2] || '',
-          bracket.standings?.[3] || '',
+        const rowH = (standingsH - 7) / 4; // 27 / 4 = 6.75 mm per row
+        const medals = ['1.', '2.', '3.', '4.'];
+        const numColors = [
+          [245, 158, 11], // amber-500
+          [148, 163, 184], // slate-400
+          [180, 83, 9], // amber-700
+          [100, 116, 139] // slate-500
         ];
-        const default1 = nodes[numRounds]?.[0]?.name || '';
-        const default2 = (nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked))
-          ? (nodes[numRounds - 1]?.[0]?.checked ? (nodes[numRounds - 1]?.[1]?.name || '') : (nodes[numRounds - 1]?.[0]?.name || ''))
-          : '';
-
-        const medals = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place', '🥉 3rd Place'];
 
         for (let idx = 0; idx < 4; idx++) {
-          const rowY = stTop + 18 * scale + idx * 20.5 * scale;
+          const rowY = stTop + 7 + idx * rowH;
           if (idx > 0) {
-            pdf.setDrawColor(241, 245, 249);
+            pdf.setDrawColor(226, 232, 240); // slate-200
             pdf.line(stLeft, rowY, stLeft + standingsW, rowY);
           }
 
-          pdf.setTextColor(120, 53, 4);
+          // Number
+          const [r, g, b] = numColors[idx];
+          pdf.setTextColor(r, g, b);
           pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(Math.max(4, 7.5 * scale));
-          pdf.text(medals[idx], stLeft + 6 * scale, rowY + 10.25 * scale, { align: 'left', baseline: 'middle' });
+          pdf.setFontSize(8);
+          pdf.text(medals[idx], stLeft + 5, rowY + rowH / 2, { align: 'left', baseline: 'middle' });
 
-          let athleteVal = currentStandings[idx];
-          if (athleteVal === '_REMOVED_') {
-            athleteVal = '';
-          } else if (!athleteVal) {
-            if (idx === 0) athleteVal = default1;
-            if (idx === 1) athleteVal = default2;
-          }
-
-          pdf.setTextColor(15, 23, 42);
+          // Bracket / bracket sign on the right
+          pdf.setTextColor(203, 213, 225); // slate-300
           pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(Math.max(5, 9 * scale));
-          const displayVal = athleteVal ? athleteVal.toUpperCase() : '—';
-          pdf.text(displayVal, stLeft + standingsW - 6 * scale, rowY + 10.25 * scale, { align: 'right', baseline: 'middle' });
+          pdf.setFontSize(8.5);
+          pdf.text(']', stLeft + standingsW - 5, rowY + rowH / 2, { align: 'right', baseline: 'middle' });
         }
-        */
       }
 
       const ringSuffix = activeFilter !== 'all' ? `_ring_${getRingLabel(activeFilter).toLowerCase()}` : '';
@@ -1963,6 +1965,45 @@ export default function App() {
     
     return false;
   });
+
+  const searchSuggestions = useMemo(() => {
+    const query = adminSearchQuery.trim().toLowerCase();
+    
+    const allCategories = bracketKeys;
+    const allAthletes = Array.from(new Set(roster.map(a => a.name.trim()).filter(Boolean))) as string[];
+    const allClubs = Array.from(new Set(roster.map(a => a.club?.trim()).filter(Boolean))) as string[];
+
+    if (!query) {
+      return {
+        categories: allCategories.slice(0, 3).map(name => ({ name, type: 'category' })),
+        athletes: [],
+        clubs: allClubs.slice(0, 3).map(name => ({ name, type: 'club' })),
+        totalCount: Math.min(3, allCategories.length) + Math.min(3, allClubs.length)
+      };
+    }
+
+    const matchedCats = allCategories
+      .filter(cat => cat.toLowerCase().includes(query))
+      .slice(0, 4)
+      .map(name => ({ name, type: 'category' }));
+
+    const matchedAthletes = allAthletes
+      .filter(name => name.toLowerCase().includes(query))
+      .slice(0, 4)
+      .map(name => ({ name, type: 'athlete' }));
+
+    const matchedClubs = allClubs
+      .filter(club => club.toLowerCase().includes(query))
+      .slice(0, 4)
+      .map(name => ({ name, type: 'club' }));
+
+    return {
+      categories: matchedCats,
+      athletes: matchedAthletes,
+      clubs: matchedClubs,
+      totalCount: matchedCats.length + matchedAthletes.length + matchedClubs.length
+    };
+  }, [adminSearchQuery, bracketKeys, roster]);
 
   const duplicateGroups = findDuplicateAthletes(roster);
   const activeDuplicateGroups = duplicateGroups.filter(
@@ -2372,7 +2413,7 @@ export default function App() {
                 <RosterPanel
                   onLoadRoster={handleLoadRoster}
                   onUseSample={handleUseSample}
-                  statusMessage={statusMessage}
+                  statusMessage={bracketKeys.length > 0 ? { text: '', type: 'idle' } : statusMessage}
                   totalAthletes={roster.length}
                 />
 
@@ -2599,6 +2640,41 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Announcement / Status Message Banner (Moved below the title) */}
+                {statusMessage.text && statusMessage.type !== 'idle' && (
+                  <div className="mb-6 no-print animate-in fade-in slide-in-from-top-2 duration-200">
+                    {statusMessage.type === 'ok' ? (
+                      <div className="bg-emerald-50 border border-emerald-250 text-emerald-900 px-4 py-3 rounded-2xl shadow-sm flex items-start gap-3 relative">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 mt-1.5 animate-pulse"></div>
+                        <div className="flex-1 text-xs md:text-sm font-semibold pr-6">
+                          {statusMessage.text}
+                        </div>
+                        <button
+                          onClick={() => setStatusMessage({ text: '', type: 'idle' })}
+                          className="absolute top-2.5 right-2.5 text-emerald-600 hover:text-emerald-900 transition-colors p-1.5 rounded-xl hover:bg-emerald-100/50"
+                          title="Dismiss notification"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-rose-50 border border-rose-250 text-rose-900 px-4 py-3 rounded-2xl shadow-sm flex items-start gap-3 relative">
+                        <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 mt-1.5"></div>
+                        <div className="flex-1 text-xs md:text-sm font-semibold pr-6">
+                          {statusMessage.text}
+                        </div>
+                        <button
+                          onClick={() => setStatusMessage({ text: '', type: 'idle' })}
+                          className="absolute top-2.5 right-2.5 text-rose-600 hover:text-rose-900 transition-colors p-1.5 rounded-xl hover:bg-rose-100/50"
+                          title="Dismiss notification"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Search Engine Input Card */}
                 <div className="mb-6 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center gap-4 no-print animate-in fade-in duration-200">
                   <div className="relative w-full flex-1">
@@ -2611,17 +2687,103 @@ export default function App() {
                       className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-100 hover:border-slate-200 focus:border-amber-500 rounded-xl text-sm font-semibold placeholder-slate-450 focus:outline-none focus:bg-white transition-all outline-none"
                       placeholder="Search admin brackets by category (e.g. -60kg) or competitor/player name..."
                       value={adminSearchQuery}
-                      onChange={(e) => setAdminSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setAdminSearchQuery(e.target.value);
+                        setSearchFocused(true);
+                      }}
+                      onFocus={() => setSearchFocused(true)}
+                      onBlur={() => {
+                        setTimeout(() => setSearchFocused(false), 200);
+                      }}
                     />
                     {adminSearchQuery && (
                       <button
                         type="button"
                         onClick={() => setAdminSearchQuery('')}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        className="absolute inset-y-0 right-10 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                         title="Clear search query"
                       >
                         <X className="h-4 w-4" />
                       </button>
+                    )}
+                    {searchFocused && searchSuggestions.totalCount > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-80 overflow-y-auto divide-y divide-slate-100 no-print animate-in fade-in slide-in-from-top-1 duration-150">
+                        {searchSuggestions.categories.length > 0 && (
+                          <div className="p-2">
+                            <span className="block px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                              Categories ({searchSuggestions.categories.length})
+                            </span>
+                            {searchSuggestions.categories.map((item, idx) => (
+                              <button
+                                key={`cat-${idx}`}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setAdminSearchQuery(item.name);
+                                  setSearchFocused(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-800 rounded-lg transition-colors flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Layers className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                  <span className="truncate">{item.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-normal">Category</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {searchSuggestions.athletes.length > 0 && (
+                          <div className="p-2">
+                            <span className="block px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                              Competitors ({searchSuggestions.athletes.length})
+                            </span>
+                            {searchSuggestions.athletes.map((item, idx) => (
+                              <button
+                                key={`ath-${idx}`}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setAdminSearchQuery(item.name);
+                                  setSearchFocused(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 rounded-lg transition-colors flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Users className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                  <span className="truncate">{item.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-normal">Competitor</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {searchSuggestions.clubs.length > 0 && (
+                          <div className="p-2">
+                            <span className="block px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                              Clubs ({searchSuggestions.clubs.length})
+                            </span>
+                            {searchSuggestions.clubs.map((item, idx) => (
+                              <button
+                                key={`club-${idx}`}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setAdminSearchQuery(item.name);
+                                  setSearchFocused(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800 rounded-lg transition-colors flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Trophy className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                  <span className="truncate">{item.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-normal">Club</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 text-xs font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">

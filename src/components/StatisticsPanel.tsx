@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Athlete, WeightCategory } from '../types';
-import { Trophy, School, Users, Medal } from 'lucide-react';
+import { Trophy, School, Users, Medal, Shield } from 'lucide-react';
 
 interface StatisticsPanelProps {
   roster: Athlete[];
@@ -8,27 +8,43 @@ interface StatisticsPanelProps {
 }
 
 export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, categories }) => {
-  // 1. Players by School and Gender
-  const schoolStats: Record<string, { total: number; m: number; f: number; u: number }> = {};
+  const [demographicType, setDemographicType] = useState<'school' | 'club'>('school');
+
+  // Calculate unique counts of schools and clubs
+  const schoolsSet = new Set<string>();
+  const clubsSet = new Set<string>();
+  roster.forEach(a => {
+    if (a.school && a.school.trim() !== '') {
+      schoolsSet.add(a.school.trim());
+    }
+    if (a.club && a.club.trim() !== '') {
+      clubsSet.add(a.club.trim());
+    }
+  });
+  const totalSchools = schoolsSet.size;
+  const totalClubs = clubsSet.size;
+
+  // Players by selected demographic type and gender
+  const stats: Record<string, { total: number; m: number; f: number; u: number }> = {};
   
   roster.forEach(athlete => {
-    const school = athlete.school || 'Unspecified';
+    const key = (demographicType === 'school' ? athlete.school : athlete.club) || 'Unspecified';
     const genderRaw = athlete.gender?.toLowerCase() || '';
     let g = 'u';
     if (genderRaw.startsWith('m')) g = 'm';
     else if (genderRaw.startsWith('f')) g = 'f';
     
-    if (!schoolStats[school]) {
-      schoolStats[school] = { total: 0, m: 0, f: 0, u: 0 };
+    if (!stats[key]) {
+      stats[key] = { total: 0, m: 0, f: 0, u: 0 };
     }
     
-    schoolStats[school].total += 1;
-    if (g === 'm') schoolStats[school].m += 1;
-    else if (g === 'f') schoolStats[school].f += 1;
-    else schoolStats[school].u += 1;
+    stats[key].total += 1;
+    if (g === 'm') stats[key].m += 1;
+    else if (g === 'f') stats[key].f += 1;
+    else stats[key].u += 1;
   });
 
-  const sortedSchools = Object.entries(schoolStats).sort((a, b) => b[1].total - a[1].total);
+  const sortedStats = Object.entries(stats).sort((a, b) => b[1].total - a[1].total);
 
   // 2. Medals calculation
   let totalGold = 0;
@@ -63,7 +79,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, catego
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
         {/* Medals Summary */}
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 animate-fade-in">
           <div className="flex items-center gap-2 mb-4">
             <Medal className="w-5 h-5 text-amber-500" />
             <h3 className="font-bold text-slate-800">Required Medals</h3>
@@ -96,31 +112,69 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, catego
             <h3 className="font-bold text-slate-800">Players Overview</h3>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="text-sm font-semibold text-slate-500 mb-1">Total Athletes</div>
-              <div className="text-3xl font-black text-slate-900">{roster.length}</div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm text-center">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Athletes</div>
+              <div className="text-xl md:text-2xl font-black text-slate-900">{roster.length}</div>
             </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <div className="text-sm font-semibold text-slate-500 mb-1">Total Schools</div>
-              <div className="text-3xl font-black text-slate-900">{sortedSchools.length}</div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm text-center">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Schools</div>
+              <div className="text-xl md:text-2xl font-black text-slate-900">{totalSchools}</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm text-center">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Clubs</div>
+              <div className="text-xl md:text-2xl font-black text-slate-900">{totalClubs}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* School & Gender Table */}
+      {/* Demographics Selector Toggle and Table */}
       <div>
-        <div className="flex items-center gap-2 mb-4 px-1">
-          <School className="w-5 h-5 text-slate-600" />
-          <h3 className="font-bold text-slate-800">Demographics by School</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 px-1">
+          <div className="flex items-center gap-2">
+            {demographicType === 'school' ? (
+              <School className="w-5 h-5 text-slate-600 animate-pulse" />
+            ) : (
+              <Shield className="w-5 h-5 text-slate-600 animate-pulse" />
+            )}
+            <h3 className="font-bold text-slate-800">
+              Demographics by {demographicType === 'school' ? 'School' : 'Club / Team'}
+            </h3>
+          </div>
+          
+          {/* Toggle Buttons */}
+          <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto shadow-sm">
+            <button
+              onClick={() => setDemographicType('school')}
+              className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                demographicType === 'school'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🏫 School
+            </button>
+            <button
+              onClick={() => setDemographicType('club')}
+              className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                demographicType === 'club'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🛡️ Club / Team
+            </button>
+          </div>
         </div>
         
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
               <tr>
-                <th className="px-4 py-3">School Name</th>
+                <th className="px-4 py-3">
+                  {demographicType === 'school' ? 'School Name' : 'Club / Team Name'}
+                </th>
                 <th className="px-4 py-3 text-center">Male</th>
                 <th className="px-4 py-3 text-center">Female</th>
                 <th className="px-4 py-3 text-center">Unspecified</th>
@@ -128,16 +182,18 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, catego
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {sortedSchools.map(([school, stats]) => (
-                <tr key={school} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-slate-900">{school}</td>
-                  <td className="px-4 py-3 text-center text-slate-600">{stats.m}</td>
-                  <td className="px-4 py-3 text-center text-slate-600">{stats.f}</td>
-                  <td className="px-4 py-3 text-center text-slate-400">{stats.u > 0 ? stats.u : '-'}</td>
-                  <td className="px-4 py-3 text-center font-black text-slate-900">{stats.total}</td>
+              {sortedStats.map(([name, itemStats]) => (
+                <tr key={name} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-4 py-3 font-semibold text-slate-900 flex items-center gap-2">
+                    {demographicType === 'school' ? '🏫' : '🛡️'} {name}
+                  </td>
+                  <td className="px-4 py-3 text-center text-slate-600">{itemStats.m}</td>
+                  <td className="px-4 py-3 text-center text-slate-600">{itemStats.f}</td>
+                  <td className="px-4 py-3 text-center text-slate-400">{itemStats.u > 0 ? itemStats.u : '-'}</td>
+                  <td className="px-4 py-3 text-center font-black text-slate-900">{itemStats.total}</td>
                 </tr>
               ))}
-              {sortedSchools.length === 0 && (
+              {sortedStats.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-slate-500 font-medium">
                     No data available.
