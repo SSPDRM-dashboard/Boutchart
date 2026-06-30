@@ -10,7 +10,6 @@ interface HeaderProps {
   onOpenEventsModal: () => void;
   savedEventsCount: number;
   isPublicView?: boolean;
-  onTogglePublicView?: () => void;
 }
 
 export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser: string | null }> = ({
@@ -24,7 +23,6 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   onLogout,
   currentUser,
   isPublicView = false,
-  onTogglePublicView,
 }) => {
   return (
     <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
@@ -60,18 +58,8 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 md:gap-3">
           {isPublicView && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-extrabold font-mono tracking-wider">
-                <span>🌎 PUBLIC REPORT VIEW</span>
-              </div>
-              <button
-                type="button"
-                onClick={onTogglePublicView}
-                className="text-xs font-black text-amber-400 hover:text-amber-500 hover:bg-slate-800 transition-all px-3 py-1.5 bg-slate-800/80 rounded-xl border border-slate-700 cursor-pointer active:scale-95"
-                title={currentUser ? "Switch to your Admin Dashboard" : "Sign in as administrator to manage brackets"}
-              >
-                {currentUser ? 'Go to Admin Dashboard' : 'Admin Login'}
-              </button>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-extrabold font-mono tracking-wider">
+              <span>🌎 PUBLIC REPORT VIEW</span>
             </div>
           )}
           {currentUser && !isPublicView && (

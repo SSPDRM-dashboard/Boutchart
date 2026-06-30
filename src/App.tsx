@@ -326,71 +326,11 @@ export default function App() {
         }
       }
 
-      if (viewType === 'club-report' || isReportPath) {
+      if (viewType === 'club-report' || isReportPath || isPublicReportOnly) {
         setIsPublicReportOnly(true);
         setActiveTab('club-report');
         
-        if (idParam) {
-          setStatusMessage({
-            text: 'Retrieving secure club report...',
-            type: 'ok',
-          });
-          // Check if this ID looks like a Firebase document ID (usually 20 chars or similar)
-          const docRef = doc(db, 'reports', idParam);
-          getDoc(docRef)
-            .then(docSnap => {
-              if (docSnap.exists()) {
-                let parsed = docSnap.data();
-                if (parsed.payload) {
-                  try {
-                    parsed = JSON.parse(parsed.payload);
-                  } catch (e) {
-                    console.error('Failed to parse report payload', e);
-                  }
-                }
-                
-                if (parsed.t) setTournamentName(parsed.t);
-                if (parsed.r) setRoster(parsed.r);
-                if (parsed.c) setCategories(parsed.c);
-                if (parsed.b) setBrackets(parsed.b);
-                if (parsed.rl) setRingLabelFormat(parsed.rl);
-                
-                setStatusMessage({
-                  text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
-                  type: 'ok',
-                });
-              } else {
-                // Fallback to local server api if not in firestore (in case they have old reports)
-                return fetch(`/api/reports/${idParam}`)
-                  .then(res => {
-                    if (!res.ok) throw new Error('Failed to find report.');
-                    return res.json();
-                  })
-                  .then(parsed => {
-                    if (parsed) {
-                      if (parsed.t) setTournamentName(parsed.t);
-                      if (parsed.r) setRoster(parsed.r);
-                      if (parsed.c) setCategories(parsed.c);
-                      if (parsed.b) setBrackets(parsed.b);
-                      if (parsed.rl) setRingLabelFormat(parsed.rl);
-                      
-                      setStatusMessage({
-                        text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
-                        type: 'ok',
-                      });
-                    }
-                  });
-              }
-            })
-            .catch(err => {
-              console.error('Failed to parse shareable data', err);
-              setStatusMessage({
-                text: 'Could not load public report: URL may be expired or invalid.',
-                type: 'err',
-              });
-            });
-          return; // Bypass loading from localStorage
-        } else if (dataParam) {
+        if (dataParam) {
           decompressFromGzipBase64(dataParam)
             .then(decompressed => JSON.parse(decompressed))
             .catch(() => {
@@ -420,6 +360,133 @@ export default function App() {
               });
             });
           return; // Bypass loading from localStorage
+        } else {
+          // Fetch from Firestore reports collection
+          const activeId = idParam || 'active_state';
+          setStatusMessage({
+            text: activeId === 'active_state' ? 'Loading tournament report...' : 'Retrieving secure club report...',
+            type: 'ok',
+          });
+          
+          const docRef = doc(db, 'reports', activeId);
+          getDoc(docRef)
+            .then(docSnap => {
+              if (docSnap.exists()) {
+                let parsed = docSnap.data();
+                if (parsed.payload) {
+                  try {
+                    parsed = JSON.parse(parsed.payload);
+                  } catch (e) {
+                    console.error('Failed to parse report payload', e);
+                  }
+                }
+                
+                if (parsed.t) setTournamentName(parsed.t);
+                if (parsed.r) setRoster(parsed.r);
+                if (parsed.c) setCategories(parsed.c);
+                if (parsed.b) setBrackets(parsed.b);
+                if (parsed.rl) setRingLabelFormat(parsed.rl);
+                if (parsed.ringCount) setRingCount(parsed.ringCount);
+                if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
+                if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
+                if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
+                if (parsed.dismissedDuplicates !== undefined) setDismissedDuplicates(parsed.dismissedDuplicates);
+                
+                setStatusMessage({
+                  text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
+                  type: 'ok',
+                });
+              } else {
+                if (activeId !== 'active_state') {
+                  // Fallback to local server api if not in firestore (in case they have old reports)
+                  return fetch(`/api/reports/${activeId}`)
+                    .then(res => {
+                      if (!res.ok) throw new Error('Failed to find report.');
+                      return res.json();
+                    })
+                    .then(parsed => {
+                      if (parsed) {
+                        if (parsed.t) setTournamentName(parsed.t);
+                        if (parsed.r) setRoster(parsed.r);
+                        if (parsed.c) setCategories(parsed.c);
+                        if (parsed.b) setBrackets(parsed.b);
+                        if (parsed.rl) setRingLabelFormat(parsed.rl);
+                        
+                        setStatusMessage({
+                          text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
+                          type: 'ok',
+                        });
+                      }
+                    });
+                } else {
+                  // If global active state is not found in firestore, check local storage fallback
+                  const stored = safeLocalStorage.getItem(STORAGE_KEY);
+                  if (stored) {
+                    const snap = JSON.parse(stored);
+                    if (snap) {
+                      if (snap.tournamentName) setTournamentName(snap.tournamentName);
+                      if (snap.roster) setRoster(snap.roster);
+                      if (snap.categories) setCategories(snap.categories);
+                      if (snap.brackets) setBrackets(snap.brackets);
+                      if (snap.ringCount) setRingCount(snap.ringCount);
+                      if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+                      if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+                      if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
+                      if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+                      
+                      setStatusMessage({
+                        text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
+                        type: 'ok',
+                      });
+                    } else {
+                      setStatusMessage({
+                        text: 'No active tournament report is available. Please log in as an administrator to create data.',
+                        type: 'idle',
+                      });
+                    }
+                  } else {
+                    setStatusMessage({
+                      text: 'No active tournament report is available. Please log in as an administrator to create data.',
+                      type: 'idle',
+                    });
+                  }
+                }
+              }
+            })
+            .catch(err => {
+              console.error('Failed to parse shareable data', err);
+              // Fallback to local storage if firestore fails (e.g. offline or permission)
+              const stored = safeLocalStorage.getItem(STORAGE_KEY);
+              if (stored) {
+                try {
+                  const snap = JSON.parse(stored);
+                  if (snap) {
+                    if (snap.tournamentName) setTournamentName(snap.tournamentName);
+                    if (snap.roster) setRoster(snap.roster);
+                    if (snap.categories) setCategories(snap.categories);
+                    if (snap.brackets) setBrackets(snap.brackets);
+                    if (snap.ringCount) setRingCount(snap.ringCount);
+                    if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+                    if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+                    if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
+                    if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+                    
+                    setStatusMessage({
+                      text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
+                      type: 'ok',
+                    });
+                    return;
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+              setStatusMessage({
+                text: 'Could not load public report: database connection failed.',
+                type: 'err',
+              });
+            });
+          return;
         }
       }
 
@@ -494,6 +561,10 @@ export default function App() {
         if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           const currentRef = doc(db, `users/${currentUser}/current/state`);
           await setDoc(currentRef, { payload: JSON.stringify(snapshot) });
+          
+          // Also publish to the global active state for public viewers without an ID
+          const publicActiveRef = doc(db, 'reports', 'active_state');
+          await setDoc(publicActiveRef, { payload: JSON.stringify(snapshot) });
         }
 
         setSaveStatus('saved');
@@ -2131,15 +2202,6 @@ export default function App() {
           onLogout={handleLogout}
           currentUser={currentUser}
           isPublicView={isPublicReportOnly}
-          onTogglePublicView={() => {
-            const nextVal = !isPublicReportOnly;
-            setIsPublicReportOnly(nextVal);
-            if (!nextVal) {
-              setActiveTab('brackets');
-            } else {
-              setActiveTab('club-report');
-            }
-          }}
         />
 
         {!currentUser && !isPublicReportOnly ? (
