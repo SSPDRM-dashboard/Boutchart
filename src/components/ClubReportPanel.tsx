@@ -3,6 +3,9 @@ import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, A
 import { Athlete, WeightCategory, BracketModel } from '../types';
 import { compressToGzipBase64 } from '../utils/compression';
 import { CertificateModal } from './CertificateModal';
+import { db, doc, setDoc, collection } from '../lib/firebase';
+import { jsPDF } from 'jspdf';
+import JSZip from 'jszip';
 
 const safeConfirm = (message: string): boolean => {
   try {
@@ -60,6 +63,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   );
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
+  const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     try {
@@ -69,6 +73,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         setSearchQuery(playerParam);
         setReportStyle('individual-lookup');
       }
+      const clubParam = urlParams.get('club');
+      if (clubParam) {
+        setSelectedClub(clubParam);
+      }
     } catch (e) {
       console.warn('URL params parsing failed inside ClubReportPanel', e);
     }
@@ -76,6 +84,227 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
   const [shareStatus, setShareStatus] = useState<'silent' | 'loading' | 'copied' | 'error'>('silent');
   const [shareUrl, setShareUrl] = useState('');
+  const [zipExportLoading, setZipExportLoading] = useState(false);
+
+  const generateClubMatrixPDF = (clubName: string, clubAthletes: { name: string; club: string; weight: string }[]) => {
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
+
+    const totalPages = Math.ceil(clubAthletes.length / 13) || 1;
+
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      if (pageNum > 1) {
+        pdf.addPage();
+      }
+
+      // 1. Draw Page Header
+      pdf.setFillColor(248, 250, 252); // slate-50 background for page header
+      pdf.rect(11, 10, 275, 20, 'F');
+      
+      pdf.setDrawColor(226, 232, 240); // slate-200 border
+      pdf.setLineWidth(0.5);
+      pdf.rect(11, 10, 275, 20, 'S');
+
+      // Main Title
+      pdf.setTextColor(12, 46, 92); // navy `#0c2e5c`
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14);
+      pdf.text(`TAEKWONDO MATRIX GRID - ${clubName.toUpperCase()}`, 15, 18);
+
+      // Subtitle
+      pdf.setTextColor(100, 116, 139); // slate-500
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.text(`Tournament: ${tournamentName || 'Tournament'}  |  Club: ${clubName}  |  Page ${pageNum} of ${totalPages}`, 15, 24);
+
+      // Date / Info (Right aligned)
+      const nowStr = new Date().toLocaleDateString();
+      pdf.text(`Generated: ${nowStr}  |  Total Competitors: ${clubAthletes.length}`, 281, 18, { align: 'right' });
+
+      // 2. Draw Table Header
+      const headerY = 34;
+      pdf.setFillColor(12, 46, 92); // `#0c2e5c`
+      pdf.rect(11, headerY, 275, 10, 'F');
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8.5);
+
+      pdf.text('MAT & CATEGORY', 15, headerY + 6.5);
+      pdf.text('CLUB', 65, headerY + 6.5);
+      pdf.text('COMPETITOR NAME', 100, headerY + 6.5);
+
+      for (let f = 1; f <= 7; f++) {
+        pdf.text(`FIGHT ${f}`, 146 + (f - 1) * 20 + 10, headerY + 6.5, { align: 'center' });
+      }
+
+      // 3. Draw Athletes Rows for this page
+      const startIndex = (pageNum - 1) * 13;
+      const endIndex = Math.min(startIndex + 13, clubAthletes.length);
+      let currentY = headerY + 10;
+
+      for (let i = startIndex; i < endIndex; i++) {
+        const ath = clubAthletes[i];
+        const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+        const fightInfo = playersMap[athKey];
+        const athleteBouts = fightInfo?.bouts || [];
+
+        // Alternating background row color
+        if (i % 2 === 0) {
+          pdf.setFillColor(255, 255, 255);
+        } else {
+          pdf.setFillColor(248, 250, 252); // slate-50
+        }
+        pdf.rect(11, currentY, 275, 12, 'F');
+
+        // Draw Row Borders
+        pdf.setDrawColor(226, 232, 240); // slate-200
+        pdf.setLineWidth(0.35);
+        pdf.rect(11, currentY, 275, 12, 'S');
+
+        // Column dividers
+        pdf.line(61, currentY, 61, currentY + 12);
+        pdf.line(96, currentY, 96, currentY + 12);
+        pdf.line(146, currentY, 146, currentY + 12);
+        for (let f = 1; f <= 7; f++) {
+          pdf.line(146 + f * 20, currentY, 146 + f * 20, currentY + 12);
+        }
+
+        // Draw Mat & Category text
+        pdf.setTextColor(12, 46, 92);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8.5);
+        const ringText = fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`;
+        pdf.text(ringText, 15, currentY + 4.5);
+
+        pdf.setTextColor(100, 116, 139);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7.5);
+        const weightText = ath.weight.length > 25 ? ath.weight.substring(0, 22) + '...' : ath.weight;
+        pdf.text(weightText, 15, currentY + 9);
+
+        // Draw Club Text
+        pdf.setTextColor(51, 65, 85);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8);
+        const clubText = ath.club.length > 18 ? ath.club.substring(0, 16) + '...' : ath.club;
+        pdf.text(clubText.toUpperCase(), 65, currentY + 7);
+
+        // Draw Athlete Name
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8);
+        const nameText = ath.name.length > 25 ? ath.name.substring(0, 22) + '...' : ath.name;
+        pdf.text(nameText.toUpperCase(), 100, currentY + 7);
+
+        // Draw Fights 1 to 7
+        for (let f = 0; f < 7; f++) {
+          const bout = athleteBouts[f];
+          const colX = 146 + f * 20;
+
+          if (bout) {
+            // Draw bout formattedId text
+            pdf.setTextColor(15, 23, 42);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(9);
+            pdf.text(bout.formattedId, colX + 4, currentY + 7, { baseline: 'middle' });
+
+            // Draw Corner badge
+            const isRed = bout.corner === 'H';
+            if (isRed) {
+              pdf.setFillColor(220, 38, 38); // `#dc2626`
+            } else {
+              pdf.setFillColor(30, 64, 175); // `#1e40af`
+            }
+            pdf.roundedRect(colX + 11.5, currentY + 3.75, 4.5, 4.5, 0.8, 0.8, 'F');
+
+            // Draw Corner text
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(7.5);
+            pdf.text(bout.corner, colX + 13.75, currentY + 6.25, { align: 'center', baseline: 'middle' });
+          } else {
+            pdf.setTextColor(203, 213, 225);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.text('-', colX + 10, currentY + 7, { align: 'center' });
+          }
+        }
+
+        currentY += 12;
+      }
+
+      // Draw footer legend at the bottom of the page
+      pdf.setFillColor(248, 250, 252);
+      pdf.rect(11, 192, 275, 8, 'F');
+      pdf.setDrawColor(226, 232, 240);
+      pdf.rect(11, 192, 275, 8, 'S');
+
+      pdf.setTextColor(100, 116, 139);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7);
+      pdf.text('LEGEND:', 15, 197.5);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('C = Chung (Blue Corner / Top Slot)', 32, 197.5);
+      pdf.text('H = Hong (Red Corner / Bottom Slot)', 85, 197.5);
+      pdf.text('Generated via MY-TKD Tournament Manager', 281, 197.5, { align: 'right' });
+    }
+
+    return pdf;
+  };
+
+  const downloadSingleClubMatrixPDF = (clubName: string) => {
+    const clubAthletes = athleteList.filter(a => a.club === clubName);
+    clubAthletes.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (clubAthletes.length === 0) {
+      alert(`No athletes found for club "${clubName}".`);
+      return;
+    }
+
+    const pdf = generateClubMatrixPDF(clubName, clubAthletes);
+    const filename = `${clubName.replace(/[^a-zA-Z0-9]/g, '_')}_Matrix_Grid.pdf`;
+    pdf.save(filename);
+  };
+
+  const downloadAllClubsMatrixZIP = async () => {
+    setZipExportLoading(true);
+    try {
+      const zip = new JSZip();
+
+      for (const club of clubList) {
+        const clubAthletes = athleteList.filter(a => a.club === club);
+        clubAthletes.sort((a, b) => a.name.localeCompare(b.name));
+        if (clubAthletes.length === 0) continue;
+
+        const pdf = generateClubMatrixPDF(club, clubAthletes);
+        const pdfArrayBuffer = pdf.output('arraybuffer');
+        const filename = `${club.replace(/[^a-zA-Z0-9]/g, '_')}_Matrix_Grid.pdf`;
+        zip.file(filename, pdfArrayBuffer);
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const zipFilename = `${(tournamentName || 'Tournament').replace(/[^a-zA-Z0-9]/g, '_')}_Clubs_Matrix_Grids.zip`;
+      
+      const url = URL.createObjectURL(content);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", zipFilename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to generate ZIP folder of clubs matrix grids', err);
+      alert('Failed to generate ZIP download. Please try again.');
+    } finally {
+      setZipExportLoading(false);
+    }
+  };
 
   const copyToClipboardFallback = (text: string): boolean => {
     try {
@@ -106,10 +335,61 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     }
   };
 
+  const getPublicBaseUrl = () => {
+    // Check if we can extract a public URL from env variables
+    const envPublicUrl = import.meta.env.VITE_PUBLIC_URL || import.meta.env.VITE_APP_URL;
+    if (envPublicUrl && envPublicUrl.trim()) {
+      return envPublicUrl.trim().replace(/\/+$/, '');
+    }
+
+    const origin = window.location.origin;
+    // Auto-convert AI Studio dev URLs to pre-production/shared URLs so that public can access it directly without 403 Forbidden
+    if (origin.includes('ais-dev-')) {
+      return origin.replace('ais-dev-', 'ais-pre-');
+    }
+    return origin;
+  };
+
   const generateAndCopyShareLink = () => {
     try {
       setShareStatus('loading');
       
+      const baseUrl = getPublicBaseUrl();
+      const urlParams = new URLSearchParams(window.location.search);
+      let idParam = urlParams.get('id');
+      const dataParam = urlParams.get('data');
+      const pathname = window.location.pathname;
+      
+      const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+      if (isReportPath) {
+        const parts = pathname.split('/');
+        const possibleId = parts[parts.length - 1];
+        if (possibleId && possibleId !== 'report' && possibleId !== 'club-report') {
+          idParam = possibleId;
+        }
+      }
+
+      // If we are in public view and already have an ID or GZIP data, reuse it
+      if (isPublicView && (idParam || dataParam)) {
+        let shareLink = '';
+        if (idParam) {
+          shareLink = `${baseUrl}/report/${idParam}`;
+        } else {
+          shareLink = `${baseUrl}${pathname}?view=club-report&data=${dataParam}`;
+        }
+        
+        if (selectedClub && selectedClub !== 'all') {
+          const urlObj = new URL(shareLink);
+          urlObj.searchParams.set('club', selectedClub);
+          shareLink = urlObj.toString();
+        }
+        
+        setShareUrl(shareLink);
+        copyText(shareLink);
+        setShareStatus('copied');
+        return;
+      }
+
       const payload = {
         t: tournamentName || 'Tournament',
         r: roster,
@@ -118,46 +398,66 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         rl: ringLabelFormat
       };
       
-      fetch('/api/reports', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-      .then(res => {
-        if (!res.ok) throw new Error('API failed');
-        return res.json();
-      })
-      .then(resData => {
-        if (resData && resData.id) {
-          const baseUrl = window.location.origin;
-          const shareLink = `${baseUrl}/report/${resData.id}`;
-          
-          setShareUrl(shareLink);
-          copyText(shareLink);
-          setShareStatus('copied');
-        } else {
-          throw new Error('No ID returned');
+      const newDocRef = doc(collection(db, 'reports'));
+      setDoc(newDocRef, { payload: JSON.stringify(payload) })
+      .then(() => {
+        let shareLink = `${baseUrl}/report/${newDocRef.id}`;
+        if (selectedClub && selectedClub !== 'all') {
+          shareLink += `?club=${encodeURIComponent(selectedClub)}`;
         }
+        
+        setShareUrl(shareLink);
+        copyText(shareLink);
+        setShareStatus('copied');
       })
       .catch(err => {
-        console.log('Using native GZIP client compressed URL format', err);
-        // Fallback to high-compression gzip base64 if server request fails
-        const jsonStr = JSON.stringify(payload);
-        compressToGzipBase64(jsonStr)
-          .then(base64Str => {
-            const baseUrl = window.location.origin + window.location.pathname;
-            const shareLink = `${baseUrl}?view=club-report&data=${base64Str}`;
+        console.log('Firebase save failed, falling back to local server api', err);
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('API failed');
+          return res.json();
+        })
+        .then(resData => {
+          if (resData && resData.id) {
+            let shareLink = `${baseUrl}/report/${resData.id}`;
+            if (selectedClub && selectedClub !== 'all') {
+              shareLink += `?club=${encodeURIComponent(selectedClub)}`;
+            }
             
             setShareUrl(shareLink);
             copyText(shareLink);
             setShareStatus('copied');
-          })
-          .catch(fbErr => {
-            console.error('Fallback compression failed', fbErr);
-            setShareStatus('error');
-          });
+          } else {
+            throw new Error('No ID returned');
+          }
+        })
+        .catch(apiErr => {
+          console.log('Using native GZIP client compressed URL format', apiErr);
+          // Fallback to high-compression gzip base64 if server request fails
+          const jsonStr = JSON.stringify(payload);
+          compressToGzipBase64(jsonStr)
+            .then(base64Str => {
+              const baseWithPage = getPublicBaseUrl() + window.location.pathname;
+              let shareLink = `${baseWithPage}?view=club-report&data=${base64Str}`;
+              if (selectedClub && selectedClub !== 'all') {
+                shareLink += `&club=${encodeURIComponent(selectedClub)}`;
+              }
+              
+              setShareUrl(shareLink);
+              copyText(shareLink);
+              setShareStatus('copied');
+            })
+            .catch(fbErr => {
+              console.error('Fallback compression failed', fbErr);
+              setShareStatus('error');
+            });
+        });
       });
     } catch (e) {
       console.error('Failed to generate shareable link', e);
@@ -770,48 +1070,75 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
         {/* Action controls */}
         <div className="flex flex-wrap items-center gap-3 shrink-0">
-          {!isPublicView && (
+          <button
+            type="button"
+            onClick={generateAndCopyShareLink}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            title="Generate a unique, read-only URL for this report to share with coaches"
+          >
+            <Share2 className="w-4 h-4 text-indigo-100" />
+            <span>
+              {shareStatus === 'copied'
+                ? 'Link Copied!'
+                : selectedClub === 'all'
+                ? 'Share Public Link'
+                : `Share ${selectedClub} Link`}
+            </span>
+          </button>
+
+          {/* Download selected club matrix as PDF */}
+          {selectedClub !== 'all' && (
             <button
               type="button"
-              onClick={generateAndCopyShareLink}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title="Generate a unique, read-only URL for this report to share with coaches"
+              onClick={() => downloadSingleClubMatrixPDF(selectedClub)}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title={`Download the Taekwondo Matrix Grid for ${selectedClub} as a print-ready PDF`}
             >
-              <Share2 className="w-4 h-4 text-indigo-100" />
-              <span>{shareStatus === 'copied' ? 'Link Copied!' : 'Share Public Link'}</span>
+              <Grid className="w-4 h-4 text-slate-950" />
+              <span>Download {selectedClub} Matrix (PDF)</span>
             </button>
           )}
+
+          {/* Download all clubs matrix as ZIP */}
+          <button
+            type="button"
+            disabled={zipExportLoading}
+            onClick={downloadAllClubsMatrixZIP}
+            className={`bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95 ${
+              zipExportLoading ? 'opacity-70 cursor-not-allowed animate-pulse' : ''
+            }`}
+            title="Download Taekwondo Matrix Grid PDFs for every club in a single ZIP folder"
+          >
+            <Download className="w-4 h-4 text-teal-100" />
+            <span>{zipExportLoading ? 'Packaging ZIP...' : 'Download All Matrices (ZIP)'}</span>
+          </button>
 
           {/* Download button */}
-          {!isPublicView && (
-            <button
-              type="button"
-              onClick={() => {
-                if (reportStyle === 'medal-standings') {
-                  downloadClubMedalStandingsCSV();
-                } else {
-                  downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
-                }
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title={reportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
-            >
-              <Download className="w-4 h-4 text-emerald-100" />
-              <span>{reportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (reportStyle === 'medal-standings') {
+                downloadClubMedalStandingsCSV();
+              } else {
+                downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
+              }
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            title={reportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
+          >
+            <Download className="w-4 h-4 text-emerald-100" />
+            <span>{reportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
+          </button>
 
           {/* Print button */}
-          {!isPublicView && (
-            <button
-              type="button"
-              onClick={triggerPrintReport}
-              className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            >
-              <Printer className="w-4 h-4 text-amber-400" />
-              <span>Print Active View</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={triggerPrintReport}
+            className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+          >
+            <Printer className="w-4 h-4 text-amber-400" />
+            <span>Print Active View</span>
+          </button>
         </div>
       </div>
 
@@ -1229,14 +1556,30 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                       const fightInfo = playersMap[athKey];
                       const athleteBouts = fightInfo?.bouts || [];
                       const isCopied = !!copiedPlayerMap[athKey];
+                      const isLoadingLink = !!loadingPlayerMap[athKey];
 
-                      const getPlayerShareLink = () => {
-                        const baseUrl = window.location.origin;
+                      const getPlayerShareLinkAsync = async () => {
+                        const baseUrl = getPublicBaseUrl();
                         const urlParams = new URLSearchParams(window.location.search);
                         let idParam = urlParams.get('id');
                         const dataParam = urlParams.get('data');
                         const pathname = window.location.pathname;
                         
+                        // If a share URL was already generated by the user clicking 'Get Public Link'
+                        if (shareUrl) {
+                          try {
+                            const shareUrlObj = new URL(shareUrl);
+                            shareUrlObj.searchParams.set('player', ath.name);
+                            // Also ensure view=club-report is there if it's using the query param format
+                            if (!shareUrl.includes('/report/')) {
+                              shareUrlObj.searchParams.set('view', 'club-report');
+                            }
+                            return shareUrlObj.toString();
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }
+
                         const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
                         if (isReportPath) {
                           const parts = pathname.split('/');
@@ -1252,7 +1595,50 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         } else if (dataParam) {
                           link += `?view=club-report&data=${dataParam}&player=${encodeURIComponent(ath.name)}`;
                         } else {
-                          link += `?view=club-report&player=${encodeURIComponent(ath.name)}`;
+                          const payload = {
+                            t: tournamentName || 'Tournament',
+                            r: roster,
+                            c: categories,
+                            b: brackets,
+                            rl: ringLabelFormat
+                          };
+                          
+                          try {
+                            // Automatically save to Firestore to get a short, reliable URL
+                            const newDocRef = doc(collection(db, 'reports'));
+                            await setDoc(newDocRef, { payload: JSON.stringify(payload) });
+                            const baseReportUrl = `${baseUrl}/report/${newDocRef.id}`;
+                            setShareUrl(baseReportUrl);
+                            link = `${baseReportUrl}?player=${encodeURIComponent(ath.name)}`;
+                          } catch (firebaseErr) {
+                            console.warn('Firebase save failed on-the-fly, trying local server api', firebaseErr);
+                            try {
+                              const apiRes = await fetch('/api/reports', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                              });
+                              if (!apiRes.ok) throw new Error('API failed');
+                              const resData = await apiRes.json();
+                              if (resData && resData.id) {
+                                const baseReportUrl = `${baseUrl}/report/${resData.id}`;
+                                setShareUrl(baseReportUrl);
+                                link = `${baseReportUrl}?player=${encodeURIComponent(ath.name)}`;
+                              } else {
+                                throw new Error('No ID returned');
+                              }
+                            } catch (apiErr) {
+                              console.warn('Local API failed on-the-fly, falling back to compression', apiErr);
+                              try {
+                                const jsonStr = JSON.stringify(payload);
+                                const base64Str = await compressToGzipBase64(jsonStr);
+                                link = `${baseUrl}?view=club-report&data=${base64Str}&player=${encodeURIComponent(ath.name)}`;
+                              } catch (compressErr) {
+                                console.error('All on-the-fly mechanisms failed', compressErr);
+                                link = `${baseUrl}?view=club-report&player=${encodeURIComponent(ath.name)}`;
+                              }
+                            }
+                          }
                         }
                         
                         return link;
@@ -1391,20 +1777,33 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                             <div className="flex gap-2 pt-3 border-t border-slate-150/80 no-print">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const link = getPlayerShareLink();
-                                  copyText(link);
-                                  setCopiedPlayerMap(prev => ({ ...prev, [athKey]: true }));
-                                  setTimeout(() => {
-                                    setCopiedPlayerMap(prev => ({ ...prev, [athKey]: false }));
-                                  }, 2000);
+                                disabled={isLoadingLink}
+                                onClick={async () => {
+                                  try {
+                                    setLoadingPlayerMap(prev => ({ ...prev, [athKey]: true }));
+                                    const link = await getPlayerShareLinkAsync();
+                                    copyText(link);
+                                    setCopiedPlayerMap(prev => ({ ...prev, [athKey]: true }));
+                                    setTimeout(() => {
+                                      setCopiedPlayerMap(prev => ({ ...prev, [athKey]: false }));
+                                    }, 2000);
+                                  } catch (e) {
+                                    console.error('Failed to copy athlete link', e);
+                                  } finally {
+                                    setLoadingPlayerMap(prev => ({ ...prev, [athKey]: false }));
+                                  }
                                 }}
-                                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-250 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-250 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
                               >
                                 {isCopied ? (
                                   <>
                                     <Check className="w-3.5 h-3.5 text-emerald-600" />
                                     <span className="text-emerald-700">Link Copied!</span>
+                                  </>
+                                ) : isLoadingLink ? (
+                                  <>
+                                    <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Generating Link...</span>
                                   </>
                                 ) : (
                                   <>

@@ -104,7 +104,31 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>('brackets');
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
+    try {
+      const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const viewType = urlParams.get('view');
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+      if (viewType === 'club-report' || isReportPath) {
+        return 'club-report';
+      }
+      
+      let hasCachedUser = false;
+      if (typeof window !== 'undefined') {
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i);
+          if (key && key.startsWith('firebase:authUser')) {
+            hasCachedUser = true;
+            break;
+          }
+        }
+      }
+      return hasCachedUser ? 'brackets' : 'club-report';
+    } catch (e) {
+      return 'club-report';
+    }
+  });
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
@@ -129,7 +153,31 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
-  const [isPublicReportOnly, setIsPublicReportOnly] = useState(false);
+  const [isPublicReportOnly, setIsPublicReportOnly] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const viewType = urlParams.get('view');
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+      if (viewType === 'club-report' || isReportPath) {
+        return true;
+      }
+      
+      let hasCachedUser = false;
+      if (typeof window !== 'undefined') {
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i);
+          if (key && key.startsWith('firebase:authUser')) {
+            hasCachedUser = true;
+            break;
+          }
+        }
+      }
+      return !hasCachedUser;
+    } catch (e) {
+      return true;
+    }
+  });
 
   const refreshSystemUsers = () => {
     const usersStr = safeLocalStorage.getItem('bracket_builder_users_db');
@@ -157,6 +205,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email) {
         setCurrentUser(user.email);
+        setIsPublicReportOnly(false);
         try {
           // Load saved events
           const eventsRef = collection(db, `users/${user.email}/events`);
@@ -202,6 +251,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await import('./lib/firebase').then(m => m.signOut(auth));
+    setIsPublicReportOnly(true);
   };
 
   const handleLogin = (username: string) => {
@@ -285,13 +335,20 @@ export default function App() {
             text: 'Retrieving secure club report...',
             type: 'ok',
           });
-          fetch(`/api/reports/${idParam}`)
-            .then(res => {
-              if (!res.ok) throw new Error('Failed to find report.');
-              return res.json();
-            })
-            .then(parsed => {
-              if (parsed) {
+          // Check if this ID looks like a Firebase document ID (usually 20 chars or similar)
+          const docRef = doc(db, 'reports', idParam);
+          getDoc(docRef)
+            .then(docSnap => {
+              if (docSnap.exists()) {
+                let parsed = docSnap.data();
+                if (parsed.payload) {
+                  try {
+                    parsed = JSON.parse(parsed.payload);
+                  } catch (e) {
+                    console.error('Failed to parse report payload', e);
+                  }
+                }
+                
                 if (parsed.t) setTournamentName(parsed.t);
                 if (parsed.r) setRoster(parsed.r);
                 if (parsed.c) setCategories(parsed.c);
@@ -302,6 +359,27 @@ export default function App() {
                   text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
                   type: 'ok',
                 });
+              } else {
+                // Fallback to local server api if not in firestore (in case they have old reports)
+                return fetch(`/api/reports/${idParam}`)
+                  .then(res => {
+                    if (!res.ok) throw new Error('Failed to find report.');
+                    return res.json();
+                  })
+                  .then(parsed => {
+                    if (parsed) {
+                      if (parsed.t) setTournamentName(parsed.t);
+                      if (parsed.r) setRoster(parsed.r);
+                      if (parsed.c) setCategories(parsed.c);
+                      if (parsed.b) setBrackets(parsed.b);
+                      if (parsed.rl) setRingLabelFormat(parsed.rl);
+                      
+                      setStatusMessage({
+                        text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
+                        type: 'ok',
+                      });
+                    }
+                  });
               }
             })
             .catch(err => {
@@ -413,7 +491,7 @@ export default function App() {
         };
         safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
         
-        if (currentUser) {
+        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           const currentRef = doc(db, `users/${currentUser}/current/state`);
           await setDoc(currentRef, { payload: JSON.stringify(snapshot) });
         }
@@ -961,7 +1039,7 @@ export default function App() {
     safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
     setTournamentName(finalName);
 
-    if (currentUser) {
+    if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
       try {
         const eventRef = doc(db, `users/${currentUser}/events/${newId}`);
         await setDoc(eventRef, {
@@ -1010,7 +1088,7 @@ export default function App() {
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
         saveEventListToStorage(updatedList.sort((a, b) => b.timestamp - a.timestamp));
         
-        if (currentUser) {
+        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           try {
             const eventRef = doc(db, `users/${currentUser}/events/${id}`);
             await setDoc(eventRef, {
@@ -1096,7 +1174,7 @@ export default function App() {
         const updatedList = savedEvents.filter(e => e.id !== id);
         saveEventListToStorage(updatedList);
 
-        if (currentUser) {
+        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           try {
             const eventRef = doc(db, `users/${currentUser}/events/${id}`);
             await deleteDoc(eventRef);
@@ -2053,6 +2131,15 @@ export default function App() {
           onLogout={handleLogout}
           currentUser={currentUser}
           isPublicView={isPublicReportOnly}
+          onTogglePublicView={() => {
+            const nextVal = !isPublicReportOnly;
+            setIsPublicReportOnly(nextVal);
+            if (!nextVal) {
+              setActiveTab('brackets');
+            } else {
+              setActiveTab('club-report');
+            }
+          }}
         />
 
         {!currentUser && !isPublicReportOnly ? (
@@ -2283,19 +2370,43 @@ export default function App() {
           {/* RIGHT MASTER CONTENT VIEW AREA */}
           <div className={`${isPublicReportOnly ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-6 print:w-full print:p-0`}>
             {isPublicReportOnly && bracketKeys.length === 0 ? (
-              <div className="max-w-md mx-auto bg-white border border-slate-200/80 rounded-2xl p-8 shadow-md text-center space-y-4 animate-pulse">
-                <div className="inline-flex bg-amber-500/10 p-4 rounded-full text-amber-500 border border-amber-500/25">
-                  <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+              statusMessage.type === 'err' ? (
+                <div className="max-w-md mx-auto bg-white border border-rose-200 rounded-3xl p-8 shadow-md text-center space-y-4">
+                  <div className="inline-flex bg-rose-50 text-rose-500 p-4 rounded-full border border-rose-150">
+                    <AlertCircle className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <h3 className="font-extrabold text-slate-800 text-base">
+                    {statusMessage.text || 'Error Loading Report'}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    No tournament data could be found. Please ensure you copied the entire URL, or ask your event organizer to generate a new public link.
+                  </p>
                 </div>
-                <h3 className="font-extrabold text-slate-800 text-base">
-                  {statusMessage.text || 'Loading Club Report...'}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {statusMessage.type === 'err' 
-                    ? 'Failed to load report. Please verify the URL or ensure the server is running.' 
-                    : 'Fetching real-time bracket draws, rings, and schedules...'}
-                </p>
-              </div>
+              ) : statusMessage.type === 'idle' ? (
+                <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-md text-center space-y-4">
+                  <div className="inline-flex bg-amber-50 text-amber-500 p-4 rounded-full border border-amber-100">
+                    <Trophy className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <h3 className="font-extrabold text-slate-800 text-base">
+                    No Active Report Loaded
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    There is currently no active tournament report to view. Please use a shared public report link, or ask your administrator/organizer to share their club report.
+                  </p>
+                </div>
+              ) : (
+                <div className="max-w-md mx-auto bg-white border border-slate-200/80 rounded-2xl p-8 shadow-md text-center space-y-4 animate-pulse">
+                  <div className="inline-flex bg-amber-500/10 p-4 rounded-full text-amber-500 border border-amber-500/25">
+                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                  <h3 className="font-extrabold text-slate-800 text-base">
+                    {statusMessage.text || 'Loading Club Report...'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Fetching real-time bracket draws, rings, and schedules...
+                  </p>
+                </div>
+              )
             ) : activeTab === 'account' ? (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">

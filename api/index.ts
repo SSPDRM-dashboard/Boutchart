@@ -3,8 +3,52 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { GoogleGenAI, Type } from "@google/genai";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc, collection } from "firebase/firestore";
 
 const app = express();
+
+// Initialize Firebase in backend for cloud persistence support on Vercel
+let db: any = null;
+try {
+  let firebaseConfig: any = null;
+  let firestoreDatabaseId: string | undefined = undefined;
+
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    firebaseConfig = {
+      apiKey: config.apiKey,
+      authDomain: config.authDomain,
+      projectId: config.projectId,
+      storageBucket: config.storageBucket,
+      messagingSenderId: config.messagingSenderId,
+      appId: config.appId
+    };
+    firestoreDatabaseId = config.firestoreDatabaseId;
+  } else if (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID) {
+    // Fallback to environment variables (useful for serverless Vercel deployments)
+    firebaseConfig = {
+      apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID
+    };
+    firestoreDatabaseId = process.env.FIREBASE_FIRESTORE_DATABASE_ID || process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID;
+  }
+
+  if (firebaseConfig) {
+    const appInstance = initializeApp(firebaseConfig);
+    db = getFirestore(appInstance, firestoreDatabaseId);
+    console.log("Firebase initialized successfully in backend api!");
+  } else {
+    console.warn("No Firebase configuration found (neither firebase-applet-config.json nor environment variables are present)");
+  }
+} catch (e) {
+  console.error("Failed to initialize Firebase in backend api:", e);
+}
 
 // Set JSON parse limits high enough to accommodate massive rosters or brackets safely of up to 50MB
 app.use(express.json({ limit: "50mb" }));
@@ -52,7 +96,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Securely store a compressed tournament report session
-app.post("/api/reports", (req, res) => {
+app.post("/api/reports", async (req, res) => {
   try {
     const data = req.body;
     if (!data || Object.keys(data).length === 0) {
@@ -61,9 +105,27 @@ app.post("/api/reports", (req, res) => {
     
     // Generate an 12-char unique hash key
     const id = crypto.randomBytes(6).toString("hex");
-    const filePath = path.join(DATA_DIR, `${id}.json`);
     
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    // 1. Try storing in Firestore first for Vercel persistence
+    if (db) {
+      try {
+        const payloadStr = JSON.stringify(data);
+        const docRef = doc(collection(db, "reports"), id);
+        await setDoc(docRef, { payload: payloadStr });
+        console.log(`Saved report ${id} to Firestore.`);
+      } catch (fbErr: any) {
+        console.error("Failed to save report to Firestore, falling back to disk", fbErr);
+      }
+    }
+    
+    // 2. Also write to local file as backup (in case offline or local dev is without Firestore)
+    try {
+      const filePath = path.join(DATA_DIR, `${id}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    } catch (diskErr) {
+      console.warn("Could not write report to local disk", diskErr);
+    }
+    
     res.json({ id });
   } catch (err: any) {
     console.error("[Backend Error] Error saving report:", err);
@@ -72,13 +134,37 @@ app.post("/api/reports", (req, res) => {
 });
 
 // Fetch a stored tournament report by key
-app.get("/api/reports/:id", (req, res) => {
+app.get("/api/reports/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    let filePath = path.join(DATA_DIR, `${id}.json`);
     
+    // 1. Try retrieving from Firestore first!
+    if (db) {
+      try {
+        const docRef = doc(db, "reports", id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const docData = docSnap.data();
+          if (docData && docData.payload) {
+            try {
+              const parsed = JSON.parse(docData.payload);
+              return res.json(parsed);
+            } catch (e) {
+              // If it's stored directly as an object, return it
+              return res.json(docData);
+            }
+          } else if (docData) {
+            return res.json(docData);
+          }
+        }
+      } catch (fbErr) {
+        console.error(`Failed to load report ${id} from Firestore, falling back to disk`, fbErr);
+      }
+    }
+    
+    // 2. Fallback to local file
+    let filePath = path.join(DATA_DIR, `${id}.json`);
     if (!fs.existsSync(filePath)) {
-      // Check fallback path in /tmp just in case the report was stored there
       const fallbackPath = path.join("/tmp", "reports", `${id}.json`);
       if (fs.existsSync(fallbackPath)) {
         filePath = fallbackPath;
