@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenEventsModal: () => void;
   savedEventsCount: number;
   isPublicView?: boolean;
+  onLoginClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser: string | null }> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   onLogout,
   currentUser,
   isPublicView = false,
+  onLoginClick,
 }) => {
   return (
     <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
@@ -61,6 +63,15 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-extrabold font-mono tracking-wider">
               <span>🌎 PUBLIC REPORT VIEW</span>
             </div>
+          )}
+          {!currentUser && (
+            <button
+              onClick={onLoginClick}
+              className="text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors ml-2"
+              title="Sign in as Administrator"
+            >
+              Admin Login
+            </button>
           )}
           {currentUser && !isPublicView && (
             <>

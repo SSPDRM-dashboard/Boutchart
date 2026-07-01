@@ -110,12 +110,12 @@ export default function App() {
       const viewType = urlParams.get('view');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath) {
-        return 'club-report';
+      if (viewType === 'brackets') {
+        return 'brackets';
       }
-      return 'brackets';
+      return 'club-report';
     } catch (e) {
-      return 'brackets';
+      return 'club-report';
     }
   });
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
@@ -143,20 +143,7 @@ export default function App() {
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(() => {
-    try {
-      const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-      const viewType = urlParams.get('view');
-      const dataParam = urlParams.get('data');
-      const idParam = urlParams.get('id');
-      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-      const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath || dataParam || idParam) {
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
+    return true; // Default to public report. If they login or are already logged in, Firebase onAuthStateChanged will set this to false.
   });
 
   const refreshSystemUsers = () => {
@@ -186,6 +173,7 @@ export default function App() {
       if (user && user.email) {
         setCurrentUser(user.email);
         setIsPublicReportOnly(false);
+        setActiveTab('brackets');
         try {
           // Load saved events
           const eventsRef = collection(db, `users/${user.email}/events`);
@@ -2186,11 +2174,18 @@ export default function App() {
           onLogout={handleLogout}
           currentUser={currentUser}
           isPublicView={isPublicReportOnly}
+          onLoginClick={() => setIsPublicReportOnly(false)}
         />
 
         {!currentUser && !isPublicReportOnly ? (
-          <div className="py-10">
+          <div className="py-10 flex flex-col items-center">
             <AuthScreen onLogin={handleLogin} mode="login" />
+            <button 
+              onClick={() => setIsPublicReportOnly(true)}
+              className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              ← Back to Public View
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
