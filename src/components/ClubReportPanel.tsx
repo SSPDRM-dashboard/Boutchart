@@ -58,9 +58,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   const [certificateData, setCertificateData] = useState<{ athleteName: string; club: string; category: string } | null>(null);
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
-  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>(
-    isPublicView ? 'classic-cards' : 'photo-matrix'
-  );
+  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>('photo-matrix');
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
   const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});

@@ -227,6 +227,35 @@ export default function App() {
         setSavedEvents([]);
         setIsPublicReportOnly(true);
         setActiveTab('club-report');
+
+        // Fetch active_state if we haven't already from a shared URL
+        const pathname = window.location.pathname;
+        const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+        const viewType = new URLSearchParams(window.location.search).get('view');
+        
+        if (!isReportPath && viewType !== 'club-report' && !new URLSearchParams(window.location.search).get('data')) {
+          setStatusMessage({ text: 'Loading active tournament report...', type: 'ok' });
+          getDoc(doc(db, 'reports', 'active_state')).then(snap => {
+            if (snap.exists()) {
+              const data = snap.data();
+              const parsed = data.payload ? JSON.parse(data.payload) : data;
+              if (parsed.tournamentName) setTournamentName(parsed.tournamentName);
+              if (parsed.roster) setRoster(parsed.roster);
+              if (parsed.categories) setCategories(parsed.categories);
+              if (parsed.brackets) setBrackets(parsed.brackets);
+              if (parsed.ringCount) setRingCount(parsed.ringCount);
+              if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
+              if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
+              if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
+              setStatusMessage({ text: `Loaded active public report for "${parsed.tournamentName || 'Tournament'}"`, type: 'ok' });
+            } else {
+              setStatusMessage({ text: 'No active tournament report is available.', type: 'idle' });
+            }
+          }).catch(e => {
+            console.error(e);
+            setStatusMessage({ text: 'Failed to load active report.', type: 'err' });
+          });
+        }
       }
     });
     return () => unsubscribe();
