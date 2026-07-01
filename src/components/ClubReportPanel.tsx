@@ -371,12 +371,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
       // If we are in public view and already have an ID or GZIP data, reuse it
       if (isPublicView && (idParam || dataParam)) {
-            let shareLink = '';
-            if (idParam) {
-              shareLink = `${baseUrl}/report/${idParam}`;
-            } else {
-              shareLink = `${baseUrl}${pathname}?view=public-view&data=${dataParam}`;
-            }
+        let shareLink = '';
+        if (idParam) {
+          shareLink = `${baseUrl}/report/${idParam}`;
+        } else {
+          shareLink = `${baseUrl}${pathname}?view=club-report&data=${dataParam}`;
+        }
         
         if (selectedClub && selectedClub !== 'all') {
           const urlObj = new URL(shareLink);
@@ -444,7 +444,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           compressToGzipBase64(jsonStr)
             .then(base64Str => {
               const baseWithPage = getPublicBaseUrl() + window.location.pathname;
-              let shareLink = `${baseWithPage}?view=public-view&data=${base64Str}`;
+              let shareLink = `${baseWithPage}?view=club-report&data=${base64Str}`;
               if (selectedClub && selectedClub !== 'all') {
                 shareLink += `&club=${encodeURIComponent(selectedClub)}`;
               }
@@ -1070,23 +1070,21 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
         {/* Action controls */}
         <div className="flex flex-wrap items-center gap-3 shrink-0">
-          {!isPublicView && (
-            <button
-              type="button"
-              onClick={generateAndCopyShareLink}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title="Generate a unique, read-only URL for this report to share with coaches"
-            >
-              <Share2 className="w-4 h-4 text-indigo-100" />
-              <span>
-                {shareStatus === 'copied'
-                  ? 'Link Copied!'
-                  : selectedClub === 'all'
-                  ? 'Share Public Link'
-                  : `Share ${selectedClub} Link`}
-              </span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={generateAndCopyShareLink}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            title="Generate a unique, read-only URL for this report to share with coaches"
+          >
+            <Share2 className="w-4 h-4 text-indigo-100" />
+            <span>
+              {shareStatus === 'copied'
+                ? 'Link Copied!'
+                : selectedClub === 'all'
+                ? 'Share Public Link'
+                : `Share ${selectedClub} Link`}
+            </span>
+          </button>
 
           {/* Download selected club matrix as PDF */}
           {selectedClub !== 'all' && (
@@ -1576,9 +1574,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                           try {
                             const shareUrlObj = new URL(shareUrl);
                             shareUrlObj.searchParams.set('player', ath.name);
-                            // Also ensure view=public-view is there if it's using the query param format
+                            // Also ensure view=club-report is there if it's using the query param format
                             if (!shareUrl.includes('/report/')) {
-                              shareUrlObj.searchParams.set('view', 'public-view');
+                              shareUrlObj.searchParams.set('view', 'club-report');
                             }
                             return shareUrlObj.toString();
                           } catch (e) {
@@ -1599,7 +1597,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         if (idParam) {
                           link += `/report/${idParam}?player=${encodeURIComponent(ath.name)}`;
                         } else if (dataParam) {
-                          link += `?view=public-view&data=${dataParam}&player=${encodeURIComponent(ath.name)}`;
+                          link += `?view=club-report&data=${dataParam}&player=${encodeURIComponent(ath.name)}`;
                         } else {
                           const payload = {
                             t: tournamentName || 'Tournament',
@@ -1638,10 +1636,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                               try {
                                 const jsonStr = JSON.stringify(payload);
                                 const base64Str = await compressToGzipBase64(jsonStr);
-                                link = `${baseUrl}?view=public-view&data=${base64Str}&player=${encodeURIComponent(ath.name)}`;
+                                link = `${baseUrl}?view=club-report&data=${base64Str}&player=${encodeURIComponent(ath.name)}`;
                               } catch (compressErr) {
                                 console.error('All on-the-fly mechanisms failed', compressErr);
-                                link = `${baseUrl}?view=public-view&player=${encodeURIComponent(ath.name)}`;
+                                link = `${baseUrl}?view=club-report&player=${encodeURIComponent(ath.name)}`;
                               }
                             }
                           }

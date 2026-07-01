@@ -112,7 +112,7 @@ export default function App() {
       const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || viewType === 'public-view' || isReportPath || dataParam || idParam) {
+      if (viewType === 'club-report' || isReportPath || dataParam || idParam) {
         return 'public-view';
       }
       return 'brackets';
@@ -152,7 +152,7 @@ export default function App() {
       const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || viewType === 'public-view' || isReportPath || dataParam || idParam) {
+      if (viewType === 'club-report' || isReportPath || dataParam || idParam) {
         return true;
       }
       return false;
@@ -309,9 +309,9 @@ export default function App() {
         }
       }
 
-      if (viewType === 'club-report' || viewType === 'public-view' || isReportPath || isPublicReportOnly) {
+      if (viewType === 'club-report' || isReportPath || isPublicReportOnly) {
         setIsPublicReportOnly(true);
-        setActiveTab('public-view');
+        setActiveTab('club-report');
         
         if (dataParam) {
           decompressFromGzipBase64(dataParam)
@@ -2258,7 +2258,6 @@ export default function App() {
                     onClick={() => {
                       if (bracketKeys.length > 0) {
                         setActiveTab('public-view');
-                        setIsPublicReportOnly(true);
                       }
                     }}
                     disabled={bracketKeys.length === 0}
@@ -2273,9 +2272,6 @@ export default function App() {
                   >
                     <span className="text-base">🌐</span>
                     <span className="text-left flex-1 font-extrabold text-sm">Public View</span>
-                    {bracketKeys.length === 0 && (
-                      <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
-                    )}
                   </button>
 
                   <button
@@ -2297,9 +2293,6 @@ export default function App() {
                   >
                     <span className="text-base">📊</span>
                     <span className="text-left flex-1 font-extrabold text-sm">Statistics & Medals</span>
-                    {bracketKeys.length === 0 && (
-                      <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
-                    )}
                   </button>
 
                   <button
