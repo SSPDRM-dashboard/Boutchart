@@ -2435,6 +2435,18 @@ export default function App() {
                     There is currently no active tournament report to view. Please use a shared public report link, or ask your administrator/organizer to share their club report.
                   </p>
                 </div>
+              ) : statusMessage.type === 'ok' ? (
+                 <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-md text-center space-y-4">
+                  <div className="inline-flex bg-emerald-50 text-emerald-500 p-4 rounded-full border border-emerald-100">
+                    <Trophy className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <h3 className="font-extrabold text-slate-800 text-base">
+                    {statusMessage.text || 'Report Loaded Successfully'}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    The report has been loaded, but the organizer has not published any brackets yet. Check back later!
+                  </p>
+                </div>
               ) : (
                 <div className="max-w-md mx-auto bg-white border border-slate-200/80 rounded-2xl p-8 shadow-md text-center space-y-4 animate-pulse">
                   <div className="inline-flex bg-amber-500/10 p-4 rounded-full text-amber-500 border border-amber-500/25">
