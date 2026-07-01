@@ -113,20 +113,9 @@ export default function App() {
       if (viewType === 'club-report' || isReportPath) {
         return 'club-report';
       }
-      
-      let hasCachedUser = false;
-      if (typeof window !== 'undefined') {
-        for (let i = 0; i < window.localStorage.length; i++) {
-          const key = window.localStorage.key(i);
-          if (key && key.startsWith('firebase:authUser')) {
-            hasCachedUser = true;
-            break;
-          }
-        }
-      }
-      return hasCachedUser ? 'brackets' : 'club-report';
+      return 'brackets';
     } catch (e) {
-      return 'club-report';
+      return 'brackets';
     }
   });
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
@@ -157,25 +146,16 @@ export default function App() {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const viewType = urlParams.get('view');
+      const dataParam = urlParams.get('data');
+      const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath) {
+      if (viewType === 'club-report' || isReportPath || dataParam || idParam) {
         return true;
       }
-      
-      let hasCachedUser = false;
-      if (typeof window !== 'undefined') {
-        for (let i = 0; i < window.localStorage.length; i++) {
-          const key = window.localStorage.key(i);
-          if (key && key.startsWith('firebase:authUser')) {
-            hasCachedUser = true;
-            break;
-          }
-        }
-      }
-      return !hasCachedUser;
+      return false;
     } catch (e) {
-      return true;
+      return false;
     }
   });
 
@@ -340,14 +320,20 @@ export default function App() {
             })
             .then(parsed => {
               if (parsed) {
-                if (parsed.t) setTournamentName(parsed.t);
-                if (parsed.r) setRoster(parsed.r);
-                if (parsed.c) setCategories(parsed.c);
-                if (parsed.b) setBrackets(parsed.b);
-                if (parsed.rl) setRingLabelFormat(parsed.rl);
+                const tName = parsed.tournamentName || parsed.t;
+                const rost = parsed.roster || parsed.r;
+                const cats = parsed.categories || parsed.c;
+                const bracks = parsed.brackets || parsed.b;
+                const rlFormat = parsed.ringLabelFormat || parsed.rl;
+                
+                if (tName) setTournamentName(tName);
+                if (rost) setRoster(rost);
+                if (cats) setCategories(cats);
+                if (bracks) setBrackets(bracks);
+                if (rlFormat) setRingLabelFormat(rlFormat);
                 
                 setStatusMessage({
-                  text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
+                  text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
                   type: 'ok',
                 });
               }
@@ -369,8 +355,102 @@ export default function App() {
           });
           
           const docRef = doc(db, 'reports', activeId);
+          let resolved = false;
+          
+          const handleReportData = (parsed: any) => {
+            if (resolved) return;
+            resolved = true;
+            
+            const tName = parsed.tournamentName || parsed.t;
+            const rost = parsed.roster || parsed.r;
+            const cats = parsed.categories || parsed.c;
+            const bracks = parsed.brackets || parsed.b;
+            const rlFormat = parsed.ringLabelFormat || parsed.rl;
+            
+            if (tName) setTournamentName(tName);
+            if (rost) setRoster(rost);
+            if (cats) setCategories(cats);
+            if (bracks) setBrackets(bracks);
+            if (rlFormat) setRingLabelFormat(rlFormat);
+            
+            if (parsed.ringCount) setRingCount(parsed.ringCount);
+            if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
+            if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
+            if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
+            if (parsed.dismissedDuplicates !== undefined) setDismissedDuplicates(parsed.dismissedDuplicates);
+            
+            setStatusMessage({
+              text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
+              type: 'ok',
+            });
+          };
+
+          const useLocalCacheFallback = () => {
+            if (resolved) return;
+            resolved = true;
+            const stored = safeLocalStorage.getItem(STORAGE_KEY);
+            if (stored) {
+              try {
+                const snap = JSON.parse(stored);
+                if (snap) {
+                  if (snap.tournamentName) setTournamentName(snap.tournamentName);
+                  if (snap.roster) setRoster(snap.roster);
+                  if (snap.categories) setCategories(snap.categories);
+                  if (snap.brackets) setBrackets(snap.brackets);
+                  if (snap.ringCount) setRingCount(snap.ringCount);
+                  if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+                  if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+                  if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
+                  if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+                  
+                  setStatusMessage({
+                    text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
+                    type: 'ok',
+                  });
+                  return;
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            }
+            setStatusMessage({
+              text: 'No active tournament report is available. Please log in as an administrator to create data.',
+              type: 'idle',
+            });
+          };
+
+          const handleFallback = () => {
+            if (resolved) return;
+            if (activeId !== 'active_state') {
+              fetch(`/api/reports/${activeId}`)
+                .then(res => {
+                  if (!res.ok) throw new Error('Failed to find report.');
+                  return res.json();
+                })
+                .then(parsed => {
+                  if (parsed) {
+                    handleReportData(parsed);
+                  } else {
+                    useLocalCacheFallback();
+                  }
+                })
+                .catch(() => {
+                  useLocalCacheFallback();
+                });
+            } else {
+              useLocalCacheFallback();
+            }
+          };
+
+          // 1.5-second timeout for rapid loading and instant fallback
+          const timeoutId = setTimeout(() => {
+            console.warn('Firestore fetch timed out, utilizing local storage/API fallback');
+            handleFallback();
+          }, 1500);
+
           getDoc(docRef)
             .then(docSnap => {
+              clearTimeout(timeoutId);
               if (docSnap.exists()) {
                 let parsed = docSnap.data();
                 if (parsed.payload) {
@@ -380,111 +460,15 @@ export default function App() {
                     console.error('Failed to parse report payload', e);
                   }
                 }
-                
-                if (parsed.t) setTournamentName(parsed.t);
-                if (parsed.r) setRoster(parsed.r);
-                if (parsed.c) setCategories(parsed.c);
-                if (parsed.b) setBrackets(parsed.b);
-                if (parsed.rl) setRingLabelFormat(parsed.rl);
-                if (parsed.ringCount) setRingCount(parsed.ringCount);
-                if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
-                if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
-                if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
-                if (parsed.dismissedDuplicates !== undefined) setDismissedDuplicates(parsed.dismissedDuplicates);
-                
-                setStatusMessage({
-                  text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
-                  type: 'ok',
-                });
+                handleReportData(parsed);
               } else {
-                if (activeId !== 'active_state') {
-                  // Fallback to local server api if not in firestore (in case they have old reports)
-                  return fetch(`/api/reports/${activeId}`)
-                    .then(res => {
-                      if (!res.ok) throw new Error('Failed to find report.');
-                      return res.json();
-                    })
-                    .then(parsed => {
-                      if (parsed) {
-                        if (parsed.t) setTournamentName(parsed.t);
-                        if (parsed.r) setRoster(parsed.r);
-                        if (parsed.c) setCategories(parsed.c);
-                        if (parsed.b) setBrackets(parsed.b);
-                        if (parsed.rl) setRingLabelFormat(parsed.rl);
-                        
-                        setStatusMessage({
-                          text: `Loaded public tournament report for "${parsed.t || 'Tournament'}"`,
-                          type: 'ok',
-                        });
-                      }
-                    });
-                } else {
-                  // If global active state is not found in firestore, check local storage fallback
-                  const stored = safeLocalStorage.getItem(STORAGE_KEY);
-                  if (stored) {
-                    const snap = JSON.parse(stored);
-                    if (snap) {
-                      if (snap.tournamentName) setTournamentName(snap.tournamentName);
-                      if (snap.roster) setRoster(snap.roster);
-                      if (snap.categories) setCategories(snap.categories);
-                      if (snap.brackets) setBrackets(snap.brackets);
-                      if (snap.ringCount) setRingCount(snap.ringCount);
-                      if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
-                      if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
-                      if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
-                      if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
-                      
-                      setStatusMessage({
-                        text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
-                        type: 'ok',
-                      });
-                    } else {
-                      setStatusMessage({
-                        text: 'No active tournament report is available. Please log in as an administrator to create data.',
-                        type: 'idle',
-                      });
-                    }
-                  } else {
-                    setStatusMessage({
-                      text: 'No active tournament report is available. Please log in as an administrator to create data.',
-                      type: 'idle',
-                    });
-                  }
-                }
+                handleFallback();
               }
             })
             .catch(err => {
-              console.error('Failed to parse shareable data', err);
-              // Fallback to local storage if firestore fails (e.g. offline or permission)
-              const stored = safeLocalStorage.getItem(STORAGE_KEY);
-              if (stored) {
-                try {
-                  const snap = JSON.parse(stored);
-                  if (snap) {
-                    if (snap.tournamentName) setTournamentName(snap.tournamentName);
-                    if (snap.roster) setRoster(snap.roster);
-                    if (snap.categories) setCategories(snap.categories);
-                    if (snap.brackets) setBrackets(snap.brackets);
-                    if (snap.ringCount) setRingCount(snap.ringCount);
-                    if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
-                    if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
-                    if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
-                    if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
-                    
-                    setStatusMessage({
-                      text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
-                      type: 'ok',
-                    });
-                    return;
-                  }
-                } catch (e) {
-                  console.error(e);
-                }
-              }
-              setStatusMessage({
-                text: 'Could not load public report: database connection failed.',
-                type: 'err',
-              });
+              clearTimeout(timeoutId);
+              console.error('Failed to query Firestore reports', err);
+              handleFallback();
             });
           return;
         }
