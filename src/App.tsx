@@ -104,18 +104,20 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'public-view' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const viewType = urlParams.get('view');
+      const dataParam = urlParams.get('data');
+      const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'brackets') {
-        return 'brackets';
+      if (viewType === 'club-report' || viewType === 'public-view' || isReportPath || dataParam || idParam) {
+        return 'public-view';
       }
-      return 'club-report';
+      return 'brackets';
     } catch (e) {
-      return 'club-report';
+      return 'brackets';
     }
   });
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
@@ -143,7 +145,20 @@ export default function App() {
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(() => {
-    return true; // Default to public report. If they login or are already logged in, Firebase onAuthStateChanged will set this to false.
+    try {
+      const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const viewType = urlParams.get('view');
+      const dataParam = urlParams.get('data');
+      const idParam = urlParams.get('id');
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+      if (viewType === 'club-report' || viewType === 'public-view' || isReportPath || dataParam || idParam) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
   });
 
   const refreshSystemUsers = () => {
@@ -294,9 +309,9 @@ export default function App() {
         }
       }
 
-      if (viewType === 'club-report' || isReportPath || isPublicReportOnly) {
+      if (viewType === 'club-report' || viewType === 'public-view' || isReportPath || isPublicReportOnly) {
         setIsPublicReportOnly(true);
-        setActiveTab('club-report');
+        setActiveTab('public-view');
         
         if (dataParam) {
           decompressFromGzipBase64(dataParam)
@@ -2177,18 +2192,7 @@ export default function App() {
           onLoginClick={() => setIsPublicReportOnly(false)}
         />
 
-        {!currentUser && !isPublicReportOnly ? (
-          <div className="py-10 flex flex-col items-center">
-            <AuthScreen onLogin={handleLogin} mode="login" />
-            <button 
-              onClick={() => setIsPublicReportOnly(true)}
-              className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
-            >
-              ← Back to Public View
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
           
           {/* LEFT SIDEBAR NAVIGATION & QUICK CONTROL CENTER */}
           {!isPublicReportOnly && (
@@ -2247,6 +2251,27 @@ export default function App() {
                     ) : (
                       <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (bracketKeys.length > 0) {
+                        setActiveTab('public-view');
+                      }
+                    }}
+                    disabled={bracketKeys.length === 0}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
+                      bracketKeys.length === 0
+                        ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
+                        : activeTab === 'public-view'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
+                    }`}
+                    title={bracketKeys.length === 0 ? "Generate brackets to unlock public view" : "View public facing report"}
+                  >
+                    <span className="text-base">🌐</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Public View</span>
                   </button>
 
                   <button
@@ -2692,7 +2717,35 @@ export default function App() {
                   ringLabelFormat={ringLabelFormat}
                   boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
-                  isPublicView={isPublicReportOnly}
+                  isPublicView={false}
+                  onUpdateStandings={(catKey, nextStandings) => {
+                    setBrackets((prev) => {
+                      const existing = prev[catKey];
+                      if (!existing) return prev;
+                      return {
+                        ...prev,
+                        [catKey]: {
+                          ...existing,
+                          standings: nextStandings,
+                        },
+                      };
+                    });
+                  }}
+                />
+              </div>
+            )}
+
+            {/* 2.1 PUBLIC VIEW */}
+            {activeTab === 'public-view' && bracketKeys.length > 0 && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <ClubReportPanel
+                  categories={categories}
+                  brackets={brackets}
+                  roster={roster}
+                  ringLabelFormat={ringLabelFormat}
+                  boutLabelFormat={boutLabelFormat}
+                  tournamentName={tournamentName}
+                  isPublicView={true}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];
@@ -3044,7 +3097,6 @@ export default function App() {
             )}
           </div>
         </div>
-        )}
       </div>
 
       {/* EXPORT OPTIONS MODAL */}

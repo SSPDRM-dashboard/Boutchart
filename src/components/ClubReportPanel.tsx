@@ -59,7 +59,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>(
-    isPublicView ? 'classic-cards' : 'photo-matrix'
+    isPublicView ? 'individual-lookup' : 'photo-matrix'
   );
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
@@ -371,12 +371,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
       // If we are in public view and already have an ID or GZIP data, reuse it
       if (isPublicView && (idParam || dataParam)) {
-        let shareLink = '';
-        if (idParam) {
-          shareLink = `${baseUrl}/report/${idParam}`;
-        } else {
-          shareLink = `${baseUrl}${pathname}?view=club-report&data=${dataParam}`;
-        }
+            let shareLink = '';
+            if (idParam) {
+              shareLink = `${baseUrl}/report/${idParam}`;
+            } else {
+              shareLink = `${baseUrl}${pathname}?view=public-view&data=${dataParam}`;
+            }
         
         if (selectedClub && selectedClub !== 'all') {
           const urlObj = new URL(shareLink);
@@ -444,7 +444,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           compressToGzipBase64(jsonStr)
             .then(base64Str => {
               const baseWithPage = getPublicBaseUrl() + window.location.pathname;
-              let shareLink = `${baseWithPage}?view=club-report&data=${base64Str}`;
+              let shareLink = `${baseWithPage}?view=public-view&data=${base64Str}`;
               if (selectedClub && selectedClub !== 'all') {
                 shareLink += `&club=${encodeURIComponent(selectedClub)}`;
               }
@@ -1069,6 +1069,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         </div>
 
         {/* Action controls */}
+        {!isPublicView && (
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button
             type="button"
@@ -1140,6 +1141,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             <span>Print Active View</span>
           </button>
         </div>
+        )}
       </div>
 
       {shareStatus === 'copied' && (
@@ -1218,31 +1220,35 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     <span>Taekwondo Matrix Grid (Reference Photo)</span>
                   </button>
                   
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('classic-cards')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'classic-cards'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <AlignJustify className="w-3.5 h-3.5" />
-                    <span>Classic Card Deck (Matchups Style)</span>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('medal-standings')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'medal-standings'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <span>🏆 Club Medal Standings &amp; Points</span>
-                  </button>
+                  {!isPublicView && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('classic-cards')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'classic-cards'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <AlignJustify className="w-3.5 h-3.5" />
+                        <span>Classic Card Deck (Matchups Style)</span>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('medal-standings')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'medal-standings'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <span>🏆 Club Medal Standings &amp; Points</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1570,9 +1576,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                           try {
                             const shareUrlObj = new URL(shareUrl);
                             shareUrlObj.searchParams.set('player', ath.name);
-                            // Also ensure view=club-report is there if it's using the query param format
+                            // Also ensure view=public-view is there if it's using the query param format
                             if (!shareUrl.includes('/report/')) {
-                              shareUrlObj.searchParams.set('view', 'club-report');
+                              shareUrlObj.searchParams.set('view', 'public-view');
                             }
                             return shareUrlObj.toString();
                           } catch (e) {
@@ -1593,7 +1599,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         if (idParam) {
                           link += `/report/${idParam}?player=${encodeURIComponent(ath.name)}`;
                         } else if (dataParam) {
-                          link += `?view=club-report&data=${dataParam}&player=${encodeURIComponent(ath.name)}`;
+                          link += `?view=public-view&data=${dataParam}&player=${encodeURIComponent(ath.name)}`;
                         } else {
                           const payload = {
                             t: tournamentName || 'Tournament',
@@ -1632,10 +1638,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                               try {
                                 const jsonStr = JSON.stringify(payload);
                                 const base64Str = await compressToGzipBase64(jsonStr);
-                                link = `${baseUrl}?view=club-report&data=${base64Str}&player=${encodeURIComponent(ath.name)}`;
+                                link = `${baseUrl}?view=public-view&data=${base64Str}&player=${encodeURIComponent(ath.name)}`;
                               } catch (compressErr) {
                                 console.error('All on-the-fly mechanisms failed', compressErr);
-                                link = `${baseUrl}?view=club-report&player=${encodeURIComponent(ath.name)}`;
+                                link = `${baseUrl}?view=public-view&player=${encodeURIComponent(ath.name)}`;
                               }
                             }
                           }
