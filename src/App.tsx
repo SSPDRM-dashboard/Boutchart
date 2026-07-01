@@ -225,6 +225,8 @@ export default function App() {
       } else {
         setCurrentUser(null);
         setSavedEvents([]);
+        setIsPublicReportOnly(true);
+        setActiveTab('club-report');
       }
     });
     return () => unsubscribe();
@@ -2176,21 +2178,22 @@ export default function App() {
       <div className="max-w-[1400px] mx-auto px-4 py-6 md:py-10 print:max-w-none print:px-0 print:py-0 print:mx-0">
         
         {/* Header Navigation Area */}
-        {!isPublicReportOnly && (
-          <Header
-            tournamentName={tournamentName}
-            setTournamentName={setTournamentName}
-            onClearAll={handleClearAll}
-            hasData={bracketKeys.length > 0}
-            saveStatus={saveStatus}
-            onOpenEventsModal={() => setIsEventsModalOpen(true)}
-            savedEventsCount={savedEvents.length}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            isPublicView={isPublicReportOnly}
-            onLoginClick={() => setIsPublicReportOnly(false)}
-          />
-        )}
+        <Header
+          tournamentName={tournamentName}
+          setTournamentName={setTournamentName}
+          onClearAll={handleClearAll}
+          hasData={bracketKeys.length > 0}
+          saveStatus={saveStatus}
+          onOpenEventsModal={() => setIsEventsModalOpen(true)}
+          savedEventsCount={savedEvents.length}
+          onLogout={handleLogout}
+          currentUser={currentUser}
+          isPublicView={isPublicReportOnly}
+          onLoginClick={() => {
+            setIsPublicReportOnly(false);
+            setActiveTab('account');
+          }}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
           
