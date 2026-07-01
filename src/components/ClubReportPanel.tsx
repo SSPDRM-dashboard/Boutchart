@@ -59,7 +59,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>(
-    isPublicView ? 'individual-lookup' : 'photo-matrix'
+    isPublicView ? 'classic-cards' : 'photo-matrix'
   );
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
@@ -71,7 +71,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       const playerParam = urlParams.get('player') || urlParams.get('search');
       if (playerParam) {
         setSearchQuery(playerParam);
-        setReportStyle('individual-lookup');
+        if (!isPublicView) {
+          setReportStyle('individual-lookup');
+        } else {
+          setReportStyle('classic-cards');
+        }
       }
       const clubParam = urlParams.get('club');
       if (clubParam) {
@@ -1192,61 +1196,61 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
                 <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('individual-lookup')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'individual-lookup'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Search className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Find Player Schedule (Public View)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('photo-matrix')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'photo-matrix'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Grid className="w-3.5 h-3.5" />
-                    <span>Taekwondo Matrix Grid (Reference Photo)</span>
-                  </button>
-                  
                   {!isPublicView && (
                     <>
                       <button
                         type="button"
-                        onClick={() => setReportStyle('classic-cards')}
+                        onClick={() => setReportStyle('individual-lookup')}
                         className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'classic-cards'
+                          reportStyle === 'individual-lookup'
                             ? 'bg-slate-900 text-white shadow-sm'
                             : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
                         }`}
                       >
-                        <AlignJustify className="w-3.5 h-3.5" />
-                        <span>Classic Card Deck (Matchups Style)</span>
+                        <Search className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Find Player Schedule (Public View)</span>
                       </button>
-                      
+
                       <button
                         type="button"
-                        onClick={() => setReportStyle('medal-standings')}
+                        onClick={() => setReportStyle('photo-matrix')}
                         className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'medal-standings'
+                          reportStyle === 'photo-matrix'
                             ? 'bg-slate-900 text-white shadow-sm'
                             : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
                         }`}
                       >
-                        <Award className="w-3.5 h-3.5 text-amber-500" />
-                        <span>🏆 Club Medal Standings &amp; Points</span>
+                        <Grid className="w-3.5 h-3.5" />
+                        <span>Taekwondo Matrix Grid (Reference Photo)</span>
                       </button>
                     </>
                   )}
+                  
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('classic-cards')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'classic-cards'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <AlignJustify className="w-3.5 h-3.5" />
+                    <span>Classic Card Deck (Matchups Style)</span>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('medal-standings')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'medal-standings'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <span>🏆 Club Medal Standings &amp; Points</span>
+                  </button>
                 </div>
               </div>
 

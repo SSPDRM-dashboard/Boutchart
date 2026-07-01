@@ -104,16 +104,14 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'public-view' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const viewType = urlParams.get('view');
-      const dataParam = urlParams.get('data');
-      const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath || dataParam || idParam) {
-        return 'public-view';
+      if (viewType === 'club-report' || isReportPath) {
+        return 'club-report';
       }
       return 'brackets';
     } catch (e) {
@@ -2226,23 +2224,23 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (bracketKeys.length > 0) {
+                      if (roster.length > 0) {
                         setActiveTab('club-report');
                       }
                     }}
-                    disabled={bracketKeys.length === 0}
+                    disabled={roster.length === 0}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                      bracketKeys.length === 0
+                      roster.length === 0
                         ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
                         : activeTab === 'club-report'
                         ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
                         : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
                     }`}
-                    title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
+                    title={roster.length === 0 ? "Load a roster to unlock club reports" : "View athletes and fight schedules grouped by club"}
                   >
                     <span className="text-base">📋</span>
                     <span className="text-left flex-1 font-extrabold text-sm">Club Reports</span>
-                    {bracketKeys.length > 0 ? (
+                    {roster.length > 0 ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
                         activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
                       }`}>
@@ -2256,40 +2254,19 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (bracketKeys.length > 0) {
-                        setActiveTab('public-view');
-                      }
-                    }}
-                    disabled={bracketKeys.length === 0}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                      bracketKeys.length === 0
-                        ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
-                        : activeTab === 'public-view'
-                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
-                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
-                    }`}
-                    title={bracketKeys.length === 0 ? "Generate brackets to unlock public view" : "View public facing report"}
-                  >
-                    <span className="text-base">🌐</span>
-                    <span className="text-left flex-1 font-extrabold text-sm">Public View</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (bracketKeys.length > 0) {
+                      if (roster.length > 0 || bracketKeys.length > 0) {
                         setActiveTab('statistics');
                       }
                     }}
-                    disabled={bracketKeys.length === 0}
+                    disabled={roster.length === 0 && bracketKeys.length === 0}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                      bracketKeys.length === 0
+                      roster.length === 0 && bracketKeys.length === 0
                         ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
                         : activeTab === 'statistics'
                         ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
                         : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
                     }`}
-                    title={bracketKeys.length === 0 ? "Generate brackets to view statistics" : "View tournament statistics and medals"}
+                    title={roster.length === 0 && bracketKeys.length === 0 ? "Generate brackets or load roster to view statistics" : "View tournament statistics and medals"}
                   >
                     <span className="text-base">📊</span>
                     <span className="text-left flex-1 font-extrabold text-sm">Statistics & Medals</span>
@@ -2717,35 +2694,7 @@ export default function App() {
                   ringLabelFormat={ringLabelFormat}
                   boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
-                  isPublicView={false}
-                  onUpdateStandings={(catKey, nextStandings) => {
-                    setBrackets((prev) => {
-                      const existing = prev[catKey];
-                      if (!existing) return prev;
-                      return {
-                        ...prev,
-                        [catKey]: {
-                          ...existing,
-                          standings: nextStandings,
-                        },
-                      };
-                    });
-                  }}
-                />
-              </div>
-            )}
-
-            {/* 2.1 PUBLIC VIEW */}
-            {activeTab === 'public-view' && bracketKeys.length > 0 && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <ClubReportPanel
-                  categories={categories}
-                  brackets={brackets}
-                  roster={roster}
-                  ringLabelFormat={ringLabelFormat}
-                  boutLabelFormat={boutLabelFormat}
-                  tournamentName={tournamentName}
-                  isPublicView={true}
+                  isPublicView={isPublicReportOnly}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];
