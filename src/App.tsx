@@ -2253,59 +2253,6 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      if (bracketKeys.length > 0) {
-                        setActiveTab('statistics');
-                      }
-                    }}
-                    disabled={bracketKeys.length === 0}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                      bracketKeys.length === 0
-                        ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
-                        : activeTab === 'statistics'
-                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
-                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
-                    }`}
-                    title={bracketKeys.length === 0 ? "Generate brackets to view statistics" : "View tournament statistics and medals"}
-                  >
-                    <span className="text-base">📊</span>
-                    <span className="text-left flex-1 font-extrabold text-sm">Statistics & Medals</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('pdf-bracket')}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
-                      activeTab === 'pdf-bracket'
-                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
-                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="text-base">📄</span>
-                    <span className="text-left flex-1 font-extrabold text-sm font-sans">PDF Bracket Parser</span>
-                    <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase animate-pulse shrink-0">
-                      AI
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('certificates')}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
-                      activeTab === 'certificates'
-                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
-                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="text-base">🏆</span>
-                    <span className="text-left flex-1 font-extrabold text-sm">Award Certificates</span>
-                    <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0">
-                      NEW
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => setActiveTab('account')}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
                       activeTab === 'account'
