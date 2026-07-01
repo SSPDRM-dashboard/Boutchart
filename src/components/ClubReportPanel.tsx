@@ -1067,77 +1067,79 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         </div>
 
         {/* Action controls */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={generateAndCopyShareLink}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            title="Generate a unique, read-only URL for this report to share with coaches"
-          >
-            <Share2 className="w-4 h-4 text-indigo-100" />
-            <span>
-              {shareStatus === 'copied'
-                ? 'Link Copied!'
-                : selectedClub === 'all'
-                ? 'Share Public Link'
-                : `Share ${selectedClub} Link`}
-            </span>
-          </button>
-
-          {/* Download selected club matrix as PDF */}
-          {selectedClub !== 'all' && (
+        {!isPublicView && (
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
             <button
               type="button"
-              onClick={() => downloadSingleClubMatrixPDF(selectedClub)}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title={`Download the Taekwondo Matrix Grid for ${selectedClub} as a print-ready PDF`}
+              onClick={generateAndCopyShareLink}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title="Generate a unique, read-only URL for this report to share with coaches"
             >
-              <Grid className="w-4 h-4 text-slate-950" />
-              <span>Download {selectedClub} Matrix (PDF)</span>
+              <Share2 className="w-4 h-4 text-indigo-100" />
+              <span>
+                {shareStatus === 'copied'
+                  ? 'Link Copied!'
+                  : selectedClub === 'all'
+                  ? 'Share Public Link'
+                  : `Share ${selectedClub} Link`}
+              </span>
             </button>
-          )}
 
-          {/* Download all clubs matrix as ZIP */}
-          <button
-            type="button"
-            disabled={zipExportLoading}
-            onClick={downloadAllClubsMatrixZIP}
-            className={`bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95 ${
-              zipExportLoading ? 'opacity-70 cursor-not-allowed animate-pulse' : ''
-            }`}
-            title="Download Taekwondo Matrix Grid PDFs for every club in a single ZIP folder"
-          >
-            <Download className="w-4 h-4 text-teal-100" />
-            <span>{zipExportLoading ? 'Packaging ZIP...' : 'Download All Matrices (ZIP)'}</span>
-          </button>
+            {/* Download selected club matrix as PDF */}
+            {selectedClub !== 'all' && (
+              <button
+                type="button"
+                onClick={() => downloadSingleClubMatrixPDF(selectedClub)}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+                title={`Download the Taekwondo Matrix Grid for ${selectedClub} as a print-ready PDF`}
+              >
+                <Grid className="w-4 h-4 text-slate-950" />
+                <span>Download {selectedClub} Matrix (PDF)</span>
+              </button>
+            )}
 
-          {/* Download button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (reportStyle === 'medal-standings') {
-                downloadClubMedalStandingsCSV();
-              } else {
-                downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
-              }
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            title={reportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
-          >
-            <Download className="w-4 h-4 text-emerald-100" />
-            <span>{reportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
-          </button>
+            {/* Download all clubs matrix as ZIP */}
+            <button
+              type="button"
+              disabled={zipExportLoading}
+              onClick={downloadAllClubsMatrixZIP}
+              className={`bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95 ${
+                zipExportLoading ? 'opacity-70 cursor-not-allowed animate-pulse' : ''
+              }`}
+              title="Download Taekwondo Matrix Grid PDFs for every club in a single ZIP folder"
+            >
+              <Download className="w-4 h-4 text-teal-100" />
+              <span>{zipExportLoading ? 'Packaging ZIP...' : 'Download All Matrices (ZIP)'}</span>
+            </button>
 
-          {/* Print button */}
-          <button
-            type="button"
-            onClick={triggerPrintReport}
-            className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-          >
-            <Printer className="w-4 h-4 text-amber-400" />
-            <span>Print Active View</span>
-          </button>
-        </div>
+            {/* Download button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (reportStyle === 'medal-standings') {
+                  downloadClubMedalStandingsCSV();
+                } else {
+                  downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title={reportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
+            >
+              <Download className="w-4 h-4 text-emerald-100" />
+              <span>{reportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
+            </button>
+
+            {/* Print button */}
+            <button
+              type="button"
+              onClick={triggerPrintReport}
+              className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            >
+              <Printer className="w-4 h-4 text-amber-400" />
+              <span>Print Active View</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {shareStatus === 'copied' && (
@@ -1216,31 +1218,35 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     <span>Taekwondo Matrix Grid (Reference Photo)</span>
                   </button>
                   
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('classic-cards')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'classic-cards'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <AlignJustify className="w-3.5 h-3.5" />
-                    <span>Classic Card Deck (Matchups Style)</span>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('medal-standings')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'medal-standings'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <span>🏆 Club Medal Standings &amp; Points</span>
-                  </button>
+                  {!isPublicView && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('classic-cards')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'classic-cards'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <AlignJustify className="w-3.5 h-3.5" />
+                        <span>Classic Card Deck (Matchups Style)</span>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('medal-standings')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'medal-standings'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <span>🏆 Club Medal Standings &amp; Points</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 

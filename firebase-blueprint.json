@@ -30,6 +30,14 @@
           }
         }
       }
+    },
+    "EventPayload": {
+      "title": "Event Payload",
+      "description": "Payload containing the brackets and roster data for the external scoreboard",
+      "type": "object",
+      "properties": {
+        "payload": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -44,6 +52,10 @@
     "users/{userEmail}/clubs/{docId}": {
       "schema": "#/entities/SavedClubs",
       "description": "Saved club names for autocomplete searching"
+    },
+    "events/{eventId}": {
+      "schema": "#/entities/EventPayload",
+      "description": "Scoreboard synchronization events"
     }
   }
 }
