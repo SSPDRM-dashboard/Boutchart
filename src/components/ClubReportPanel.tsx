@@ -1069,23 +1069,24 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         </div>
 
         {/* Action controls */}
-        {!isPublicView && (
         <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={generateAndCopyShareLink}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            title="Generate a unique, read-only URL for this report to share with coaches"
-          >
-            <Share2 className="w-4 h-4 text-indigo-100" />
-            <span>
-              {shareStatus === 'copied'
-                ? 'Link Copied!'
-                : selectedClub === 'all'
-                ? 'Share Public Link'
-                : `Share ${selectedClub} Link`}
-            </span>
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={generateAndCopyShareLink}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title="Generate a unique, read-only URL for this report to share with coaches"
+            >
+              <Share2 className="w-4 h-4 text-indigo-100" />
+              <span>
+                {shareStatus === 'copied'
+                  ? 'Link Copied!'
+                  : selectedClub === 'all'
+                  ? 'Share Public Link'
+                  : `Share ${selectedClub} Link`}
+              </span>
+            </button>
+          )}
 
           {/* Download selected club matrix as PDF */}
           {selectedClub !== 'all' && (
@@ -1141,7 +1142,6 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             <span>Print Active View</span>
           </button>
         </div>
-        )}
       </div>
 
       {shareStatus === 'copied' && (
