@@ -2224,23 +2224,23 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (roster.length > 0) {
+                      if (bracketKeys.length > 0) {
                         setActiveTab('club-report');
                       }
                     }}
-                    disabled={roster.length === 0}
+                    disabled={bracketKeys.length === 0}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                      roster.length === 0
+                      bracketKeys.length === 0
                         ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
                         : activeTab === 'club-report'
                         ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
                         : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
                     }`}
-                    title={roster.length === 0 ? "Load a roster to unlock club reports" : "View athletes and fight schedules grouped by club"}
+                    title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
                   >
                     <span className="text-base">📋</span>
                     <span className="text-left flex-1 font-extrabold text-sm">Club Reports</span>
-                    {roster.length > 0 ? (
+                    {bracketKeys.length > 0 ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
                         activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
                       }`}>
@@ -2254,19 +2254,19 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (roster.length > 0 || bracketKeys.length > 0) {
+                      if (bracketKeys.length > 0) {
                         setActiveTab('statistics');
                       }
                     }}
-                    disabled={roster.length === 0 && bracketKeys.length === 0}
+                    disabled={bracketKeys.length === 0}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 border ${
-                      roster.length === 0 && bracketKeys.length === 0
+                      bracketKeys.length === 0
                         ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200/80 text-slate-400'
                         : activeTab === 'statistics'
                         ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md cursor-pointer'
                         : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
                     }`}
-                    title={roster.length === 0 && bracketKeys.length === 0 ? "Generate brackets or load roster to view statistics" : "View tournament statistics and medals"}
+                    title={bracketKeys.length === 0 ? "Generate brackets to view statistics" : "View tournament statistics and medals"}
                   >
                     <span className="text-base">📊</span>
                     <span className="text-left flex-1 font-extrabold text-sm">Statistics & Medals</span>

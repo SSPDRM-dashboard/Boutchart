@@ -71,11 +71,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       const playerParam = urlParams.get('player') || urlParams.get('search');
       if (playerParam) {
         setSearchQuery(playerParam);
-        if (!isPublicView) {
-          setReportStyle('individual-lookup');
-        } else {
-          setReportStyle('classic-cards');
-        }
+        setReportStyle('individual-lookup');
       }
       const clubParam = urlParams.get('club');
       if (clubParam) {
@@ -1196,35 +1192,31 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
                 <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">
-                  {!isPublicView && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setReportStyle('individual-lookup')}
-                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'individual-lookup'
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                        }`}
-                      >
-                        <Search className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Find Player Schedule (Public View)</span>
-                      </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('individual-lookup')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'individual-lookup'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <Search className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Find Player Schedule (Public View)</span>
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setReportStyle('photo-matrix')}
-                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'photo-matrix'
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                        }`}
-                      >
-                        <Grid className="w-3.5 h-3.5" />
-                        <span>Taekwondo Matrix Grid (Reference Photo)</span>
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setReportStyle('photo-matrix')}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      reportStyle === 'photo-matrix'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                    }`}
+                  >
+                    <Grid className="w-3.5 h-3.5" />
+                    <span>Taekwondo Matrix Grid (Reference Photo)</span>
+                  </button>
                   
                   <button
                     type="button"
