@@ -64,13 +64,14 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               <span>🌎 PUBLIC REPORT VIEW</span>
             </div>
           )}
-          {!currentUser && !isPublicView && (
+          {!currentUser && (
             <button
               onClick={onLoginClick}
-              className="text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors ml-2"
-              title="Sign in as Administrator"
+              className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-all border border-slate-700 rounded-xl px-3.5 py-2 cursor-pointer ml-2 flex items-center gap-1.5 shadow-sm active:scale-95 no-print"
+              title="Sign in as Administrator / Go to Dashboard"
             >
-              Admin Login
+              <span>🔑</span>
+              <span>Admin Dashboard</span>
             </button>
           )}
           {currentUser && !isPublicView && (

@@ -226,36 +226,73 @@ export default function App() {
       } else {
         setCurrentUser(null);
         setSavedEvents([]);
-        setIsPublicReportOnly(true);
-        setActiveTab('club-report');
-
-        // Fetch active_state if we haven't already from a shared URL
-        const pathname = window.location.pathname;
-        const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-        const viewType = new URLSearchParams(window.location.search).get('view');
         
-        if (!isReportPath && viewType !== 'club-report' && !new URLSearchParams(window.location.search).get('data')) {
-          setStatusMessage({ text: 'Loading active tournament report...', type: 'ok' });
-          getDoc(doc(db, 'reports', 'active_state')).then(snap => {
-            if (snap.exists()) {
-              const data = snap.data();
-              const parsed = data.payload ? JSON.parse(data.payload) : data;
-              if (parsed.tournamentName) setTournamentName(parsed.tournamentName);
-              if (parsed.roster) setRoster(parsed.roster);
-              if (parsed.categories) setCategories(parsed.categories);
-              if (parsed.brackets) setBrackets(parsed.brackets);
-              if (parsed.ringCount) setRingCount(parsed.ringCount);
-              if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
-              if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
-              if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
-              setStatusMessage({ text: `Loaded active public report for "${parsed.tournamentName || 'Tournament'}"`, type: 'ok' });
-            } else {
-              setStatusMessage({ text: 'No active tournament report is available.', type: 'idle' });
+        const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+        const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+        const viewType = urlParams.get('view');
+        const dataParam = urlParams.get('data');
+        const idParam = urlParams.get('id');
+        const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
+        const isSharedLink = viewType === 'club-report' || isReportPath || !!dataParam || !!idParam;
+
+        if (isSharedLink) {
+          setIsPublicReportOnly(true);
+          setActiveTab('club-report');
+
+          // Fetch active_state if not loading from direct data / custom id
+          if (!isReportPath && viewType === 'club-report' && !dataParam && !idParam) {
+            setStatusMessage({ text: 'Loading active tournament report...', type: 'ok' });
+            getDoc(doc(db, 'reports', 'active_state')).then(snap => {
+              if (snap.exists()) {
+                const data = snap.data();
+                const parsed = data.payload ? JSON.parse(data.payload) : data;
+                if (parsed.tournamentName) setTournamentName(parsed.tournamentName);
+                if (parsed.roster) setRoster(parsed.roster);
+                if (parsed.categories) setCategories(parsed.categories);
+                if (parsed.brackets) setBrackets(parsed.brackets);
+                if (parsed.ringCount) setRingCount(parsed.ringCount);
+                if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
+                if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
+                if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
+                setStatusMessage({ text: `Loaded active public report for "${parsed.tournamentName || 'Tournament'}"`, type: 'ok' });
+              } else {
+                setStatusMessage({ text: 'No active tournament report is available.', type: 'idle' });
+              }
+            }).catch(e => {
+              console.error(e);
+              setStatusMessage({ text: 'Failed to load active report.', type: 'err' });
+            });
+          }
+        } else {
+          // Root path / guest mode: enable full dashboard and restore local storage state
+          setIsPublicReportOnly(false);
+          setActiveTab('brackets');
+          
+          // Restore local state if it exists
+          const stored = safeLocalStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            try {
+              const snap = JSON.parse(stored);
+              if (snap) {
+                if (snap.tournamentName) setTournamentName(snap.tournamentName);
+                if (snap.roster) setRoster(snap.roster);
+                if (snap.categories) setCategories(snap.categories);
+                if (snap.brackets) setBrackets(snap.brackets);
+                if (snap.ringCount) setRingCount(snap.ringCount);
+                if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+                if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+                if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
+                if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+                
+                setStatusMessage({
+                  text: `Restored local guest session (${snap.roster?.length || 0} athletes loaded)`,
+                  type: 'ok',
+                });
+              }
+            } catch (e) {
+              console.warn('Failed to parse cached local session', e);
             }
-          }).catch(e => {
-            console.error(e);
-            setStatusMessage({ text: 'Failed to load active report.', type: 'err' });
-          });
+          }
         }
       }
     });
@@ -1665,6 +1702,14 @@ export default function App() {
         const { size, numRounds, nodes } = bracket;
 
         let gap = 240;
+        let centralGap = 120;
+        let centerOffset = 60;
+
+        if (size === 2) {
+          gap = 450;
+          centralGap = 600;
+          centerOffset = 300;
+        }
 
         let ROW_PITCH = 46;
         if (size === 2) ROW_PITCH = 340;
@@ -1686,13 +1731,13 @@ export default function App() {
           for (let i = 0; i < count; i++) {
             let x: number;
             if (k === numRounds) {
-              x = PAD + (numRounds - 1) * gap + BOX_W / 2 + 60;
+              x = PAD + (numRounds - 1) * gap + BOX_W / 2 + centerOffset;
             } else {
               const isLeft = i < count / 2;
               if (isLeft) {
                 x = PAD + k * gap;
               } else {
-                x = PAD + (2 * numRounds - 2 - k) * gap + BOX_W + 120;
+                x = PAD + (2 * numRounds - 2 - k) * gap + BOX_W + centralGap;
               }
             }
 
@@ -1714,7 +1759,7 @@ export default function App() {
           positions.push(arr);
         }
 
-        const canvasWidth = numRounds === 0 ? PAD * 2 + BOX_W : PAD * 2 + (2 * numRounds - 2) * gap + 2 * BOX_W + 120;
+        const canvasWidth = numRounds === 0 ? PAD * 2 + BOX_W : PAD * 2 + (2 * numRounds - 2) * gap + 2 * BOX_W + centralGap;
         const baseCanvasHeight = PAD * 2 + Math.max(2, size / 2) * ROW_PITCH;
         const finalY = positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2);
         const isClassic = bracketLayout === 'classic';

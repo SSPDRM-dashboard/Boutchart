@@ -270,6 +270,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
   // Sizing adapters: scale gap and pitch dynamically based on bracket rounds
   let gap = 240;
+  if (size === 2) gap = 450;
 
   let ROW_PITCH = 46;
   if (size === 2) ROW_PITCH = 340;
@@ -738,10 +739,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            {/* Player Name ON TOP of the line */}
                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="text-[17.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[22.5px] print:text-[32.5px] font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto" title={node.name}>{node.name}</span>
+                              <span className={`${size === 2 ? 'text-[19.5px] print:text-[29.5px]' : 'text-[22.5px] print:text-[32.5px]'} font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto`} title={node.name}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[19.5px] print:text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full ${size === 2 ? 'text-[17.5px] print:text-[27.5px]' : 'text-[19.5px] print:text-[29.5px]'} font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || '(Ind.)'}</span>
                            </div>
                         </div>
@@ -838,7 +839,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            <div className={`h-[20px] flex items-end w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <input
                                 type="text"
-                                className={`w-full min-w-[240px] bg-transparent border-none outline-none text-[22.5px] print:text-[32.5px] font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
+                                className={`w-full min-w-[240px] bg-transparent border-none outline-none ${size === 2 ? 'text-[19.5px] print:text-[29.5px]' : 'text-[22.5px] print:text-[32.5px]'} font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder=""
@@ -847,7 +848,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                               />
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full text-[19.5px] print:text-[29.5px] font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full ${size === 2 ? 'text-[17.5px] print:text-[27.5px]' : 'text-[19.5px] print:text-[29.5px]'} font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || ''}</span>
                            </div>
                         </div>

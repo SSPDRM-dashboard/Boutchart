@@ -1058,12 +1058,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               📋
             </span>
             <h2 className="text-lg font-black text-slate-900 tracking-tight font-sans">
-              Coach's Club Report: Fight Schedules
+              Fight Schedules
             </h2>
           </div>
-          <p className="text-xs text-slate-500 mt-1.5 max-w-2xl leading-relaxed">
-            Toggle between the photo-inspired Taekwondo grid layout or the beautiful card deck log layout below. Perfect for print!
-          </p>
         </div>
 
         {/* Action controls */}
@@ -1297,19 +1294,6 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     <span>{showOnlyScheduled ? 'Scheduled Fights Only' : 'Show All Registered'}</span>
                   </button>
                 )}
-              </div>
-            </div>
-
-            {/* Corner Badge Guide Legend */}
-            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-600 pt-2 border-t border-slate-200/50">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Legend Markers:</span>
-              <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200/50 shadow-2xs">
-                <span className="w-4.5 h-4.5 rounded bg-[#1e40af] text-white flex items-center justify-center text-[9px] font-black">C</span>
-                <span className="text-slate-700">Chung (Blue corner / Top slot)</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200/50 shadow-2xs">
-                <span className="w-4.5 h-4.5 rounded bg-[#dc2626] text-white flex items-center justify-center text-[9px] font-black">H</span>
-                <span className="text-slate-700">Hong (Red corner / Bottom slot)</span>
               </div>
             </div>
           </div>
