@@ -24,6 +24,7 @@ interface BracketCanvasProps {
   onMoveToCategory?: (i: number, targetCategoryKey: string) => void;
   boutLabelFormat?: 'alpha-2' | 'thousands-3';
   onUpdateStandings?: (standings: string[]) => void;
+  isPublicView?: boolean;
 }
 
 function getFormattedBout(
@@ -76,6 +77,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   onMoveToCategory,
   boutLabelFormat = 'alpha-2',
   onUpdateStandings,
+  isPublicView = false,
 }) => {
   const [scale, setScale] = useState(1);
   const [isAutoFit, setIsAutoFit] = useState(true);
@@ -490,18 +492,22 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             </button>
           </div>
 
-          <button
-            onClick={onReshuffle}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 hover:text-slate-950 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
-          >
-            <Shuffle className="w-3.5 h-3.5" />
-            <span>Reshuffle seeds</span>
-          </button>
+          {!isPublicView && (
+            <>
+              <button
+                onClick={onReshuffle}
+                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 hover:text-slate-950 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+                <span>Reshuffle seeds</span>
+              </button>
 
-          <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold select-none">
-            <span className="text-amber-500 font-sans">✨</span>
-            <span>Drag & Drop players to swap slots</span>
-          </div>
+              <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold select-none">
+                <span className="text-amber-500 font-sans">✨</span>
+                <span>Drag & Drop players to swap slots</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -622,7 +628,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     return (
                       <div
                         key={`${k}-${i}`}
-                        draggable
+                        draggable={!isPublicView}
                         onDragStart={(e) => handleDragStart(e, i)}
                         onDragEnd={handleDragEnd}
                         onDragOver={(e) => handleDragOver(e, i)}
@@ -630,6 +636,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         onDragLeave={() => handleDragLeave(i)}
                         onDrop={(e) => handleDrop(e, i)}
                         onClick={() => {
+                          if (isPublicView) return;
                           setSelectedLeafIndex(i);
                           setEditName('');
                           setEditClub('');
@@ -637,7 +644,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           setSwapTargetIndex('');
                           setShowModal(true);
                         }}
-                        className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
+                        className={`absolute flex items-center px-2 transition-all group ${
+                          isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                        } ${
                           isClassic 
                             ? `bg-transparent text-[9px]` 
                             : `bg-slate-50 border border-slate-200 border-dashed rounded text-[10px]`
@@ -671,12 +680,12 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             <span className="flex-1 text-[11px] font-black uppercase">BYE</span>
                           </>
                         )}
-                        {isClassic && (
+                        {isClassic && !isPublicView && (
                             <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-amber-500 font-bold ml-1 absolute bottom-0 right-0 p-1">
                               + Edit
                             </span>
                         )}
-                        {!isClassic && (
+                        {!isClassic && !isPublicView && (
                             <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1">
                               + Edit
                             </span>
@@ -688,7 +697,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   return (
                     <div
                       key={`${k}-${i}`}
-                      draggable
+                      draggable={!isPublicView}
                       onDragStart={(e) => handleDragStart(e, i)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleDragOver(e, i)}
@@ -696,6 +705,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       onDragLeave={() => handleDragLeave(i)}
                       onDrop={(e) => handleDrop(e, i)}
                       onClick={(e) => {
+                        if (isPublicView) return;
                         if ((e.target as HTMLElement).closest('input[type="checkbox"]')) return;
                         setSelectedLeafIndex(i);
                         setEditName(node.isBye ? '' : node.name);
@@ -705,7 +715,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         setSelectedTargetCategory('');
                         setShowModal(true);
                       }}
-                      className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
+                      className={`absolute flex items-center px-2 transition-all group ${
+                        isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                      } ${
                         isClassic 
                           ? `bg-transparent ${node.checked ? 'text-emerald-900' : ''}`
                           : `py-1.5 bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/5 ${node.checked ? 'bg-emerald-50/75 border-emerald-500 ring-1 ring-emerald-500/20' : ''}`
@@ -728,7 +740,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             type="checkbox"
                             className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
                             checked={node.checked}
-                            disabled={isWalkover}
+                            disabled={isPublicView || isWalkover}
                             onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
                           />
                         </span>
@@ -797,13 +809,15 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   return (
                     <div
                       key={`${k}-${i}`}
-                      draggable={!!node.name && !node.isBye}
+                      draggable={!isPublicView && !!node.name && !node.isBye}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('athleteName', node.name || '');
                         e.dataTransfer.setData('text/plain', node.name || '');
                         e.dataTransfer.effectAllowed = 'copyMove';
                       }}
-                      className={`absolute flex items-center px-2 cursor-grab active:cursor-grabbing transition-all group ${
+                      className={`absolute flex items-center px-2 transition-all group ${
+                        isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                      } ${
                         isClassic 
                           ? `bg-transparent ${node.checked ? 'border-emerald-500 text-emerald-900' : ''}`
                           : `bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 transition-all ${
@@ -826,7 +840,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             type="checkbox"
                             className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
                             checked={node.checked}
-                            disabled={!node.name || isWalkover}
+                            disabled={isPublicView || !node.name || isWalkover}
                             onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
                           />
                         </span>
@@ -844,6 +858,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                                 }`}
                                 placeholder=""
                                 value={node.name || ''}
+                                disabled={isPublicView}
                                 onChange={(e) => onTextChange(k, i, e.target.value)}
                               />
                            </div>
@@ -860,6 +875,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           }`}
                           placeholder=""
                           value={node.name || ''}
+                          disabled={isPublicView}
                           onChange={(e) => onTextChange(k, i, e.target.value)}
                         />
                       )}
@@ -867,18 +883,20 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   );
                 }
 
-                // Champion Node (k === numRounds)
+                             // Champion Node (k === numRounds)
                 if (isClassic) {
                   return (
                      <div
                         key={`${k}-${i}`}
-                        draggable={!!node.name}
+                        draggable={!isPublicView && !!node.name}
                         onDragStart={(e) => {
                           e.dataTransfer.setData('athleteName', node.name || '');
                           e.dataTransfer.setData('text/plain', node.name || '');
                           e.dataTransfer.effectAllowed = 'copyMove';
                         }}
-                        className="absolute flex items-center justify-center px-1 cursor-grab active:cursor-grabbing"
+                        className={`absolute flex items-center justify-center px-1 ${
+                          isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                        }`}
                         style={{
                           left: `${x}px`,
                           top: `${y - 12}px`, /* Above the bout box */
@@ -892,23 +910,26 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                                className="w-[260px] max-w-none bg-transparent pb-1 outline-none text-[24.5px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
                                placeholder="CHAMPION"
                                value={node.name || ''}
+                               disabled={isPublicView}
                                onChange={(e) => onTextChange(k, i, e.target.value)}
                              />
                          </div>
-                      </div>
+                       </div>
                   );
                 }
 
                 return (
                   <div
                     key={`${k}-${i}`}
-                    draggable={!!node.name}
+                    draggable={!isPublicView && !!node.name}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('athleteName', node.name || '');
                       e.dataTransfer.setData('text/plain', node.name || '');
                       e.dataTransfer.effectAllowed = 'copyMove';
                     }}
-                    className="absolute flex items-center gap-1.5 px-3 bg-amber-50/90 hover:bg-amber-100/90 border-2 border-amber-500 rounded-lg shadow-md group animate-fade-in text-center cursor-grab active:cursor-grabbing"
+                    className={`absolute flex items-center gap-1.5 px-3 bg-amber-50/90 hover:bg-amber-100/90 border-2 border-amber-500 rounded-lg shadow-md group animate-fade-in text-center ${
+                      isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                    }`}
                     style={{
                       left: `${x}px`,
                       top: `${y}px`,
@@ -932,6 +953,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       className="w-full bg-transparent border-none outline-none text-xs font-black text-amber-950 placeholder-amber-400 text-center"
                       placeholder="Grand Champion"
                       value={node.name || ''}
+                      disabled={isPublicView}
                       onChange={(e) => onTextChange(k, i, e.target.value)}
                     />
                   </div>
@@ -1001,23 +1023,29 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       <div
                         key={slotIdx}
                         onDragOver={(e) => {
+                          if (isPublicView) return;
                           e.preventDefault();
                           if (dragOverStandingsIndex !== slotIdx) {
                             setDragOverStandingsIndex(slotIdx);
                           }
                         }}
                         onDragEnter={(e) => {
+                          if (isPublicView) return;
                           e.preventDefault();
                           setDragOverStandingsIndex(slotIdx);
                         }}
                         onDragLeave={() => {
+                          if (isPublicView) return;
                           if (dragOverStandingsIndex === slotIdx) {
                             setDragOverStandingsIndex(null);
                           }
                         }}
-                        onDrop={(e) => handleDropToStanding(e, slotIdx)}
+                        onDrop={(e) => {
+                          if (isPublicView) return;
+                          handleDropToStanding(e, slotIdx);
+                        }}
                         className={`px-6 py-4 flex items-center gap-4 transition-all group/slot relative ${
-                          isOver
+                          !isPublicView && isOver
                             ? 'bg-amber-50 border-y border-amber-300 scale-[1.01] shadow-sm z-10'
                             : 'hover:bg-slate-50/50'
                         }`}
@@ -1029,6 +1057,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           <input
                             type="text"
                             value={val === '_REMOVED_' ? '' : val}
+                            disabled={isPublicView}
                             onChange={(e) => {
                               const nextS = [...currentStandings];
                               nextS[slotIdx] = e.target.value;
@@ -1046,7 +1075,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         </div>
 
                         {/* Badges/Controls */}
-                        <div className="flex items-center gap-2 shrink-0 select-none">
+                        {!isPublicView && (
+                          <div className="flex items-center gap-2 shrink-0 select-none">
                           {!val && isComputed && (
                             <button
                               type="button"
@@ -1097,6 +1127,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             </span>
                           )}
                         </div>
+                      )}
                       </div>
                     );
                   });
