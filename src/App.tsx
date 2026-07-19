@@ -299,6 +299,9 @@ export default function App() {
 
   // 1. Initial State Hydration from LocalStorage with URL sharing support
   useEffect(() => {
+    if (auth.currentUser || currentUser) {
+      return;
+    }
     try {
       refreshSystemUsers();
       
@@ -525,7 +528,7 @@ export default function App() {
     } catch (e) {
       console.warn('Failed to restore from localstorage', e);
     }
-  }, []);
+  }, [isPublicReportOnly]);
 
   // 2. Automatic State Persistence Debouncer
   useEffect(() => {
