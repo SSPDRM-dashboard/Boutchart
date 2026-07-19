@@ -38,7 +38,7 @@ interface PlayerFightInfo {
     opponentName: string;
     opponentClub: string;
     kRound: number;
-    corner: 'C' | 'H'; // Chung (Blue) or Hong (Red)
+    corner: 'C' | 'H' | 'G'; // Chung (Blue), Hong (Red), or Green (Poomsae/Turn)
   }>;
 }
 
@@ -197,7 +197,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
             // Draw Corner badge
             const isRed = bout.corner === 'H';
-            if (isRed) {
+            if (bout.corner === 'G') {
+              pdf.setFillColor(5, 150, 105); // emerald-600 `#059669`
+            } else if (isRed) {
               pdf.setFillColor(220, 38, 38); // `#dc2626`
             } else {
               pdf.setFillColor(30, 64, 175); // `#1e40af`
@@ -208,7 +210,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             pdf.setTextColor(255, 255, 255);
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(7.5);
-            pdf.text(bout.corner, colX + 13.75, currentY + 6.25, { align: 'center', baseline: 'middle' });
+            pdf.text(bout.corner === 'G' ? '' : bout.corner, colX + 13.75, currentY + 6.25, { align: 'center', baseline: 'middle' });
           } else {
             pdf.setTextColor(203, 213, 225);
             pdf.setFont('helvetica', 'normal');
@@ -632,8 +634,32 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     const bouts: PlayerFightInfo['bouts'] = [];
 
     if (model) {
-      // Find leaf index (round 0)
-      let leafIdx = -1;
+      if (model.systemType === 'poomsae-cutoff') {
+        const round0 = model.nodes[0] || [];
+        for (let i = 0; i < round0.length; i++) {
+          const leafNode = round0[i];
+          if (leafNode && !leafNode.isBye && leafNode.name) {
+            const nameMatch = leafNode.name.trim().toLowerCase() === athlete.name.trim().toLowerCase();
+            const clubMatch = (leafNode.club || '').trim().toLowerCase() === athlete.club.trim().toLowerCase();
+            if (nameMatch && (leafNode.club ? clubMatch : true)) {
+              if (typeof leafNode.bout === 'number') {
+                bouts.push({
+                  boutNumber: leafNode.bout,
+                  formattedId: getFormattedBout(ringLabel, leafNode.bout),
+                  roundName: 'Final',
+                  opponentName: 'Poomsae Score',
+                  opponentClub: '',
+                  kRound: 0,
+                  corner: 'G' as any, // G for Green / turn number
+                });
+              }
+              break;
+            }
+          }
+        }
+      } else {
+        // Find leaf index (round 0)
+        let leafIdx = -1;
       if (model.nodes[0]) {
         for (let i = 0; i < model.nodes[0].length; i++) {
           const leafNode = model.nodes[0][i];
@@ -722,6 +748,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           }
         }
       }
+      }
     }
 
     // Sort athlete's bouts chronologically
@@ -782,7 +809,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       const boutColumns = Array.from({ length: 7 }).map((_, colIndex) => {
         const bout = athleteBouts[colIndex];
         if (bout) {
-          const cornerLabel = bout.corner === 'H' ? 'Hong (Red)' : 'Chung (Blue)';
+          const cornerLabel = bout.corner === 'G' ? 'Turn / Order' : bout.corner === 'H' ? 'Hong (Red)' : 'Chung (Blue)';
           return `Bout ${bout.formattedId} (${cornerLabel}) vs ${bout.opponentName}${bout.opponentClub ? ' [' + bout.opponentClub + ']' : ''}`;
         }
         return '-';
@@ -867,7 +894,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
     const findClubForAthleteInDivision = (athName: string, divName: string): string => {
       if (!athName) return '';
-      const lowerName = athName.trim().toLowerCase();
+      let cleanName = athName;
+      const parenIndex = athName.lastIndexOf(' (');
+      if (parenIndex !== -1) {
+        cleanName = athName.substring(0, parenIndex);
+      }
+      const lowerName = cleanName.trim().toLowerCase();
       const lowerDiv = divName.trim().toLowerCase();
       const matchDivName = athleteList.find(a => a.name.toLowerCase() === lowerName && a.weight.toLowerCase() === lowerDiv);
       if (matchDivName) return matchDivName.club;
@@ -931,6 +963,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         if (!name || name === 'BYE') return;
         const clubName = findClubForAthleteInDivision(name, catKey);
         if (!clubName) return;
+        
+        let cleanName = name;
+        const parenIndex = name.lastIndexOf(' (');
+        if (parenIndex !== -1) {
+          cleanName = name.substring(0, parenIndex);
+        }
 
         // Ensure club exists in map
         if (!clubMap[clubName]) {
@@ -957,7 +995,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           entry.points += 1;
         }
         entry.total += 1;
-        entry.details.push({ athleteName: name, medalType: type, division: catKey, slotIdx });
+        entry.details.push({ athleteName: cleanName, medalType: type, division: catKey, slotIdx });
       };
 
       processMedal(goldName, 'gold', 0);
@@ -1391,11 +1429,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                     </span>
                                     <span 
                                       className={`w-5 h-5 text-[10px] font-black rounded flex items-center justify-center text-white shrink-0 shadow-xs ${
-                                        isRed ? 'bg-[#dc2626]' : 'bg-[#1e40af]'
+                                        isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
                                       }`}
-                                      title={isRed ? 'Hong (Red) Corner - Bottom Slot' : 'Chung (Blue) Corner - Top Slot'}
+                                      title={bout.corner === 'G' ? 'Poomsae Cut-Off' : isRed ? 'Hong (Red) Corner - Bottom Slot' : 'Chung (Blue) Corner - Top Slot'}
                                     >
-                                      {bout.corner}
+                                      {bout.corner === 'G' ? '' : bout.corner}
                                     </span>
                                   </div>
 
@@ -1747,10 +1785,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                         {/* Corner assignment visually high contrast */}
                                         <div className="shrink-0 text-center">
                                           <span className={`w-14 text-center py-1.5 rounded-lg text-[10px] font-black text-white flex flex-col items-center justify-center shadow-3xs leading-none uppercase tracking-wide ${
-                                            isRed ? 'bg-[#dc2626]' : 'bg-[#1e40af]'
+                                            isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
                                           }`}>
-                                            <span className="text-[7px] text-white/70 tracking-widest font-bold uppercase block mb-0.5">Corner</span>
-                                            {isRed ? 'RED' : 'BLUE'}
+                                            <span className="text-[7px] text-white/70 tracking-widest font-bold uppercase block mb-0.5">{bout.corner === 'G' ? 'Order' : 'Corner'}</span>
+                                            {bout.corner === 'G' ? 'TURN' : isRed ? 'RED' : 'BLUE'}
                                           </span>
                                         </div>
                                       </div>
@@ -1964,9 +2002,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                               
                                               {/* Corner Marker Badge */}
                                               <span className={`px-2 py-0.5 rounded font-black text-[9px] text-white flex items-center gap-1 uppercase ${
-                                                isRed ? 'bg-[#dc2626]' : 'bg-[#1e40af]'
+                                                isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
                                               }`}>
-                                                Corner: {bout.corner}
+                                                {bout.corner === 'G' ? 'TURN' : `Corner: ${bout.corner}`}
                                               </span>
                                             </div>
 

@@ -239,7 +239,7 @@ export default function App() {
            setActiveTab('club-report');
         } else {
            setIsPublicReportOnly(false);
-           setActiveTab('account');
+           setActiveTab('brackets');
         }
       }
     });
@@ -1834,7 +1834,9 @@ export default function App() {
             pdf.setTextColor(15, 23, 42); // slate-900
 
             // 1. No.
-            const noStr = String(idx + 1);
+            const originalNode = bracket.nodes?.[0]?.find(n => n.name === ath.athleteName && n.club === ath.athleteClub);
+            const displayNo = ath.bout || originalNode?.bout || (idx + 1);
+            const noStr = String(displayNo);
             pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
 
             // 2. Athlete / Club
@@ -2469,7 +2471,7 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
           
           {/* LEFT SIDEBAR NAVIGATION & QUICK CONTROL CENTER */}
-          {currentUser && !isPublicReportOnly && (
+          {!isPublicReportOnly && (
             <div className="lg:col-span-3 space-y-6 no-print print:hidden flex flex-col">
               {/* View Switching Tab Selector */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-sm space-y-3.5">
@@ -2515,7 +2517,7 @@ export default function App() {
                     title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
                   >
                     <span className="text-base">📋</span>
-                    <span className="text-left flex-1 font-extrabold text-sm">Club Reports</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Club Reports General</span>
                     {bracketKeys.length > 0 ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
                         activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'

@@ -703,9 +703,12 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       else if (rank) rankBadge = <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md">#{rank}</span>;
                       else rankBadge = <span className="text-slate-300 font-mono text-[11px] print:hidden">-</span>;
 
+                      const originalNode = bracket.nodes?.[0]?.find(n => n.name === ath.athleteName && n.club === ath.athleteClub);
+                      const displayNo = ath.bout || originalNode?.bout || (idx + 1);
+
                       return (
                         <tr key={scoreKey} className="hover:bg-slate-50/50 transition-all text-slate-700">
-                          <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400 font-bold">{idx + 1}</td>
+                          <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400 font-bold">{displayNo}</td>
                           <td className="py-3 px-4 text-left">
                             <div className="font-extrabold text-xs text-slate-900">{ath.athleteName}</div>
                             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{ath.athleteClub}</div>

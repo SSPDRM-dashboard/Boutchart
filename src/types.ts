@@ -9,6 +9,7 @@ export interface Athlete {
 export interface CutoffScore {
   athleteName: string;
   athleteClub: string;
+  bout?: number;
   accuracy1?: number;
   presentation1?: number;
   total1?: number;

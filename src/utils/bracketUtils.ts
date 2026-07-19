@@ -292,8 +292,12 @@ export function isRealBout(model: BracketModel, k: number, i: number): boolean {
 
 export function countRealBouts(model: BracketModel): number {
   let n = 0;
-  for (let k = 1; k <= model.numRounds; k++) {
-    n += model.nodes[k].filter(node => typeof node.bout === 'number').length;
+  if (model.systemType === 'poomsae-cutoff') {
+    n += model.nodes[0].filter(node => typeof node.bout === 'number').length;
+  } else {
+    for (let k = 1; k <= model.numRounds; k++) {
+      n += model.nodes[k].filter(node => typeof node.bout === 'number').length;
+    }
   }
   return n;
 }
@@ -305,14 +309,25 @@ export function assignBoutNumbersForRing(brackets: Record<string, BracketModel>,
   keysInOrder.forEach(key => {
     const model = brackets[key];
     if (!model) return;
-    for (let k = 1; k <= model.numRounds; k++) {
-      const round = model.nodes[k];
+    
+    if (model.systemType === 'poomsae-cutoff') {
+      const round = model.nodes[0];
       for (let i = 0; i < round.length; i++) {
-        if (isRealBout(model, k, i)) {
-          model.nodes[k][i].bout = counter;
+        if (round[i] && !round[i].isBye && round[i].name) {
+          model.nodes[0][i].bout = counter;
           counter++;
-        } else {
-          model.nodes[k][i].bout = undefined;
+        }
+      }
+    } else {
+      for (let k = 1; k <= model.numRounds; k++) {
+        const round = model.nodes[k];
+        for (let i = 0; i < round.length; i++) {
+          if (isRealBout(model, k, i)) {
+            model.nodes[k][i].bout = counter;
+            counter++;
+          } else {
+            model.nodes[k][i].bout = undefined;
+          }
         }
       }
     }
