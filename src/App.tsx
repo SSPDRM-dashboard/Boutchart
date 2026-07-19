@@ -457,11 +457,11 @@ export default function App() {
             }
           };
 
-          // 1.5-second timeout for rapid loading and instant fallback
+          // 8-second timeout for rapid loading and instant fallback
           const timeoutId = setTimeout(() => {
             console.warn('Firestore fetch timed out, utilizing local storage/API fallback');
             handleFallback();
-          }, 1500);
+          }, 8000);
 
           getDoc(docRef)
             .then(docSnap => {
