@@ -11,7 +11,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { ScoreboardSyncPanel } from './components/ScoreboardSyncPanel';
 import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged } from './lib/firebase';
 import { PdfBracketParserPanel } from './components/PdfBracketParserPanel';
-import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent } from './types';
+import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent, CutoffScore } from './types';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { replaceOklchInString } from './utils/colorUtils';
@@ -127,6 +127,7 @@ export default function App() {
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0 });
   const [pdfError, setPdfError] = useState('');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'ok' | 'err' | 'idle' }>({
     text: '',
@@ -226,36 +227,19 @@ export default function App() {
       } else {
         setCurrentUser(null);
         setSavedEvents([]);
-        setIsPublicReportOnly(true);
-        setActiveTab('club-report');
 
-        // Fetch active_state if we haven't already from a shared URL
         const pathname = window.location.pathname;
         const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
         const viewType = new URLSearchParams(window.location.search).get('view');
-        
-        if (!isReportPath && viewType !== 'club-report' && !new URLSearchParams(window.location.search).get('data')) {
-          setStatusMessage({ text: 'Loading active tournament report...', type: 'ok' });
-          getDoc(doc(db, 'reports', 'active_state')).then(snap => {
-            if (snap.exists()) {
-              const data = snap.data();
-              const parsed = data.payload ? JSON.parse(data.payload) : data;
-              if (parsed.tournamentName) setTournamentName(parsed.tournamentName);
-              if (parsed.roster) setRoster(parsed.roster);
-              if (parsed.categories) setCategories(parsed.categories);
-              if (parsed.brackets) setBrackets(parsed.brackets);
-              if (parsed.ringCount) setRingCount(parsed.ringCount);
-              if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
-              if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
-              if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
-              setStatusMessage({ text: `Loaded active public report for "${parsed.tournamentName || 'Tournament'}"`, type: 'ok' });
-            } else {
-              setStatusMessage({ text: 'No active tournament report is available.', type: 'idle' });
-            }
-          }).catch(e => {
-            console.error(e);
-            setStatusMessage({ text: 'Failed to load active report.', type: 'err' });
-          });
+        const hasDataParam = !!new URLSearchParams(window.location.search).get('data');
+        const idParam = new URLSearchParams(window.location.search).get('id');
+
+        if (isReportPath || viewType === 'club-report' || hasDataParam || idParam) {
+           setIsPublicReportOnly(true);
+           setActiveTab('club-report');
+        } else {
+           setIsPublicReportOnly(false);
+           setActiveTab('account');
         }
       }
     });
@@ -793,6 +777,41 @@ export default function App() {
     });
   };
 
+  const handleUpdateCategorySystemType = (categoryKey: string, systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => {
+    setCategories((prev) => {
+      const next = { ...prev };
+      if (next[categoryKey]) {
+        next[categoryKey] = { ...next[categoryKey], systemType };
+      }
+      return next;
+    });
+
+    setBrackets((prev) => {
+      const next = { ...prev };
+      if (next[categoryKey]) {
+        const existing = next[categoryKey];
+        next[categoryKey] = {
+          ...existing,
+          systemType,
+        };
+        if (systemType === 'poomsae-cutoff' && !next[categoryKey].cutoffScores) {
+          const cat = categories[categoryKey];
+          const entrants = cat?.entrants || [];
+          const scores: Record<string, CutoffScore> = {};
+          entrants.forEach((ent) => {
+            const scoreKey = `${ent.name}||${ent.club}`;
+            scores[scoreKey] = {
+              athleteName: ent.name,
+              athleteClub: ent.club,
+            };
+          });
+          next[categoryKey].cutoffScores = scores;
+        }
+      }
+      return next;
+    });
+  };
+
   const handleAutoAssignRings = () => {
     const keys = Object.keys(categories).filter((k) => categories[k].count >= 1);
     if (keys.length === 0) return;
@@ -983,7 +1002,23 @@ export default function App() {
       if (shuffleSeed) {
         entrants = shuffle(entrants);
       }
-      nextBrackets[key] = buildBracketModel(entrants, c.size, key);
+      const model = buildBracketModel(entrants, c.size, key);
+      const systemType = c.systemType || 'kyorugi-pk';
+      model.systemType = systemType;
+      
+      if (systemType === 'poomsae-cutoff') {
+        const existingScores = brackets[key]?.cutoffScores || {};
+        const scores: Record<string, CutoffScore> = {};
+        entrants.forEach((ent) => {
+          const scoreKey = `${ent.name}||${ent.club}`;
+          scores[scoreKey] = existingScores[scoreKey] || {
+            athleteName: ent.name,
+            athleteClub: ent.club,
+          };
+        });
+        model.cutoffScores = scores;
+      }
+      nextBrackets[key] = model;
     });
 
     assignAllBoutNumbers(categories, nextBrackets);
@@ -1034,7 +1069,20 @@ export default function App() {
           const next = { ...prev };
           let entrants = c.entrants.slice(0, 64);
           entrants = shuffle(entrants);
-          next[catKey] = buildBracketModel(entrants, c.size, catKey);
+          const model = buildBracketModel(entrants, c.size, catKey);
+          model.systemType = c.systemType || 'kyorugi-pk';
+          if (c.systemType === 'poomsae-cutoff') {
+            const scores: Record<string, CutoffScore> = {};
+            entrants.forEach((ent) => {
+              const scoreKey = `${ent.name}||${ent.club}`;
+              scores[scoreKey] = {
+                athleteName: ent.name,
+                athleteClub: ent.club,
+              };
+            });
+            model.cutoffScores = scores;
+          }
+          next[catKey] = model;
           assignAllBoutNumbers(categories, next);
           return next;
         });
@@ -1352,11 +1400,20 @@ export default function App() {
   };
 
   // 8. Custom High-Fidelity SVG Print Trigger
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    // Wait for the DOM to update to render all generated brackets
+    await new Promise(r => setTimeout(r, 250));
+
     const TARGET_W = 1010;
     const TARGET_H = 480;
 
     const restoreStates: Array<() => void> = [];
+
+    // Make sure we restore exporting state when print setup is reverted
+    restoreStates.push(() => {
+      setIsExportingPdf(false);
+    });
 
     // Temporarily add 'no-print' class to non-matching bracket pages so browser print ignores them
     if (selectedRingFilter !== 'all') {
@@ -1429,8 +1486,12 @@ export default function App() {
     setPdfExportLoading(true);
     setPdfError('');
     setPdfProgress({ current: 0, total: 0 });
+    setIsExportingPdf(true);
 
     try {
+      // Wait for React to re-render all generated brackets in the DOM
+      await new Promise(r => setTimeout(r, 250));
+
       let elements = Array.from(document.querySelectorAll('.bracket-page-card')) as HTMLElement[];
       if (selectedRingFilter !== 'all') {
         elements = elements.filter((el) => {
@@ -1463,6 +1524,9 @@ export default function App() {
         setPdfProgress({ current: i + 1, total: elements.length });
         const element = elements[i];
 
+        const systemType = element.getAttribute('data-system-type');
+        const isPoomsaeCutoff = systemType === 'poomsae-cutoff';
+
         const canvasWidthAttr = element.getAttribute('data-canvas-width');
         const canvasHeightAttr = element.getAttribute('data-canvas-height');
         
@@ -1478,7 +1542,7 @@ export default function App() {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
           width: element.scrollWidth,
-          height: Math.max(element.scrollHeight, canvasHeight + 170), // Pad for title/footer
+          height: isPoomsaeCutoff ? element.scrollHeight : Math.max(element.scrollHeight, canvasHeight + 170), // Pad for title/footer
           skipFonts: true,
           filter: (node) => {
              return !(node.classList && node.classList.contains('no-print'));
@@ -1532,6 +1596,7 @@ export default function App() {
       pdf.save(filename);
       setPdfExportLoading(false);
       setShowExportModal(false);
+      setIsExportingPdf(false);
       setStatusMessage({
         text: `Successfully saved "${filename}" (${elements.length} divisions exported).`,
         type: 'ok',
@@ -1540,6 +1605,7 @@ export default function App() {
       document.body.classList.remove('exporting-pdf');
       const elements = Array.from(document.querySelectorAll('.bracket-page-card')) as HTMLElement[];
       elements.forEach((el) => el.classList.remove('exporting-active'));
+      setIsExportingPdf(false);
       console.error(err);
       setPdfError(err?.message || String(err) || 'Failed to export PDF.');
       if (err?.stack) {
@@ -1660,6 +1726,171 @@ export default function App() {
         pdf.setDrawColor(226, 232, 240); // slate-200
         pdf.setLineWidth(0.35);
         pdf.line(20, 31, 277, 31);
+
+        if (bracket.systemType === 'poomsae-cutoff') {
+          // Render poomsae cutoff table natively in vector PDF!
+          const items = bracket.cutoffScores && Object.values(bracket.cutoffScores).length > 0 
+            ? Object.values(bracket.cutoffScores)
+            : (bracket.nodes?.[0]?.filter(n => !n.isBye).map(n => ({
+                athleteName: n.name,
+                athleteClub: n.club,
+              })) || []);
+
+          const displayList = [...items].sort((a, b) => {
+            if (a.rank && b.rank) return a.rank - b.rank;
+            if (a.rank) return -1;
+            if (b.rank) return 1;
+            return a.athleteName.localeCompare(b.athleteName);
+          });
+
+          let tableY = 36;
+
+          // Header Row 1
+          pdf.setFillColor(248, 250, 252); // slate-50 background for headers
+          pdf.rect(15, tableY, 267, 10, 'F');
+
+          pdf.setDrawColor(203, 213, 225); // slate-300
+          pdf.setLineWidth(0.35);
+          pdf.rect(15, tableY, 267, 10, 'S');
+
+          // Divider lines inside header row 1
+          pdf.line(30, tableY, 30, tableY + 10);
+          pdf.line(132, tableY, 132, tableY + 10);
+          pdf.line(192, tableY, 192, tableY + 10);
+          pdf.line(252, tableY, 252, tableY + 10);
+          pdf.line(268, tableY, 268, tableY + 10);
+
+          // Header Text row 1
+          pdf.setTextColor(51, 65, 85); // slate-700
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(8.5);
+
+          pdf.text('NO.', 22.5, tableY + 6.5, { align: 'center' });
+          pdf.text('ATHLETE / CLUB', 34, tableY + 6.5);
+          pdf.text('POOMSAE 1', 162, tableY + 6.5, { align: 'center' });
+          pdf.text('POOMSAE 2', 222, tableY + 6.5, { align: 'center' });
+          pdf.text('FINAL', 260, tableY + 6.5, { align: 'center' });
+          pdf.text('RANK', 275, tableY + 6.5, { align: 'center' });
+
+          // Header Row 2
+          tableY += 10;
+          pdf.setFillColor(241, 245, 249); // slate-100 background
+          pdf.rect(15, tableY, 267, 7, 'F');
+          pdf.rect(15, tableY, 267, 7, 'S');
+
+          // Divider lines inside header row 2
+          pdf.line(30, tableY, 30, tableY + 7);
+          pdf.line(132, tableY, 132, tableY + 7);
+          pdf.line(152, tableY, 152, tableY + 7);
+          pdf.line(172, tableY, 172, tableY + 7);
+          pdf.line(192, tableY, 192, tableY + 7);
+          pdf.line(212, tableY, 212, tableY + 7);
+          pdf.line(232, tableY, 232, tableY + 7);
+          pdf.line(252, tableY, 252, tableY + 7);
+          pdf.line(268, tableY, 268, tableY + 7);
+
+          pdf.setTextColor(100, 116, 139); // slate-500
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(7.5);
+
+          pdf.text('Accuracy', 142, tableY + 4.5, { align: 'center' });
+          pdf.text('Present.', 162, tableY + 4.5, { align: 'center' });
+          pdf.text('Total', 182, tableY + 4.5, { align: 'center' });
+
+          pdf.text('Accuracy', 202, tableY + 4.5, { align: 'center' });
+          pdf.text('Present.', 222, tableY + 4.5, { align: 'center' });
+          pdf.text('Total', 242, tableY + 4.5, { align: 'center' });
+
+          tableY += 7;
+
+          // Rows
+          displayList.forEach((ath, idx) => {
+            // Background row colors
+            if (idx % 2 === 1) {
+              pdf.setFillColor(248, 250, 252); // slate-50
+              pdf.rect(15, tableY, 267, 12, 'F');
+            } else {
+              pdf.setFillColor(255, 255, 255);
+              pdf.rect(15, tableY, 267, 12, 'F');
+            }
+
+            pdf.setDrawColor(226, 232, 240); // slate-200
+            pdf.rect(15, tableY, 267, 12, 'S');
+
+            // Draw divider lines for row
+            pdf.line(30, tableY, 30, tableY + 12);
+            pdf.line(132, tableY, 132, tableY + 12);
+            pdf.line(152, tableY, 152, tableY + 12);
+            pdf.line(172, tableY, 172, tableY + 12);
+            pdf.line(192, tableY, 192, tableY + 12);
+            pdf.line(212, tableY, 212, tableY + 12);
+            pdf.line(232, tableY, 232, tableY + 12);
+            pdf.line(252, tableY, 252, tableY + 12);
+            pdf.line(268, tableY, 268, tableY + 12);
+
+            // Print values
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(8.5);
+            pdf.setTextColor(15, 23, 42); // slate-900
+
+            // 1. No.
+            const noStr = String(idx + 1);
+            pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
+
+            // 2. Athlete / Club
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(ath.athleteName.toUpperCase(), 34, tableY + 5.2);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(100, 116, 139); // slate-500
+            pdf.text((ath.athleteClub || '').toUpperCase(), 34, tableY + 9.5);
+
+            // Scores
+            pdf.setFontSize(8);
+            pdf.setTextColor(51, 65, 85); // slate-700
+
+            const p1Acc = ath.accuracy1 !== undefined && ath.accuracy1 > 0 ? ath.accuracy1.toFixed(1) : '';
+            const p1Pres = ath.presentation1 !== undefined && ath.presentation1 > 0 ? ath.presentation1.toFixed(1) : '';
+            const p1TotalVal = (ath.accuracy1 || 0) + (ath.presentation1 || 0);
+            const p1Total = p1TotalVal > 0 ? p1TotalVal.toFixed(1) : '';
+
+            const p2Acc = ath.accuracy2 !== undefined && ath.accuracy2 > 0 ? ath.accuracy2.toFixed(1) : '';
+            const p2Pres = ath.presentation2 !== undefined && ath.presentation2 > 0 ? ath.presentation2.toFixed(1) : '';
+            const p2TotalVal = (ath.accuracy2 || 0) + (ath.presentation2 || 0);
+            const p2Total = p2TotalVal > 0 ? p2TotalVal.toFixed(1) : '';
+
+            const finalStr = ath.finalScore !== undefined && ath.finalScore > 0 ? ath.finalScore.toFixed(2) : '';
+
+            pdf.text(p1Acc, 142, tableY + 7.5, { align: 'center' });
+            pdf.text(p1Pres, 162, tableY + 7.5, { align: 'center' });
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(p1Total, 182, tableY + 7.5, { align: 'center' });
+
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(p2Acc, 202, tableY + 7.5, { align: 'center' });
+            pdf.text(p2Pres, 222, tableY + 7.5, { align: 'center' });
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(p2Total, 242, tableY + 7.5, { align: 'center' });
+
+            pdf.setFontSize(9);
+            pdf.setTextColor(15, 23, 42); // slate-900
+            pdf.text(finalStr, 260, tableY + 7.5, { align: 'center' });
+
+            pdf.setFontSize(8.5);
+            const rankStr = ath.rank !== undefined ? String(ath.rank) : '';
+            pdf.text(rankStr, 275, tableY + 7.5, { align: 'center' });
+
+            tableY += 12;
+          });
+
+          // Add footer at the bottom of page
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(148, 163, 184); // slate-400
+          pdf.text('Generated via MY-TKD Tournament Manager - Poomsae Cut-Off Scoring Sheet', centerX, 198, { align: 'center' });
+
+          continue; // Skip rest of sparring bracket logic for this division
+        }
 
         // Compute bracket structure positions (mirroring BracketCanvas exactly)
         const { size, numRounds, nodes } = bracket;
@@ -2033,7 +2264,7 @@ export default function App() {
                 pdf.setFont('helvetica', 'bold');
                 pdf.setFontSize(Math.max(5, 10 * scale));
                 if (champName) {
-                  pdf.text(`🏆  ${champName}`, left + width / 2, top + champHeight / 2 + 1 * scale, { align: 'center', baseline: 'middle' });
+                  pdf.text(`${champName}`, left + width / 2, top + champHeight / 2 + 1 * scale, { align: 'center', baseline: 'middle' });
                 }
               }
             }
@@ -2060,7 +2291,7 @@ export default function App() {
         pdf.setTextColor(51, 65, 85); // slate-700
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(7.5);
-        pdf.text('🏆 FINAL STANDINGS 🏆', stLeft + standingsW / 2, stTop + 3.5, { align: 'center', baseline: 'middle' });
+        pdf.text('FINAL STANDINGS', stLeft + standingsW / 2, stTop + 3.5, { align: 'center', baseline: 'middle' });
 
         const rowH = (standingsH - 7) / 4; // 27 / 4 = 6.75 mm per row
         const medals = ['1.', '2.', '3.', '4.'];
@@ -2220,9 +2451,11 @@ export default function App() {
           tournamentName={tournamentName}
           setTournamentName={setTournamentName}
           onClearAll={handleClearAll}
-          hasData={bracketKeys.length > 0}
+          hasData={tournamentName.trim().length > 0 || roster.length > 0 || bracketKeys.length > 0}
           saveStatus={saveStatus}
           onOpenEventsModal={() => setIsEventsModalOpen(true)}
+          onSaveEvent={() => handleSaveCurrentEvent()}
+          onNewEvent={handleCreateNewBlankEvent}
           savedEventsCount={savedEvents.length}
           onLogout={handleLogout}
           currentUser={currentUser}
@@ -2236,7 +2469,7 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
           
           {/* LEFT SIDEBAR NAVIGATION & QUICK CONTROL CENTER */}
-          {!isPublicReportOnly && (
+          {currentUser && !isPublicReportOnly && (
             <div className="lg:col-span-3 space-y-6 no-print print:hidden flex flex-col">
               {/* View Switching Tab Selector */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-sm space-y-3.5">
@@ -2484,7 +2717,7 @@ export default function App() {
           )}
 
           {/* RIGHT MASTER CONTENT VIEW AREA */}
-          <div className={`${isPublicReportOnly ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-6 print:w-full print:p-0`}>
+          <div className={`${(!currentUser || isPublicReportOnly) ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-6 print:w-full print:p-0`}>
             {isPublicReportOnly && bracketKeys.length === 0 ? (
               statusMessage.type === 'err' ? (
                 <div className="max-w-md mx-auto bg-white border border-rose-200 rounded-3xl p-8 shadow-md text-center space-y-4">
@@ -2537,31 +2770,37 @@ export default function App() {
               )
             ) : activeTab === 'account' ? (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
-                  <div className="flex items-start gap-4">
-                    <div className="inline-flex bg-emerald-500/10 p-3 rounded-full border border-emerald-500/20 text-emerald-500 shrink-0">
-                      <Users className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-slate-800 tracking-tight">Active Admin: {currentUser}</h3>
-                      <p className="text-sm font-semibold text-slate-500 mt-1">You are logged into the administration console.</p>
-                      <button
-                        onClick={handleLogout}
-                        className="mt-4 px-5 py-2 bg-slate-900 border border-slate-800 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-800 transition-colors cursor-pointer"
-                      >
-                        Sign Out
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {currentUser && (
-                  <ScoreboardSyncPanel
-                    brackets={brackets}
-                    roster={roster}
-                    categories={categories}
-                    tournamentName={tournamentName}
+                {!currentUser ? (
+                  <AuthScreen 
+                    onLogin={handleLogin} 
                   />
+                ) : (
+                  <>
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6">
+                      <div className="flex items-start gap-4">
+                        <div className="inline-flex bg-emerald-500/10 p-3 rounded-full border border-emerald-500/20 text-emerald-500 shrink-0">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-black text-slate-800 tracking-tight">Active Admin: {currentUser}</h3>
+                          <p className="text-sm font-semibold text-slate-500 mt-1">You are logged into the administration console.</p>
+                          <button
+                            onClick={handleLogout}
+                            className="mt-4 px-5 py-2 bg-slate-900 border border-slate-800 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            Sign Out
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <ScoreboardSyncPanel
+                      brackets={brackets}
+                      roster={roster}
+                      categories={categories}
+                      tournamentName={tournamentName}
+                    />
+                  </>
                 )}
               </div>
             ) : (!tournamentName || !currentEventId) && !isPublicReportOnly ? (
@@ -2749,6 +2988,7 @@ export default function App() {
                     setRingCount={setRingCount}
                     onAutoAssignRings={handleAutoAssignRings}
                     onUpdateCategoryRing={handleUpdateCategoryRing}
+                    onUpdateCategorySystemType={handleUpdateCategorySystemType}
                     shuffleSeed={shuffleSeed}
                     setShuffleSeed={setShuffleSeed}
                     onGenerateBrackets={handleGenerateBrackets}
@@ -2853,33 +3093,7 @@ export default function App() {
               </div>
             )}
 
-            {/* 3. ACCOUNT / AUTHENTICATION VIEW */}
-            {activeTab === 'account' && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print">
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight mb-6">User Account Settings</h2>
-                  {!currentUser ? (
-                    <AuthScreen onLogin={handleLogin} />
-                  ) : (
-                    <div className="text-center py-10 space-y-4">
-                      <div className="inline-flex bg-emerald-500/10 p-5 rounded-full border border-emerald-500/20 text-emerald-500 mb-2">
-                        <Users className="w-10 h-10" />
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-800">Hello, {currentUser}</h3>
-                      <p className="text-sm text-slate-500">You are currently logged in to the admin dashboard.</p>
-                      <button
-                        onClick={handleLogout}
-                        className="mt-6 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow hover:bg-slate-800 transition-colors cursor-pointer"
-                      >
-                        Sign Out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
-            {/* Brackets generation grid assembly inside right master column */}
             {activeTab === 'brackets' && bracketKeys.length > 0 && (
               <div className="mt-8 pt-6 border-t border-slate-200 print:mt-0 print:pt-0 print:border-none">
                 <div className="flex flex-col md:flex-row md:items-baseline justify-between mb-6 gap-4 print:hidden">
@@ -3074,76 +3288,96 @@ export default function App() {
                   </div>
                 </div>
 
-                {filteredBracketKeys.length === 0 ? (
-                  <div className="bg-white border border-dashed border-slate-250 rounded-2xl p-10 text-center space-y-4 no-print my-6">
-                    <div className="inline-flex p-4 bg-amber-50 rounded-full border border-amber-100 text-amber-500">
-                      <Search className="w-8 h-8" />
+                {(() => {
+                  const bracketsToRenderKeys = isExportingPdf ? bracketKeys : filteredBracketKeys;
+                  if (bracketsToRenderKeys.length === 0) {
+                    return (
+                      <div className="bg-white border border-dashed border-slate-250 rounded-2xl p-10 text-center space-y-4 no-print my-6">
+                        <div className="inline-flex p-4 bg-amber-50 rounded-full border border-amber-100 text-amber-500">
+                          <Search className="w-8 h-8" />
+                        </div>
+                        <h3 className="font-extrabold text-slate-800 text-base">No brackets match your search query</h3>
+                        <p className="text-xs text-slate-550 max-w-md mx-auto leading-relaxed">
+                          We couldn't find any divisions or competitor/player names containing{' '}
+                          <strong className="font-semibold text-slate-800">"{adminSearchQuery}"</strong>. Please try a different term or press button below to reset.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setAdminSearchQuery('')}
+                          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-850 text-white font-bold px-4.5 py-2 rounded-xl text-xs transition-all active:scale-95 cursor-pointer shadow-sm"
+                        >
+                          <span>Clear Search Filter</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-6 print:space-y-0">
+                      {bracketsToRenderKeys.map((key) => {
+                        const model = brackets[key];
+                        const cat = categories[key];
+                        return (
+                          <BracketCanvas
+                            key={key}
+                            bracket={model}
+                            ring={getRingLabel(cat?.ring || 1)}
+                            entrantCount={cat?.count || 0}
+                            layout={bracketLayout}
+                            boutLabelFormat={boutLabelFormat}
+                            isPublicView={isPublicReportOnly}
+                            onReshuffle={() => handleReshuffleSingleCategory(key)}
+                            onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
+                            onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
+                            onUpdateCutoffScores={(nextScores) => {
+                              setBrackets((prev) => {
+                                const existing = prev[key];
+                                if (!existing) return prev;
+                                return {
+                                  ...prev,
+                                  [key]: {
+                                    ...existing,
+                                    cutoffScores: nextScores,
+                                  },
+                                };
+                              });
+                            }}
+                            onUpdateStandings={(nextStandings) => {
+                              setBrackets((prev) => {
+                                const existing = prev[key];
+                                if (!existing) return prev;
+                                return {
+                                  ...prev,
+                                  [key]: {
+                                    ...existing,
+                                    standings: nextStandings,
+                                  },
+                                };
+                              });
+                            }}
+                            tournamentName={tournamentName}
+                            onUpdateLeafNode={(i, name, club, isBye) => {
+                              setBrackets((prev) => {
+                                const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
+                                assignAllBoutNumbers(categories, next);
+                                return next;
+                              });
+                            }}
+                            onSwapLeafNodes={(i, j) => {
+                              setBrackets((prev) => {
+                                const next = handleSwapLeafNodes(prev, key, i, j);
+                                assignAllBoutNumbers(categories, next);
+                                return next;
+                              });
+                            }}
+                            categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
+                            onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
+                          />
+                        );
+                      })}
                     </div>
-                    <h3 className="font-extrabold text-slate-800 text-base">No brackets match your search query</h3>
-                    <p className="text-xs text-slate-550 max-w-md mx-auto leading-relaxed">
-                      We couldn't find any divisions or competitor/player names containing{' '}
-                      <strong className="font-semibold text-slate-800">"{adminSearchQuery}"</strong>. Please try a different term or press button below to reset.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setAdminSearchQuery('')}
-                      className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-850 text-white font-bold px-4.5 py-2 rounded-xl text-xs transition-all active:scale-95 cursor-pointer shadow-sm"
-                    >
-                      <span>Clear Search Filter</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-6 print:space-y-0">
-                    {filteredBracketKeys.map((key) => {
-                      const model = brackets[key];
-                      const cat = categories[key];
-                      return (
-                        <BracketCanvas
-                          key={key}
-                          bracket={model}
-                          ring={getRingLabel(cat?.ring || 1)}
-                          entrantCount={cat?.count || 0}
-                          layout={bracketLayout}
-                          boutLabelFormat={boutLabelFormat}
-                          isPublicView={isPublicReportOnly}
-                          onReshuffle={() => handleReshuffleSingleCategory(key)}
-                          onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
-                          onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
-                          onUpdateStandings={(nextStandings) => {
-                            setBrackets((prev) => {
-                              const existing = prev[key];
-                              if (!existing) return prev;
-                              return {
-                                ...prev,
-                                [key]: {
-                                  ...existing,
-                                  standings: nextStandings,
-                                },
-                              };
-                            });
-                          }}
-                          tournamentName={tournamentName}
-                          onUpdateLeafNode={(i, name, club, isBye) => {
-                            setBrackets((prev) => {
-                              const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
-                              assignAllBoutNumbers(categories, next);
-                              return next;
-                            });
-                          }}
-                          onSwapLeafNodes={(i, j) => {
-                            setBrackets((prev) => {
-                              const next = handleSwapLeafNodes(prev, key, i, j);
-                              assignAllBoutNumbers(categories, next);
-                              return next;
-                            });
-                          }}
-                          categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
-                          onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 

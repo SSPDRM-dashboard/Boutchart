@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BracketModel, BracketNode } from '../types';
+import { BracketModel, BracketNode, CutoffScore } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
@@ -25,6 +25,7 @@ interface BracketCanvasProps {
   boutLabelFormat?: 'alpha-2' | 'thousands-3';
   onUpdateStandings?: (standings: string[]) => void;
   isPublicView?: boolean;
+  onUpdateCutoffScores?: (nextScores: Record<string, CutoffScore>) => void;
 }
 
 function getFormattedBout(
@@ -78,6 +79,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   boutLabelFormat = 'alpha-2',
   onUpdateStandings,
   isPublicView = false,
+  onUpdateCutoffScores,
 }) => {
   const [scale, setScale] = useState(1);
   const [isAutoFit, setIsAutoFit] = useState(true);
@@ -95,6 +97,81 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [certificateAthlete, setCertificateAthlete] = useState<{ name: string; club: string; category: string } | null>(null);
+
+  const [localScores, setLocalScores] = useState<Record<string, CutoffScore>>({});
+
+  useEffect(() => {
+    if (bracket && bracket.cutoffScores) {
+      setLocalScores(JSON.parse(JSON.stringify(bracket.cutoffScores)));
+    } else {
+      setLocalScores({});
+    }
+  }, [bracket?.cutoffScores, bracket?.categoryKey]);
+
+  const handleScoreChange = (scoreKey: string, field: keyof CutoffScore, value: string) => {
+    const parsed = value === '' ? undefined : parseFloat(value);
+    setLocalScores((prev) => {
+      const next = { ...prev };
+      if (!next[scoreKey]) {
+        next[scoreKey] = { athleteName: scoreKey.split('||')[0], athleteClub: scoreKey.split('||')[1] || '' };
+      }
+      next[scoreKey] = {
+        ...next[scoreKey],
+        [field]: parsed,
+      };
+      
+      const ath = next[scoreKey];
+      const t1 = (ath.accuracy1 || 0) + (ath.presentation1 || 0);
+      const t2 = (ath.accuracy2 || 0) + (ath.presentation2 || 0);
+      const hasP2 = ath.accuracy2 !== undefined || ath.presentation2 !== undefined;
+      ath.finalScore = hasP2 ? parseFloat(((t1 + t2) / 2).toFixed(3)) : parseFloat(t1.toFixed(3));
+      
+      return next;
+    });
+  };
+
+  const handleCalculateAndSaveRanks = () => {
+    const list = Object.values(localScores) as CutoffScore[];
+    if (list.length === 0) return;
+
+    const sorted = [...list].sort((a, b) => {
+      const scoreA = a.finalScore || 0;
+      const scoreB = b.finalScore || 0;
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      const presA = (a.presentation1 || 0) + (a.presentation2 || 0);
+      const presB = (b.presentation1 || 0) + (b.presentation2 || 0);
+      if (presB !== presA) {
+        return presB - presA;
+      }
+      return a.athleteName.localeCompare(b.athleteName);
+    });
+
+    const updatedScores: Record<string, CutoffScore> = { ...localScores };
+    sorted.forEach((ath, index) => {
+      const key = `${ath.athleteName}||${ath.athleteClub}`;
+      if (updatedScores[key]) {
+        updatedScores[key].rank = index + 1;
+      }
+    });
+
+    setLocalScores(updatedScores);
+    if (onUpdateCutoffScores) {
+      onUpdateCutoffScores(updatedScores);
+    }
+
+    const newStandings = [
+      sorted[0] ? `${sorted[0].athleteName} (${sorted[0].athleteClub})` : '',
+      sorted[1] ? `${sorted[1].athleteName} (${sorted[1].athleteClub})` : '',
+      sorted[2] ? `${sorted[2].athleteName} (${sorted[2].athleteClub})` : '',
+      sorted[3] ? `${sorted[3].athleteName} (${sorted[3].athleteClub})` : '',
+    ];
+
+    if (onUpdateStandings) {
+      onUpdateStandings(newStandings);
+    }
+  };
 
   const [dbClubs, setDbClubs] = useState<string[]>([]);
   const [clubSearchFocused, setClubSearchFocused] = useState(false);
@@ -433,6 +510,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       data-canvas-height={canvasHeight}
       data-ring={ring}
       data-category={categoryKey}
+      data-system-type={bracket.systemType || 'kyorugi-pk'}
       className="bracket-page-card bracket-page bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
     >
       <style>{`
@@ -468,51 +546,268 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
         {/* Action Controls hidden on general print layout */}
         <div className="flex justify-center items-center gap-1.5 mt-3 no-print">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2">
-            <button
-              onClick={() => handleZoom(0.85)}
-              className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleResetZoom}
-              className={`p-1 px-2 rounded text-[10px] font-extrabold transition-all cursor-pointer uppercase tracking-wider ${isAutoFit ? 'bg-amber-500 text-slate-950 font-black' : 'bg-transparent text-slate-600 hover:bg-white font-bold'}`}
-              title={isAutoFit ? "Auto-Fit: Active. Click to lock zoom" : "Click to auto-fit to screen"}
-            >
-              {isAutoFit ? 'Auto-Fit' : `${(scale * 100).toFixed(0)}%`}
-            </button>
-            <button
-              onClick={() => handleZoom(1.15)}
-              className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer"
-              title="Zoom In"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {!isPublicView && (
+          {bracket.systemType === 'poomsae-cutoff' ? (
+            <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold select-none">
+              <span>🥋</span>
+              <span>System: Poomsae Cut-Off Scoring Sheet</span>
+            </div>
+          ) : (
             <>
-              <button
-                onClick={onReshuffle}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 hover:text-slate-950 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
-              >
-                <Shuffle className="w-3.5 h-3.5" />
-                <span>Reshuffle seeds</span>
-              </button>
-
-              <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold select-none">
-                <span className="text-amber-500 font-sans">✨</span>
-                <span>Drag & Drop players to swap slots</span>
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2">
+                <button
+                  onClick={() => handleZoom(0.85)}
+                  className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleResetZoom}
+                  className={`p-1 px-2 rounded text-[10px] font-extrabold transition-all cursor-pointer uppercase tracking-wider ${isAutoFit ? 'bg-amber-500 text-slate-950 font-black' : 'bg-transparent text-slate-600 hover:bg-white font-bold'}`}
+                  title={isAutoFit ? "Auto-Fit: Active. Click to lock zoom" : "Click to auto-fit to screen"}
+                >
+                  {isAutoFit ? 'Auto-Fit' : `${(scale * 100).toFixed(0)}%`}
+                </button>
+                <button
+                  onClick={() => handleZoom(1.15)}
+                  className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
               </div>
+
+              {!isPublicView && (
+                <>
+                  <button
+                    onClick={onReshuffle}
+                    className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 hover:text-slate-950 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Shuffle className="w-3.5 h-3.5" />
+                    <span>Reshuffle seeds</span>
+                  </button>
+
+                  <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold select-none">
+                    <span className="text-amber-500 font-sans">✨</span>
+                    <span>Drag & Drop players to swap slots</span>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
       </div>
 
       {/* Symmetrical split bracket workspace container */}
-      <div ref={containerRef} className="overflow-x-auto overflow-y-hidden py-1 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
+      {bracket.systemType === 'poomsae-cutoff' ? (
+        <div className="mt-6 max-w-4xl mx-auto space-y-6">
+          {/* Scoring Header / Control Panel */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-500/5 p-4 rounded-2xl border border-slate-200/50 no-print">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">📊</span>
+              <div className="text-left">
+                <h3 className="text-sm font-extrabold text-slate-900">Poomsae Cut-Off Tournament Panel</h3>
+                <p className="text-[11px] text-slate-500 font-bold">Record scores for competitor's performances. Ranks are sorted automatically descending by Final Score.</p>
+              </div>
+            </div>
+            
+            {!isPublicView && (
+              <button
+                type="button"
+                onClick={handleCalculateAndSaveRanks}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <span>🏆</span>
+                <span>Apply Ranks & Standings</span>
+              </button>
+            )}
+          </div>
+
+          {/* Scoring Sheet Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-extrabold text-[10px] font-mono uppercase tracking-wider border-b border-slate-200/60">
+                    <th className="py-3.5 px-4 text-center w-12">No.</th>
+                    <th className="py-3.5 px-4">Athlete / Club</th>
+                    <th className="py-3.5 px-4 text-center bg-blue-50/20" colSpan={3}>Poomsae 1</th>
+                    <th className="py-3.5 px-4 text-center bg-amber-50/10" colSpan={3}>Poomsae 2</th>
+                    <th className="py-3.5 px-4 text-center w-24">Final Score</th>
+                    <th className="py-3.5 px-4 text-center w-16">Rank</th>
+                    <th className="py-3.5 px-4 text-center w-24 no-print">Actions</th>
+                  </tr>
+                  <tr className="bg-slate-100/40 text-[9px] font-bold text-slate-400 border-b border-slate-200/60">
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4 text-center text-blue-600 w-16">Accuracy</th>
+                    <th className="py-1 px-4 text-center text-blue-600 w-16">Present.</th>
+                    <th className="py-1 px-4 text-center text-blue-700 bg-blue-50/30 w-16">Total</th>
+                    <th className="py-1 px-4 text-center text-amber-600 w-16">Accuracy</th>
+                    <th className="py-1 px-4 text-center text-amber-600 w-16">Present.</th>
+                    <th className="py-1 px-4 text-center text-amber-700 bg-amber-50/25 w-16">Total</th>
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4 no-print"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150">
+                  {(() => {
+                    // Gather participants
+                    const items = Object.values(localScores).length > 0 
+                      ? Object.values(localScores)
+                      : (bracket.nodes?.[0]?.filter(n => !n.isBye).map(n => ({
+                          athleteName: n.name,
+                          athleteClub: n.club,
+                        })) || []);
+
+                    // If no items, show empty
+                    if (items.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-sm text-slate-400 italic">
+                            No competitors in this class.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Sort: if ranks exist, sort by rank ascending; if not, sort by name
+                    const displayList = [...items].sort((a, b) => {
+                      if (a.rank && b.rank) return a.rank - b.rank;
+                      if (a.rank) return -1;
+                      if (b.rank) return 1;
+                      return a.athleteName.localeCompare(b.athleteName);
+                    });
+
+                    return displayList.map((ath, idx) => {
+                      const scoreKey = `${ath.athleteName}||${ath.athleteClub}`;
+                      const p1Acc = ath.accuracy1;
+                      const p1Pres = ath.presentation1;
+                      const p1Total = (p1Acc || 0) + (p1Pres || 0);
+
+                      const p2Acc = ath.accuracy2;
+                      const p2Pres = ath.presentation2;
+                      const p2Total = (p2Acc || 0) + (p2Pres || 0);
+
+                      const displayFinal = ath.finalScore !== undefined && ath.finalScore > 0
+                        ? ath.finalScore.toFixed(2)
+                        : p1Total > 0 ? p1Total.toFixed(2) : <span className="print:hidden">-</span>;
+
+                      const rank = ath.rank;
+                      let rankBadge = null;
+                      if (rank === 1) rankBadge = <span className="text-lg" title="1st Place (Gold)">🥇</span>;
+                      else if (rank === 2) rankBadge = <span className="text-lg" title="2nd Place (Silver)">🥈</span>;
+                      else if (rank === 3) rankBadge = <span className="text-lg" title="3rd Place (Bronze)">🥉</span>;
+                      else if (rank === 4) rankBadge = <span className="text-lg text-amber-700/60" title="4th Place (Bronze)">🥉</span>;
+                      else if (rank) rankBadge = <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md">#{rank}</span>;
+                      else rankBadge = <span className="text-slate-300 font-mono text-[11px] print:hidden">-</span>;
+
+                      return (
+                        <tr key={scoreKey} className="hover:bg-slate-50/50 transition-all text-slate-700">
+                          <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400 font-bold">{idx + 1}</td>
+                          <td className="py-3 px-4 text-left">
+                            <div className="font-extrabold text-xs text-slate-900">{ath.athleteName}</div>
+                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{ath.athleteClub}</div>
+                          </td>
+                          
+                          {/* Poomsae 1 */}
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="4"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p1Acc !== undefined ? p1Acc : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'accuracy1', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="6"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p1Pres !== undefined ? p1Pres : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'presentation1', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center font-black text-xs text-blue-900 bg-blue-50/10">
+                            {p1Total > 0 ? p1Total.toFixed(2) : <span className="print:hidden">-</span>}
+                          </td>
+
+                          {/* Poomsae 2 */}
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="4"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p2Acc !== undefined ? p2Acc : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'accuracy2', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="6"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p2Pres !== undefined ? p2Pres : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'presentation2', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center font-black text-xs text-amber-900 bg-amber-50/10">
+                            {p2Total > 0 ? p2Total.toFixed(2) : <span className="print:hidden">-</span>}
+                          </td>
+
+                          {/* Final Score */}
+                          <td className="py-3 px-4 text-center font-black text-xs text-slate-900 bg-slate-50">
+                            {displayFinal}
+                          </td>
+                          <td className="py-3 px-4 text-center font-extrabold">{rankBadge}</td>
+
+                          {/* Action Button: Print Certificate */}
+                          <td className="py-3 px-4 text-center no-print">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCertificateAthlete({
+                                  name: ath.athleteName,
+                                  club: ath.athleteClub,
+                                  category: bracket.categoryKey || bracket.categoryName || '',
+                                });
+                                setShowCertificateModal(true);
+                              }}
+                              className="p-1 px-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[10px] uppercase tracking-wider cursor-pointer transition-all active:scale-95 shadow-sm"
+                              title="Print achievement certificate for this athlete"
+                            >
+                              Print Cert
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div ref={containerRef} className="overflow-x-auto overflow-y-hidden py-1 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
         <div
           className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none"
           style={{
@@ -969,7 +1264,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
               }}
             >
               <div className="bg-slate-50 border-b border-slate-350 px-6 py-3.5 text-[14px] font-black text-slate-600 uppercase tracking-widest text-center flex items-center justify-center gap-2">
-                🏆 Final Standings 🏆
+                FINAL STANDINGS
               </div>
               <div className="divide-y divide-slate-200">
                 {(() => {
@@ -1137,39 +1432,42 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Manual Writing Final Standings Card at the bottom center (for manual writing after download) */}
-      <div className="mt-8 flex justify-center w-full no-print-break-inside manual-standings-box-wrapper">
-        <div className="w-[450px] border border-slate-300 rounded-2xl bg-white overflow-hidden shadow-sm">
-          <div className="bg-slate-50 border-b border-slate-300 px-6 py-3.5 text-[14px] font-black text-slate-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">
-            🏆 FINAL STANDINGS 🏆
-          </div>
-          <div className="divide-y divide-slate-250">
-            {[1, 2, 3, 4].map((num) => {
-              const labelColor =
-                num === 1
-                  ? 'text-amber-500'
-                  : num === 2
-                  ? 'text-slate-400'
-                  : num === 3
-                  ? 'text-amber-700/60'
-                  : 'text-slate-500';
-              return (
-                <div key={num} className="px-6 py-4 flex items-center justify-between text-base bg-white">
-                  <div className="flex items-center gap-4">
-                    <span className={`font-black w-6 text-[18px] ${labelColor}`}>
-                      {num}.
-                    </span>
-                    {/* Empty space for manual writing */}
-                    <div className="w-[300px] h-6"></div>
+      {bracket.systemType !== 'poomsae-cutoff' && (
+        <div className="mt-8 flex justify-center w-full no-print-break-inside manual-standings-box-wrapper">
+          <div className="w-[450px] border border-slate-300 rounded-2xl bg-white overflow-hidden shadow-sm">
+            <div className="bg-slate-50 border-b border-slate-300 px-6 py-3.5 text-[14px] font-black text-slate-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">
+              FINAL STANDINGS
+            </div>
+            <div className="divide-y divide-slate-250">
+              {[1, 2, 3, 4].map((num) => {
+                const labelColor =
+                  num === 1
+                    ? 'text-amber-500'
+                    : num === 2
+                    ? 'text-slate-400'
+                    : num === 3
+                    ? 'text-amber-700/60'
+                    : 'text-slate-500';
+                return (
+                  <div key={num} className="px-6 py-4 flex items-center justify-between text-base bg-white">
+                    <div className="flex items-center gap-4">
+                      <span className={`font-black w-6 text-[18px] ${labelColor}`}>
+                        {num}.
+                      </span>
+                      {/* Empty space for manual writing */}
+                      <div className="w-[300px] h-6"></div>
+                    </div>
+                    <span className="text-slate-300 font-bold text-lg pr-2">]</span>
                   </div>
-                  <span className="text-slate-300 font-bold text-lg pr-2">]</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
 
 

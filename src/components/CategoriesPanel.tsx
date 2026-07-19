@@ -8,6 +8,7 @@ interface CategoriesPanelProps {
   setRingCount: (count: number) => void;
   onAutoAssignRings: () => void;
   onUpdateCategoryRing: (categoryKey: string, ring: number) => void;
+  onUpdateCategorySystemType?: (categoryKey: string, systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => void;
   shuffleSeed: boolean;
   setShuffleSeed: (shuffle: boolean) => void;
   onGenerateBrackets: (targetRing?: number) => void;
@@ -28,6 +29,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setRingCount,
   onAutoAssignRings,
   onUpdateCategoryRing,
+  onUpdateCategorySystemType,
   shuffleSeed,
   setShuffleSeed,
   onGenerateBrackets,
@@ -230,6 +232,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-bold text-[11px] uppercase tracking-wider">
                       <th className="px-4 py-3">Weight Class</th>
+                      <th className="px-4 py-3">System Type</th>
                       <th className="px-4 py-3">Entrants Count</th>
                       <th className="px-4 py-3">Matches Needed</th>
                       <th className="px-4 py-3">Bracket Layout Size</th>
@@ -240,7 +243,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                     {filteredUnassignedKeys.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-6 text-slate-400 italic text-xs">
+                        <td colSpan={7} className="text-center py-6 text-slate-400 italic text-xs">
                           No unallocated weight classes match your search query.
                         </td>
                       </tr>
@@ -266,6 +269,24 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                 drag me
                               </span>
                             </td>
+
+                            {/* System Type Select */}
+                            <td className="px-4 py-3.5">
+                              <select
+                                value={cat.systemType || 'kyorugi-pk'}
+                                onChange={(e) => {
+                                  const val = e.target.value as any;
+                                  if (onUpdateCategorySystemType) {
+                                    onUpdateCategorySystemType(key, val);
+                                  }
+                                }}
+                                className="bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none cursor-pointer transition-all"
+                              >
+                                <option value="kyorugi-pk">Sparring (Kyorugi PK)</option>
+                                <option value="poomsae-pk">Poomsae (PK/Bracket)</option>
+                                <option value="poomsae-cutoff">Poomsae (Cut-off Score)</option>
+                              </select>
+                            </td>
                             
                             {/* Count */}
                             <td className="px-4 py-3.5 font-mono text-slate-600 font-semibold">
@@ -274,12 +295,12 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                             
                             {/* Match counts */}
                             <td className="px-4 py-3.5 text-xs text-slate-500 font-mono">
-                              {hasMatches ? `${cat.count - 1} matches` : '—'}
+                              {cat.systemType === 'poomsae-cutoff' ? '— (Scoring)' : (hasMatches ? `${cat.count - 1} matches` : '—')}
                             </td>
                             
                             {/* Bracket layout size */}
                             <td className="px-4 py-3.5 font-mono text-xs font-medium text-slate-600">
-                              {hasMatches ? `${cat.size}-draw bracket` : 'None'}
+                              {cat.systemType === 'poomsae-cutoff' ? 'Cut-off Sheet' : (hasMatches ? `${cat.size}-draw bracket` : 'None')}
                             </td>
                             
                             {/* Status */}
@@ -471,11 +492,32 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
                               <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold font-mono">
                                 <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{cat.count} athletes</span>
-                                <span className="text-slate-400">{cat.size}-draw</span>
+                                <span className="text-slate-400">
+                                  {cat.systemType === 'poomsae-cutoff' ? 'Cut-off' : `${cat.size}-draw`}
+                                </span>
+                              </div>
+
+                              {/* System Type select right on the card */}
+                              <div className="flex items-center gap-1 border-t border-slate-100 pt-2 mt-0.5">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono font-bold">Type:</span>
+                                <select
+                                  value={cat.systemType || 'kyorugi-pk'}
+                                  onChange={(e) => {
+                                    const val = e.target.value as any;
+                                    if (onUpdateCategorySystemType) {
+                                      onUpdateCategorySystemType(catKey, val);
+                                    }
+                                  }}
+                                  className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-extrabold text-slate-700 outline-none cursor-pointer transition-all w-full shrink-0"
+                                >
+                                  <option value="kyorugi-pk">Sparring (Kyorugi PK)</option>
+                                  <option value="poomsae-pk">Poomsae (PK)</option>
+                                  <option value="poomsae-cutoff">Poomsae (Cut-off)</option>
+                                </select>
                               </div>
 
                               {/* Re-route allocation selector right on the card */}
-                              <div className="flex items-center gap-1 border-t border-slate-100 pt-2 mt-0.5">
+                              <div className="flex items-center gap-1 border-t border-slate-100 pt-1.5 mt-0.5">
                                 <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono">Move:</span>
                                 <select
                                   value={cat.ring || 0}

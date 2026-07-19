@@ -59,26 +59,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>('photo-matrix');
+  const activeReportStyle = isPublicView ? 'photo-matrix' : reportStyle;
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
   const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});
-
-  React.useEffect(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const playerParam = urlParams.get('player') || urlParams.get('search');
-      if (playerParam) {
-        setSearchQuery(playerParam);
-        setReportStyle('individual-lookup');
-      }
-      const clubParam = urlParams.get('club');
-      if (clubParam) {
-        setSelectedClub(clubParam);
-      }
-    } catch (e) {
-      console.warn('URL params parsing failed inside ClubReportPanel', e);
-    }
-  }, []);
 
   const [shareStatus, setShareStatus] = useState<'silent' | 'loading' | 'copied' | 'error'>('silent');
   const [shareUrl, setShareUrl] = useState('');
@@ -572,6 +556,24 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
   const clubList = Array.from(new Set(athleteList.map(a => a.club))).sort((a, b) => a.localeCompare(b));
 
+  React.useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const playerParam = urlParams.get('player') || urlParams.get('search');
+      if (playerParam) {
+        setSearchQuery(playerParam);
+        setReportStyle('individual-lookup');
+      }
+      const clubParam = urlParams.get('club');
+      if (clubParam) {
+        const foundClub = clubList.find(c => c.trim().toLowerCase() === clubParam.trim().toLowerCase());
+        setSelectedClub(foundClub || clubParam);
+      }
+    } catch (e) {
+      console.warn('URL params parsing failed inside ClubReportPanel', e);
+    }
+  }, [clubList]);
+
   // Helper to find the awaiting opponent name or bout winner recursively
   const getAwaitingOpponentLabel = (
     model: BracketModel,
@@ -1019,7 +1021,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
   // Filter and compute matches
   const filteredAthletes = athleteList.filter(ath => {
-    const matchesClub = selectedClub === 'all' || ath.club === selectedClub;
+    const matchesClub = selectedClub === 'all' || 
+      ath.club.trim().toLowerCase() === selectedClub.trim().toLowerCase();
     const matchesSearch = 
       ath.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       ath.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1112,17 +1115,17 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (reportStyle === 'medal-standings') {
+              if (activeReportStyle === 'medal-standings') {
                 downloadClubMedalStandingsCSV();
               } else {
                 downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
               }
             }}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            title={reportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
+            title={activeReportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
           >
             <Download className="w-4 h-4 text-emerald-100" />
-            <span>{reportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
+            <span>{activeReportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
           </button>
 
           {/* Print button */}
@@ -1184,62 +1187,64 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
               
               {/* layout switcher segmented control */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
-                <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('individual-lookup')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'individual-lookup'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Search className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Find Player Schedule (Public View)</span>
-                  </button>
+              {!isPublicView && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
+                  <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setReportStyle('individual-lookup')}
+                      className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        reportStyle === 'individual-lookup'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                      }`}
+                    >
+                      <Search className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Find Player Schedule (Public View)</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('photo-matrix')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'photo-matrix'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Grid className="w-3.5 h-3.5" />
-                    <span>Taekwondo Matrix Grid (Reference Photo)</span>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('classic-cards')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'classic-cards'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <AlignJustify className="w-3.5 h-3.5" />
-                    <span>Classic Card Deck (Matchups Style)</span>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setReportStyle('medal-standings')}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      reportStyle === 'medal-standings'
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                    }`}
-                  >
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <span>🏆 Club Medal Standings &amp; Points</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportStyle('photo-matrix')}
+                      className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        reportStyle === 'photo-matrix'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                      }`}
+                    >
+                      <Grid className="w-3.5 h-3.5" />
+                      <span>Taekwondo Matrix Grid (Reference Photo)</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setReportStyle('classic-cards')}
+                      className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        reportStyle === 'classic-cards'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                      }`}
+                    >
+                      <AlignJustify className="w-3.5 h-3.5" />
+                      <span>Classic Card Deck (Matchups Style)</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setReportStyle('medal-standings')}
+                      className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        reportStyle === 'medal-standings'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                      }`}
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-500" />
+                      <span>🏆 Club Medal Standings &amp; Points</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Filters Block */}
               <div className="flex flex-wrap items-center gap-3">
@@ -1274,7 +1279,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                 </select>
 
                 {/* Only Show Scheduled / Toggle */}
-                {reportStyle !== 'medal-standings' && (
+                {activeReportStyle !== 'medal-standings' && (
                   <button
                     type="button"
                     onClick={() => setShowOnlyScheduled(!showOnlyScheduled)}
@@ -1295,7 +1300,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           {/* ACTIVE STYLE VIEW AREA */}
           
           {/* STYLE 1: PHOTO-MATRIX TABULAR LAYOUT */}
-          {reportStyle === 'photo-matrix' && (
+          {activeReportStyle === 'photo-matrix' && (
             sortedAthletes.length === 0 ? (
               <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 font-medium text-sm no-print">
                 No athletes found matching current filter context.
@@ -1425,7 +1430,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           )}
 
           {/* STYLE 4: INDIVIDUAL LOOKUP LAYOUT */}
-          {reportStyle === 'individual-lookup' && (() => {
+          {activeReportStyle === 'individual-lookup' && (() => {
             // Filter athlete list based on searchQuery and selectedClub
             const filteredAthletesForLookup = athleteList.filter(ath => {
               const matchesSearch = searchQuery.trim() === '' || 
@@ -1821,7 +1826,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           })()}
 
           {/* STYLE 2: CLASSIC CARD DECK LAYOUT */}
-          {reportStyle === 'classic-cards' && (
+          {activeReportStyle === 'classic-cards' && (
             visibleClubsForCards.length === 0 ? (
               <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 font-medium text-sm no-print">
                 No matches found matching filter credentials.
@@ -1996,7 +2001,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           )}
 
           {/* STYLE 3: CLUB MEDAL STANDINGS LAYOUT */}
-          {reportStyle === 'medal-standings' && (() => {
+          {activeReportStyle === 'medal-standings' && (() => {
             const standings = medalStandings;
             
             // Total summary stats

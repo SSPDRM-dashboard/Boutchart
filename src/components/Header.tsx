@@ -8,6 +8,8 @@ interface HeaderProps {
   hasData: boolean;
   saveStatus: 'idle' | 'saving' | 'saved';
   onOpenEventsModal: () => void;
+  onSaveEvent: () => void;
+  onNewEvent: () => void;
   savedEventsCount: number;
   isPublicView?: boolean;
   onLoginClick?: () => void;
@@ -20,6 +22,8 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   hasData,
   saveStatus,
   onOpenEventsModal,
+  onSaveEvent,
+  onNewEvent,
   savedEventsCount,
   onLogout,
   currentUser,
@@ -96,6 +100,25 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
                   <Cloud className={`w-4 h-4 ${saveStatus === 'saving' ? 'animate-pulse text-amber-400' : 'text-emerald-400'}`} />
                   <span>{saveStatus === 'saving' ? 'Saving...' : 'Saved'}</span>
                 </div>
+              )}
+
+              <button
+                onClick={onNewEvent}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 hover:border-emerald-400 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+                title="Create a new blank event"
+              >
+                <span className="hidden sm:inline">New Event</span>
+              </button>
+
+              {hasData && (
+                <button
+                  onClick={onSaveEvent}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-600/50 hover:border-amber-500 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+                  title="Save current championship data"
+                >
+                  <Cloud className="w-4 h-4" />
+                  <span className="hidden sm:inline">Save</span>
+                </button>
               )}
 
               <button

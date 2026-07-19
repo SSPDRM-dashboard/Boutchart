@@ -6,9 +6,10 @@ interface AuthScreenProps {
   onLogin: (username: string) => void;
   mode?: 'login' | 'register';
   onRegisterSuccess?: () => void;
+  onExploreAsGuest?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login', onExploreAsGuest }) => {
   const [isRegister, setIsRegister] = useState(mode === 'register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -140,7 +141,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
               <span className="bg-white px-3 text-xs text-slate-400 font-semibold uppercase absolute">or</span>
             </div>
 
-            <button
+             <button
               onClick={handleGoogleLogin}
               disabled={loading}
               type="button"
@@ -148,6 +149,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, mode = 'login' 
             >
               Continue with Google
             </button>
+
+            {onExploreAsGuest && (
+              <div className="mt-5 pt-5 border-t border-slate-100 text-center">
+                <button
+                  onClick={onExploreAsGuest}
+                  type="button"
+                  className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-950 border border-slate-200 rounded-xl py-3 px-4 font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-inner"
+                  title="Explore the bracket generator, bracket tree editor, and tournament manager without logging in!"
+                >
+                  <span>🚀</span>
+                  <span>Explore as Guest (Skip Login)</span>
+                </button>
+              </div>
+            )}
             
             <div className="mt-6 text-center">
               <button

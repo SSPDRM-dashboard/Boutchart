@@ -6,6 +6,20 @@ export interface Athlete {
   gender?: string;
 }
 
+export interface CutoffScore {
+  athleteName: string;
+  athleteClub: string;
+  accuracy1?: number;
+  presentation1?: number;
+  total1?: number;
+  accuracy2?: number;
+  presentation2?: number;
+  total2?: number;
+  finalScore?: number;
+  rank?: number;
+  notes?: string;
+}
+
 export interface WeightCategory {
   name: string;
   count: number;
@@ -13,6 +27,7 @@ export interface WeightCategory {
   status: 'ready' | 'warn' | 'bad'; // ready (2+), warn (>64), bad (<2)
   ring: number;
   entrants: Athlete[];
+  systemType?: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff';
 }
 
 export interface BracketNode {
@@ -31,6 +46,8 @@ export interface BracketModel {
   numRounds: number;
   nodes: BracketNode[][]; // nodes[roundIdx][nodeIdx]
   standings?: string[];
+  systemType?: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff';
+  cutoffScores?: Record<string, CutoffScore>;
 }
 
 export interface AppState {
