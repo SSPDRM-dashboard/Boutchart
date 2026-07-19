@@ -59,7 +59,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup'>('photo-matrix');
-  const activeReportStyle = isPublicView ? 'photo-matrix' : reportStyle;
+  const activeReportStyle = reportStyle;
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
   const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});
@@ -1225,7 +1225,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
               
               {/* layout switcher segmented control */}
-              {!isPublicView && (
+              {true && (
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
                   <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">

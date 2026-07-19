@@ -547,7 +547,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
         {/* Action Controls hidden on general print layout */}
         <div className="flex justify-center items-center gap-1.5 mt-3 no-print">
           {bracket.systemType === 'poomsae-cutoff' ? (
-            <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold select-none">
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/65 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-black select-none">
               <span>🥋</span>
               <span>System: Poomsae Cut-Off Scoring Sheet</span>
             </div>

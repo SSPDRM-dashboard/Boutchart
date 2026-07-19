@@ -492,9 +492,15 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
                               <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold font-mono">
                                 <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{cat.count} athletes</span>
-                                <span className="text-slate-400">
-                                  {cat.systemType === 'poomsae-cutoff' ? 'Cut-off' : `${cat.size}-draw`}
-                                </span>
+                                {cat.systemType === 'poomsae-cutoff' ? (
+                                  <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
+                                    Poomsae Cut-off
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">
+                                    {`${cat.size}-draw`}
+                                  </span>
+                                )}
                               </div>
 
                               {/* System Type select right on the card */}

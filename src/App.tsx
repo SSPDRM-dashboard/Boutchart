@@ -234,13 +234,8 @@ export default function App() {
         const hasDataParam = !!new URLSearchParams(window.location.search).get('data');
         const idParam = new URLSearchParams(window.location.search).get('id');
 
-        if (isReportPath || viewType === 'club-report' || hasDataParam || idParam) {
-           setIsPublicReportOnly(true);
-           setActiveTab('club-report');
-        } else {
-           setIsPublicReportOnly(false);
-           setActiveTab('brackets');
-        }
+        setIsPublicReportOnly(true);
+        setActiveTab('club-report');
       }
     });
     return () => unsubscribe();
@@ -1184,6 +1179,15 @@ export default function App() {
           timestamp: newEvent.timestamp,
           tournamentName: finalName
         });
+
+        // Also publish to public active_state report
+        const publicRef = doc(db, 'reports', 'active_state');
+        await setDoc(publicRef, {
+          payload: JSON.stringify(newEvent),
+          id: 'active_state',
+          timestamp: newEvent.timestamp,
+          tournamentName: finalName
+        });
       } catch (err) {
         console.error("Failed to save event to Firestore", err);
       }
@@ -1230,6 +1234,15 @@ export default function App() {
             await setDoc(eventRef, {
               payload: JSON.stringify(updatedEvent),
               id: id,
+              timestamp: updatedEvent.timestamp,
+              tournamentName: updatedEvent.tournamentName
+            });
+
+            // Also publish to public active_state report
+            const publicRef = doc(db, 'reports', 'active_state');
+            await setDoc(publicRef, {
+              payload: JSON.stringify(updatedEvent),
+              id: 'active_state',
               timestamp: updatedEvent.timestamp,
               tournamentName: updatedEvent.tournamentName
             });
