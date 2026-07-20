@@ -1329,7 +1329,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <span className={`w-2 h-2 rounded-full ${showOnlyScheduled ? 'bg-amber-600 animate-pulse' : 'bg-slate-400'}`} />
+                    {!isPublicView && (
+                      <span className={`w-2 h-2 rounded-full ${showOnlyScheduled ? 'bg-amber-600 animate-pulse' : 'bg-slate-400'}`} />
+                    )}
                     <span>{showOnlyScheduled ? 'Scheduled Fights Only' : 'Show All Registered'}</span>
                   </button>
                 )}
@@ -1492,7 +1494,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none rounded-r-3xl" />
                   
                   <div className="relative z-10 space-y-4 max-w-2xl">
-                    <div className="inline-flex bg-amber-500/10 border border-amber-500/25 px-3 py-1 rounded-full text-xs font-black text-amber-400 font-mono uppercase tracking-widest leading-none">
+                    <div className={`inline-flex bg-amber-500/10 border border-amber-500/25 px-3 py-1 ${isPublicView ? 'rounded-xl' : 'rounded-full'} text-xs font-black text-amber-400 font-mono uppercase tracking-widest leading-none`}>
                       🥋 Public Fighter Portal
                     </div>
                     <h3 className="text-xl md:text-2xl font-black tracking-tight text-white font-sans">
@@ -1558,7 +1560,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                 {/* Athlete lookup cards list */}
                 {searchQuery.trim() === '' ? (
                   <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
-                    <div className="inline-flex bg-amber-500/10 text-amber-600 p-4 rounded-full border border-amber-500/15">
+                    <div className={`inline-flex bg-amber-500/10 text-amber-600 p-4 ${isPublicView ? 'rounded-xl' : 'rounded-full'} border border-amber-500/15`}>
                       <Search className="w-6 h-6 text-amber-500" />
                     </div>
                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Awaiting Search Query</h4>
@@ -1568,7 +1570,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   </div>
                 ) : filteredAthletesForLookup.length === 0 ? (
                   <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
-                    <div className="inline-flex bg-rose-50 text-rose-600 p-4 rounded-full border border-rose-100">
+                    <div className={`inline-flex bg-rose-50 text-rose-600 p-4 ${isPublicView ? 'rounded-xl' : 'rounded-full'} border border-rose-100`}>
                       <ShieldAlert className="w-6 h-6 text-rose-500" />
                     </div>
                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">No Players Found</h4>
@@ -1739,7 +1741,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                   }
                                   return (
                                     <div className="bg-white border border-slate-200/70 rounded-xl p-3.5 flex items-center gap-3">
-                                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                                      {isPublicView ? (
+                                        <Check className="w-5 h-5 text-emerald-500 shrink-0" />
+                                      ) : (
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                                      )}
                                       <div>
                                         <p className="text-xs font-bold text-slate-800 leading-snug">
                                           Bye Allocation
@@ -1970,7 +1976,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                     }
                                     return (
                                       <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
-                                        <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                        {isPublicView ? (
+                                          <Check className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                        ) : (
+                                          <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                        )}
                                         <div>
                                           <p className="text-[11px] font-bold text-slate-800 leading-snug">
                                             Waiting / Bye Allocation
@@ -2138,9 +2148,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                           
                           // Badge styling for top 3
                           let rankBadge = <span className="font-mono font-black text-slate-500 text-xs">{index + 1}</span>;
-                          if (index === 0) rankBadge = <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center font-black text-amber-700 border border-amber-300">🥇</span>;
-                          else if (index === 1) rankBadge = <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-700 border border-slate-300">🥈</span>;
-                          else if (index === 2) rankBadge = <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center font-black text-amber-800 border border-amber-200">🥉</span>;
+                          if (index === 0) rankBadge = isPublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥇</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center font-black text-amber-700 border border-amber-300">🥇</span>;
+                          else if (index === 1) rankBadge = isPublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥈</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-700 border border-slate-300">🥈</span>;
+                          else if (index === 2) rankBadge = isPublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥉</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center font-black text-amber-800 border border-amber-200">🥉</span>;
 
                           return (
                             <React.Fragment key={club.clubName}>

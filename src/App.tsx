@@ -1759,153 +1759,201 @@ export default function App() {
             return a.athleteName.localeCompare(b.athleteName);
           });
 
-          let tableY = 36;
+          const maxRowsPerPage = 12;
+          const divisionPages = Math.ceil(displayList.length / maxRowsPerPage) || 1;
 
-          // Header Row 1
-          pdf.setFillColor(248, 250, 252); // slate-50 background for headers
-          pdf.rect(15, tableY, 267, 10, 'F');
-
-          pdf.setDrawColor(203, 213, 225); // slate-300
-          pdf.setLineWidth(0.35);
-          pdf.rect(15, tableY, 267, 10, 'S');
-
-          // Divider lines inside header row 1
-          pdf.line(30, tableY, 30, tableY + 10);
-          pdf.line(132, tableY, 132, tableY + 10);
-          pdf.line(192, tableY, 192, tableY + 10);
-          pdf.line(252, tableY, 252, tableY + 10);
-          pdf.line(268, tableY, 268, tableY + 10);
-
-          // Header Text row 1
-          pdf.setTextColor(51, 65, 85); // slate-700
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(8.5);
-
-          pdf.text('NO.', 22.5, tableY + 6.5, { align: 'center' });
-          pdf.text('ATHLETE / CLUB', 34, tableY + 6.5);
-          pdf.text('POOMSAE 1', 162, tableY + 6.5, { align: 'center' });
-          pdf.text('POOMSAE 2', 222, tableY + 6.5, { align: 'center' });
-          pdf.text('FINAL', 260, tableY + 6.5, { align: 'center' });
-          pdf.text('RANK', 275, tableY + 6.5, { align: 'center' });
-
-          // Header Row 2
-          tableY += 10;
-          pdf.setFillColor(241, 245, 249); // slate-100 background
-          pdf.rect(15, tableY, 267, 7, 'F');
-          pdf.rect(15, tableY, 267, 7, 'S');
-
-          // Divider lines inside header row 2
-          pdf.line(30, tableY, 30, tableY + 7);
-          pdf.line(132, tableY, 132, tableY + 7);
-          pdf.line(152, tableY, 152, tableY + 7);
-          pdf.line(172, tableY, 172, tableY + 7);
-          pdf.line(192, tableY, 192, tableY + 7);
-          pdf.line(212, tableY, 212, tableY + 7);
-          pdf.line(232, tableY, 232, tableY + 7);
-          pdf.line(252, tableY, 252, tableY + 7);
-          pdf.line(268, tableY, 268, tableY + 7);
-
-          pdf.setTextColor(100, 116, 139); // slate-500
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(7.5);
-
-          pdf.text('Accuracy', 142, tableY + 4.5, { align: 'center' });
-          pdf.text('Present.', 162, tableY + 4.5, { align: 'center' });
-          pdf.text('Total', 182, tableY + 4.5, { align: 'center' });
-
-          pdf.text('Accuracy', 202, tableY + 4.5, { align: 'center' });
-          pdf.text('Present.', 222, tableY + 4.5, { align: 'center' });
-          pdf.text('Total', 242, tableY + 4.5, { align: 'center' });
-
-          tableY += 7;
-
-          // Rows
-          displayList.forEach((ath, idx) => {
-            // Background row colors
-            if (idx % 2 === 1) {
-              pdf.setFillColor(248, 250, 252); // slate-50
-              pdf.rect(15, tableY, 267, 12, 'F');
-            } else {
-              pdf.setFillColor(255, 255, 255);
-              pdf.rect(15, tableY, 267, 12, 'F');
+          for (let p = 0; p < divisionPages; p++) {
+            if (p > 0) {
+              pdf.addPage();
             }
 
-            pdf.setDrawColor(226, 232, 240); // slate-200
-            pdf.rect(15, tableY, 267, 12, 'S');
+            const ringLabel = getRingLabel(cat?.ring || 1);
+            const entrantCount = cat?.count || 0;
 
-            // Draw divider lines for row
-            pdf.line(30, tableY, 30, tableY + 12);
-            pdf.line(132, tableY, 132, tableY + 12);
-            pdf.line(152, tableY, 152, tableY + 12);
-            pdf.line(172, tableY, 172, tableY + 12);
-            pdf.line(192, tableY, 192, tableY + 12);
-            pdf.line(212, tableY, 212, tableY + 12);
-            pdf.line(232, tableY, 232, tableY + 12);
-            pdf.line(252, tableY, 252, tableY + 12);
-            pdf.line(268, tableY, 268, tableY + 12);
-
-            // Print values
-            pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(8.5);
+            // Draw header
+            // Center X: 148.5mm (half of 297mm)
+            const centerX = 148.5;
+            
             pdf.setTextColor(15, 23, 42); // slate-900
-
-            // 1. No.
-            const originalNode = bracket.nodes?.[0]?.find(n => n.name === ath.athleteName && n.club === ath.athleteClub);
-            const displayNo = ath.bout || originalNode?.bout || (idx + 1);
-            const noStr = String(displayNo);
-            pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
-
-            // 2. Athlete / Club
             pdf.setFont('helvetica', 'bold');
-            pdf.text(ath.athleteName.toUpperCase(), 34, tableY + 5.2);
-            pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(7.5);
+            pdf.setFontSize(15);
+            const titleText = (tournamentName || 'TOURNAMENT CHAMPIONSHIP').toUpperCase();
+            pdf.text(titleText, centerX, 14, { align: 'center' });
+
+            pdf.setTextColor(30, 41, 59); // slate-800
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(11);
+            pdf.text(`RING ${ringLabel}`.toUpperCase(), centerX, 19, { align: 'center' });
+
+            pdf.setTextColor(217, 119, 6); // amber-600
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(12);
+            pdf.text(bracket.categoryKey.toUpperCase(), centerX, 24, { align: 'center' });
+
             pdf.setTextColor(100, 116, 139); // slate-500
-            pdf.text((ath.athleteClub || '').toUpperCase(), 34, tableY + 9.5);
-
-            // Scores
-            pdf.setFontSize(8);
-            pdf.setTextColor(51, 65, 85); // slate-700
-
-            const p1Acc = ath.accuracy1 !== undefined && ath.accuracy1 > 0 ? ath.accuracy1.toFixed(1) : '';
-            const p1Pres = ath.presentation1 !== undefined && ath.presentation1 > 0 ? ath.presentation1.toFixed(1) : '';
-            const p1TotalVal = (ath.accuracy1 || 0) + (ath.presentation1 || 0);
-            const p1Total = p1TotalVal > 0 ? p1TotalVal.toFixed(1) : '';
-
-            const p2Acc = ath.accuracy2 !== undefined && ath.accuracy2 > 0 ? ath.accuracy2.toFixed(1) : '';
-            const p2Pres = ath.presentation2 !== undefined && ath.presentation2 > 0 ? ath.presentation2.toFixed(1) : '';
-            const p2TotalVal = (ath.accuracy2 || 0) + (ath.presentation2 || 0);
-            const p2Total = p2TotalVal > 0 ? p2TotalVal.toFixed(1) : '';
-
-            const finalStr = ath.finalScore !== undefined && ath.finalScore > 0 ? ath.finalScore.toFixed(2) : '';
-
-            pdf.text(p1Acc, 142, tableY + 7.5, { align: 'center' });
-            pdf.text(p1Pres, 162, tableY + 7.5, { align: 'center' });
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(p1Total, 182, tableY + 7.5, { align: 'center' });
-
             pdf.setFont('helvetica', 'normal');
-            pdf.text(p2Acc, 202, tableY + 7.5, { align: 'center' });
-            pdf.text(p2Pres, 222, tableY + 7.5, { align: 'center' });
+            pdf.setFontSize(8);
+            const dateStr = new Date().toISOString().split('T')[0];
+            const pageInfoStr = divisionPages > 1 ? `  |  Page ${p + 1} of ${divisionPages}` : '';
+            pdf.text(`${entrantCount} competitors  |  ${dateStr}${pageInfoStr}`, centerX, 28, { align: 'center' });
+
+            // Subtle dividing line
+            pdf.setDrawColor(226, 232, 240); // slate-200
+            pdf.setLineWidth(0.35);
+            pdf.line(20, 31, 277, 31);
+
+            let tableY = 36;
+
+            // Header Row 1
+            pdf.setFillColor(248, 250, 252); // slate-50 background for headers
+            pdf.rect(15, tableY, 267, 10, 'F');
+
+            pdf.setDrawColor(203, 213, 225); // slate-300
+            pdf.setLineWidth(0.35);
+            pdf.rect(15, tableY, 267, 10, 'S');
+
+            // Divider lines inside header row 1
+            pdf.line(30, tableY, 30, tableY + 10);
+            pdf.line(132, tableY, 132, tableY + 10);
+            pdf.line(192, tableY, 192, tableY + 10);
+            pdf.line(252, tableY, 252, tableY + 10);
+            pdf.line(268, tableY, 268, tableY + 10);
+
+            // Header Text row 1
+            pdf.setTextColor(51, 65, 85); // slate-700
             pdf.setFont('helvetica', 'bold');
-            pdf.text(p2Total, 242, tableY + 7.5, { align: 'center' });
-
-            pdf.setFontSize(9);
-            pdf.setTextColor(15, 23, 42); // slate-900
-            pdf.text(finalStr, 260, tableY + 7.5, { align: 'center' });
-
             pdf.setFontSize(8.5);
-            const rankStr = ath.rank !== undefined ? String(ath.rank) : '';
-            pdf.text(rankStr, 275, tableY + 7.5, { align: 'center' });
 
-            tableY += 12;
-          });
+            pdf.text('NO.', 22.5, tableY + 6.5, { align: 'center' });
+            pdf.text('ATHLETE / CLUB', 34, tableY + 6.5);
+            pdf.text('POOMSAE 1', 162, tableY + 6.5, { align: 'center' });
+            pdf.text('POOMSAE 2', 222, tableY + 6.5, { align: 'center' });
+            pdf.text('FINAL', 260, tableY + 6.5, { align: 'center' });
+            pdf.text('RANK', 275, tableY + 6.5, { align: 'center' });
 
-          // Add footer at the bottom of page
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(7.5);
-          pdf.setTextColor(148, 163, 184); // slate-400
-          pdf.text('Generated via MY-TKD Tournament Manager - Poomsae Cut-Off Scoring Sheet', centerX, 198, { align: 'center' });
+            // Header Row 2
+            tableY += 10;
+            pdf.setFillColor(241, 245, 249); // slate-100 background
+            pdf.rect(15, tableY, 267, 7, 'F');
+            pdf.rect(15, tableY, 267, 7, 'S');
+
+            // Divider lines inside header row 2
+            pdf.line(30, tableY, 30, tableY + 7);
+            pdf.line(132, tableY, 132, tableY + 7);
+            pdf.line(152, tableY, 152, tableY + 7);
+            pdf.line(172, tableY, 172, tableY + 7);
+            pdf.line(192, tableY, 192, tableY + 7);
+            pdf.line(212, tableY, 212, tableY + 7);
+            pdf.line(232, tableY, 232, tableY + 7);
+            pdf.line(252, tableY, 252, tableY + 7);
+            pdf.line(268, tableY, 268, tableY + 7);
+
+            pdf.setTextColor(100, 116, 139); // slate-500
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(7.5);
+
+            pdf.text('Accuracy', 142, tableY + 4.5, { align: 'center' });
+            pdf.text('Present.', 162, tableY + 4.5, { align: 'center' });
+            pdf.text('Total', 182, tableY + 4.5, { align: 'center' });
+
+            pdf.text('Accuracy', 202, tableY + 4.5, { align: 'center' });
+            pdf.text('Present.', 222, tableY + 4.5, { align: 'center' });
+            pdf.text('Total', 242, tableY + 4.5, { align: 'center' });
+
+            tableY += 7;
+
+            // Render current page rows
+            const pageStart = p * maxRowsPerPage;
+            const pageEnd = Math.min(pageStart + maxRowsPerPage, displayList.length);
+            const pageRows = displayList.slice(pageStart, pageEnd);
+
+            pageRows.forEach((ath, idx) => {
+              const rowIdx = pageStart + idx;
+              // Background row colors
+              if (rowIdx % 2 === 1) {
+                pdf.setFillColor(248, 250, 252); // slate-50
+                pdf.rect(15, tableY, 267, 12, 'F');
+              } else {
+                pdf.setFillColor(255, 255, 255);
+                pdf.rect(15, tableY, 267, 12, 'F');
+              }
+
+              pdf.setDrawColor(226, 232, 240); // slate-200
+              pdf.rect(15, tableY, 267, 12, 'S');
+
+              // Draw divider lines for row
+              pdf.line(30, tableY, 30, tableY + 12);
+              pdf.line(132, tableY, 132, tableY + 12);
+              pdf.line(152, tableY, 152, tableY + 12);
+              pdf.line(172, tableY, 172, tableY + 12);
+              pdf.line(192, tableY, 192, tableY + 12);
+              pdf.line(212, tableY, 212, tableY + 12);
+              pdf.line(232, tableY, 232, tableY + 12);
+              pdf.line(252, tableY, 252, tableY + 12);
+              pdf.line(268, tableY, 268, tableY + 12);
+
+              // Print values
+              pdf.setFont('helvetica', 'bold');
+              pdf.setFontSize(8.5);
+              pdf.setTextColor(15, 23, 42); // slate-900
+
+              // 1. No. (Follow sequential numbering)
+              const displayNo = rowIdx + 1;
+              const noStr = String(displayNo);
+              pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
+
+              // 2. Athlete / Club
+              pdf.setFont('helvetica', 'bold');
+              pdf.text(ath.athleteName.toUpperCase(), 34, tableY + 5.2);
+              pdf.setFont('helvetica', 'normal');
+              pdf.setFontSize(7.5);
+              pdf.setTextColor(100, 116, 139); // slate-500
+              pdf.text((ath.athleteClub || '').toUpperCase(), 34, tableY + 9.5);
+
+              // Scores
+              pdf.setFontSize(8);
+              pdf.setTextColor(51, 65, 85); // slate-700
+
+              const p1Acc = ath.accuracy1 !== undefined && ath.accuracy1 > 0 ? ath.accuracy1.toFixed(1) : '';
+              const p1Pres = ath.presentation1 !== undefined && ath.presentation1 > 0 ? ath.presentation1.toFixed(1) : '';
+              const p1TotalVal = (ath.accuracy1 || 0) + (ath.presentation1 || 0);
+              const p1Total = p1TotalVal > 0 ? p1TotalVal.toFixed(1) : '';
+
+              const p2Acc = ath.accuracy2 !== undefined && ath.accuracy2 > 0 ? ath.accuracy2.toFixed(1) : '';
+              const p2Pres = ath.presentation2 !== undefined && ath.presentation2 > 0 ? ath.presentation2.toFixed(1) : '';
+              const p2TotalVal = (ath.accuracy2 || 0) + (ath.presentation2 || 0);
+              const p2Total = p2TotalVal > 0 ? p2TotalVal.toFixed(1) : '';
+
+              const finalStr = ath.finalScore !== undefined && ath.finalScore > 0 ? ath.finalScore.toFixed(2) : '';
+
+              pdf.text(p1Acc, 142, tableY + 7.5, { align: 'center' });
+              pdf.text(p1Pres, 162, tableY + 7.5, { align: 'center' });
+              pdf.setFont('helvetica', 'bold');
+              pdf.text(p1Total, 182, tableY + 7.5, { align: 'center' });
+
+              pdf.setFont('helvetica', 'normal');
+              pdf.text(p2Acc, 202, tableY + 7.5, { align: 'center' });
+              pdf.text(p2Pres, 222, tableY + 7.5, { align: 'center' });
+              pdf.setFont('helvetica', 'bold');
+              pdf.text(p2Total, 242, tableY + 7.5, { align: 'center' });
+
+              pdf.setFontSize(9);
+              pdf.setTextColor(15, 23, 42); // slate-900
+              pdf.text(finalStr, 260, tableY + 7.5, { align: 'center' });
+
+              pdf.setFontSize(8.5);
+              const rankStr = ath.rank !== undefined ? String(ath.rank) : '';
+              pdf.text(rankStr, 275, tableY + 7.5, { align: 'center' });
+
+              tableY += 12;
+            });
+
+            // Add footer at the bottom of page
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(148, 163, 184); // slate-400
+            pdf.text('Generated via MY-TKD Tournament Manager - Poomsae Cut-Off Scoring Sheet', centerX, 198, { align: 'center' });
+          }
 
           continue; // Skip rest of sparring bracket logic for this division
         }
