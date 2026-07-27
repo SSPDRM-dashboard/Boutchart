@@ -540,9 +540,6 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
         <p className="text-xs text-slate-500 font-bold mt-1">
           {entrantCount} competitors
         </p>
-        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-          {new Date().toISOString().split('T')[0]}
-        </p>
 
         {/* Action Controls hidden on general print layout */}
         <div className="flex justify-center items-center gap-1.5 mt-3 no-print">

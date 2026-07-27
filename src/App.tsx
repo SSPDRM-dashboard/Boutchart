@@ -1735,8 +1735,7 @@ export default function App() {
         pdf.setTextColor(100, 116, 139); // slate-500
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
-        const dateStr = new Date().toISOString().split('T')[0];
-        pdf.text(`${entrantCount} competitors  |  ${dateStr}`, centerX, 28, { align: 'center' });
+        pdf.text(`${entrantCount} competitors`, centerX, 28, { align: 'center' });
 
         // Subtle dividing line
         pdf.setDrawColor(226, 232, 240); // slate-200
@@ -1793,9 +1792,8 @@ export default function App() {
             pdf.setTextColor(100, 116, 139); // slate-500
             pdf.setFont('helvetica', 'normal');
             pdf.setFontSize(8);
-            const dateStr = new Date().toISOString().split('T')[0];
             const pageInfoStr = divisionPages > 1 ? `  |  Page ${p + 1} of ${divisionPages}` : '';
-            pdf.text(`${entrantCount} competitors  |  ${dateStr}${pageInfoStr}`, centerX, 28, { align: 'center' });
+            pdf.text(`${entrantCount} competitors${pageInfoStr}`, centerX, 28, { align: 'center' });
 
             // Subtle dividing line
             pdf.setDrawColor(226, 232, 240); // slate-200

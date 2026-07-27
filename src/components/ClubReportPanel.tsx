@@ -103,9 +103,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       pdf.setFontSize(9);
       pdf.text(`Tournament: ${tournamentName || 'Tournament'}  |  Club: ${clubName}  |  Page ${pageNum} of ${totalPages}`, 15, 24);
 
-      // Date / Info (Right aligned)
-      const nowStr = new Date().toLocaleDateString();
-      pdf.text(`Generated: ${nowStr}  |  Total Competitors: ${clubAthletes.length}`, 281, 18, { align: 'right' });
+      // Info (Right aligned)
+      pdf.text(`Total Competitors: ${clubAthletes.length}`, 281, 18, { align: 'right' });
 
       // 2. Draw Table Header
       const headerY = 34;
