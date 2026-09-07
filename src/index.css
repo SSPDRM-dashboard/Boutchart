@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Reset styles when html-to-image captures the layout */
+.exporting-pdf .print-scale-wrapper {
+   transform: scale(1) !important;
+}
+.exporting-pdf .bracket-canvas {
+   width: var(--export-width, max-content) !important;
+   height: var(--export-height, max-content) !important;
+}
+.exporting-pdf .bracket-page-card {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  background: white !important;
+  min-width: max-content !important;
+  width: max-content !important;
+  margin: 0 auto !important;
+}
+@media print {
+  @page {
+    size: landscape;
+    margin: 20mm 10mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .bracket-page {
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  .bracket-page:last-child {
+    page-break-after: auto;
+  }
+  .scale-wrap {
+    overflow: visible !important;
+  }
+}/* Hide manual standings box by default on screen */
+.manual-standings-box-wrapper {
+  display: none !important;
+}
+
+/* Show it on paper/print */
+@media print {
+  .manual-standings-box-wrapper {
+    display: flex !important;
+    margin-top: 4.5rem !important; /* Shifted down 5 more Tailwind rows / units */
+  }
+}
+
+/* Show it when exporting to PDF */
+.exporting-pdf .manual-standings-box-wrapper,
+.exporting-active .manual-standings-box-wrapper {
+  display: flex !important;
+  margin-top: 4.5rem !important; /* Shifted down 5 more Tailwind rows / units */
+}

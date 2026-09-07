@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "UserEvent": {
+      "title": "User Event",
+      "description": "A saved bracket/roster event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tournamentName": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "CurrentState": {
+      "title": "Current State",
+      "description": "The user's current working state",
+      "type": "object",
+      "properties": {
+        "tournamentName": { "type": "string" }
+      }
+    },
+    "SavedClubs": {
+      "title": "Saved Clubs",
+      "description": "Unique list of club names saved by the user for search and autocomplete",
+      "type": "object",
+      "properties": {
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "EventPayload": {
+      "title": "Event Payload",
+      "description": "Payload containing the brackets and roster data for the external scoreboard",
+      "type": "object",
+      "properties": {
+        "payload": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userEmail}/events/{eventId}": {
+      "schema": "#/entities/UserEvent",
+      "description": "Saved events for a user"
+    },
+    "users/{userEmail}/current/{stateId}": {
+      "schema": "#/entities/CurrentState",
+      "description": "Current unsaved state for a user"
+    },
+    "users/{userEmail}/clubs/{docId}": {
+      "schema": "#/entities/SavedClubs",
+      "description": "Saved club names for autocomplete searching"
+    },
+    "events/{eventId}": {
+      "schema": "#/entities/EventPayload",
+      "description": "Scoreboard synchronization events"
+    }
+  }
+}

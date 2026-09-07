@@ -1,0 +1,1851 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { BracketModel, BracketNode, CutoffScore } from '../types';
+import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
+import { isRealBout, countRealBouts } from '../utils/bracketUtils';
+import { CertificateModal } from './CertificateModal';
+import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
+
+const getStageLabel = (size: number, k: number, numRounds: number) => {
+  if (k === numRounds) return 'CHAMPION';
+  const count = size / Math.pow(2, k);
+  if (count === 2) return 'FINAL';
+  if (count === 4) return 'SEMI FINAL';
+  if (count === 8) return 'QUARTER FINAL';
+  return `ROUND OF ${count}`;
+};
+
+const BOX_W = 240;
+const BOX_H = 40;
+const PAD = 16;
+
+interface BracketCanvasProps {
+  bracket: BracketModel;
+  ring: number | string;
+  entrantCount: number;
+  layout?: 'modern' | 'classic';
+  onReshuffle: () => void;
+  onCheckboxToggle: (k: number, i: number, checked: boolean) => void;
+  onTextChange: (k: number, i: number, text: string) => void;
+  tournamentName?: string;
+  leftLogo?: string;
+  leftLogo2?: string;
+  rightLogo?: string;
+  rightLogo2?: string;
+  onChangeLeftLogo?: (logo: string) => void;
+  onChangeLeftLogo2?: (logo: string) => void;
+  onChangeRightLogo?: (logo: string) => void;
+  onChangeRightLogo2?: (logo: string) => void;
+  onUpdateLeafNode?: (i: number, name: string, club: string, isBye: boolean) => void;
+  onSwapLeafNodes?: (i: number, j: number) => void;
+  categoriesList?: string[];
+  onMoveToCategory?: (i: number, targetCategoryKey: string) => void;
+  boutLabelFormat?: 'alpha-2' | 'thousands-3';
+  onUpdateStandings?: (standings: string[]) => void;
+  isPublicView?: boolean;
+  onUpdateCutoffScores?: (nextScores: Record<string, CutoffScore>) => void;
+}
+
+function getFormattedBout(
+  ring: string | number,
+  boutNumber: number | undefined,
+  boutLabelFormat: string = 'alpha-2'
+): string {
+  if (boutNumber === undefined) return '';
+
+  let ringNum = 1;
+  if (typeof ring === 'number') {
+    ringNum = ring;
+  } else {
+    const cleaned = String(ring).trim().toLowerCase();
+    const numMatch = cleaned.match(/\d+$/);
+    if (numMatch) {
+      ringNum = parseInt(numMatch[0], 10);
+    } else {
+      const letterMatch = cleaned.match(/[a-z]$/);
+      if (letterMatch) {
+        ringNum = letterMatch[0].charCodeAt(0) - 96;
+      }
+    }
+  }
+
+  if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+
+  if (boutLabelFormat === 'thousands-3') {
+    const pad = String(boutNumber).padStart(3, '0');
+    return `${ringNum}${pad}`;
+  } else {
+    const letter = String.fromCharCode(64 + ringNum);
+    const pad = String(boutNumber).padStart(2, '0');
+    return `${letter}${pad}`;
+  }
+}
+
+export const BracketCanvas: React.FC<BracketCanvasProps> = ({
+  bracket,
+  ring,
+  entrantCount,
+  layout = 'classic',
+  onReshuffle,
+  onCheckboxToggle,
+  onTextChange,
+  tournamentName,
+  leftLogo,
+  leftLogo2,
+  rightLogo,
+  rightLogo2,
+  onChangeLeftLogo,
+  onChangeLeftLogo2,
+  onChangeRightLogo,
+  onChangeRightLogo2,
+  onUpdateLeafNode,
+  onSwapLeafNodes,
+  categoriesList,
+  onMoveToCategory,
+  boutLabelFormat = 'alpha-2',
+  onUpdateStandings,
+  isPublicView = false,
+  onUpdateCutoffScores,
+}) => {
+  const [scale, setScale] = useState(1);
+  const [isAutoFit, setIsAutoFit] = useState(true);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedLeafIndex, setSelectedLeafIndex] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editClub, setEditClub] = useState('');
+  const [editIsBye, setEditIsBye] = useState(false);
+  const [swapTargetIndex, setSwapTargetIndex] = useState<string>('');
+  const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [certificateAthlete, setCertificateAthlete] = useState<{ name: string; club: string; category: string } | null>(null);
+
+  const [localScores, setLocalScores] = useState<Record<string, CutoffScore>>({});
+
+  useEffect(() => {
+    if (bracket && bracket.cutoffScores) {
+      setLocalScores(JSON.parse(JSON.stringify(bracket.cutoffScores)));
+    } else {
+      setLocalScores({});
+    }
+  }, [bracket?.cutoffScores, bracket?.categoryKey]);
+
+  const handleScoreChange = (scoreKey: string, field: keyof CutoffScore, value: string) => {
+    const parsed = value === '' ? undefined : parseFloat(value);
+    setLocalScores((prev) => {
+      const next = { ...prev };
+      if (!next[scoreKey]) {
+        next[scoreKey] = { athleteName: scoreKey.split('||')[0], athleteClub: scoreKey.split('||')[1] || '' };
+      }
+      next[scoreKey] = {
+        ...next[scoreKey],
+        [field]: parsed,
+      };
+      
+      const ath = next[scoreKey];
+      const t1 = (ath.accuracy1 || 0) + (ath.presentation1 || 0);
+      const t2 = (ath.accuracy2 || 0) + (ath.presentation2 || 0);
+      const hasP2 = ath.accuracy2 !== undefined || ath.presentation2 !== undefined;
+      ath.finalScore = hasP2 ? parseFloat(((t1 + t2) / 2).toFixed(3)) : parseFloat(t1.toFixed(3));
+      
+      return next;
+    });
+  };
+
+  const handleCalculateAndSaveRanks = () => {
+    const list = Object.values(localScores) as CutoffScore[];
+    if (list.length === 0) return;
+
+    const sorted = [...list].sort((a, b) => {
+      const scoreA = a.finalScore || 0;
+      const scoreB = b.finalScore || 0;
+      if (scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      const presA = (a.presentation1 || 0) + (a.presentation2 || 0);
+      const presB = (b.presentation1 || 0) + (b.presentation2 || 0);
+      if (presB !== presA) {
+        return presB - presA;
+      }
+      return a.athleteName.localeCompare(b.athleteName);
+    });
+
+    const updatedScores: Record<string, CutoffScore> = { ...localScores };
+    sorted.forEach((ath, index) => {
+      const key = `${ath.athleteName}||${ath.athleteClub}`;
+      if (updatedScores[key]) {
+        updatedScores[key].rank = index + 1;
+      }
+    });
+
+    setLocalScores(updatedScores);
+    if (onUpdateCutoffScores) {
+      onUpdateCutoffScores(updatedScores);
+    }
+
+    const newStandings = [
+      sorted[0] ? `${sorted[0].athleteName} (${sorted[0].athleteClub})` : '',
+      sorted[1] ? `${sorted[1].athleteName} (${sorted[1].athleteClub})` : '',
+      sorted[2] ? `${sorted[2].athleteName} (${sorted[2].athleteClub})` : '',
+      sorted[3] ? `${sorted[3].athleteName} (${sorted[3].athleteClub})` : '',
+    ];
+
+    if (onUpdateStandings) {
+      onUpdateStandings(newStandings);
+    }
+  };
+
+  const [dbClubs, setDbClubs] = useState<string[]>([]);
+  const [clubSearchFocused, setClubSearchFocused] = useState(false);
+
+  useEffect(() => {
+    if (!showModal) return;
+
+    const loadClubs = async () => {
+      let localClubs: string[] = [];
+      try {
+        const stored = localStorage.getItem('bracket_builder_saved_clubs');
+        if (stored) {
+          localClubs = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('Failed to parse local saved clubs', e);
+      }
+
+      const bracketClubs: string[] = [];
+      if (bracket && bracket.nodes && bracket.nodes[0]) {
+        bracket.nodes[0].forEach((node) => {
+          if (node && node.club && node.club.trim() && !node.isBye) {
+            bracketClubs.push(node.club.trim());
+          }
+        });
+      }
+
+      let firestoreClubs: string[] = [];
+      const user = auth.currentUser;
+      if (user && user.email) {
+        try {
+          const docRef = doc(db, `users/${user.email}/clubs/all`);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data && Array.isArray(data.names)) {
+              firestoreClubs = data.names;
+            }
+          }
+        } catch (err) {
+          console.error('Error loading clubs from Firestore:', err);
+        }
+      }
+
+      const merged = Array.from(
+        new Set([
+          ...localClubs,
+          ...bracketClubs,
+          ...firestoreClubs
+        ])
+      )
+        .map(c => c.trim())
+        .filter(c => c.length > 0 && c.toUpperCase() !== 'BYE')
+        .sort((a, b) => a.localeCompare(b));
+
+      setDbClubs(merged);
+    };
+
+    loadClubs();
+  }, [showModal, bracket]);
+
+  const saveClubToDatabase = async (clubName: string) => {
+    const trimmed = clubName.trim();
+    if (!trimmed || trimmed.toUpperCase() === 'BYE') return;
+
+    const updatedClubs = Array.from(new Set([...dbClubs, trimmed])).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    setDbClubs(updatedClubs);
+
+    try {
+      localStorage.setItem('bracket_builder_saved_clubs', JSON.stringify(updatedClubs));
+    } catch (e) {
+      console.warn('Failed to save to localStorage', e);
+    }
+
+    const user = auth.currentUser;
+    if (user && user.email) {
+      try {
+        const docRef = doc(db, `users/${user.email}/clubs/all`);
+        await setDoc(docRef, { names: updatedClubs });
+      } catch (err) {
+        console.error('Error saving club to Firestore:', err);
+      }
+    }
+  };
+
+  if (!bracket || !bracket.nodes) {
+    return (
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center">
+        <p className="text-sm text-slate-500">Invalid or uninitialized bracket configuration.</p>
+      </div>
+    );
+  }
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    // Keep it functional and secure
+    e.dataTransfer.setData('text/plain', index.toString());
+    const leafNode = nodes[0]?.[index];
+    if (leafNode && leafNode.name && !leafNode.isBye) {
+      e.dataTransfer.setData('athleteName', leafNode.name);
+    }
+    e.dataTransfer.effectAllowed = 'copyMove';
+    setDraggingIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (draggingIndex !== null && draggingIndex !== index) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    if (draggingIndex !== null && draggingIndex !== index) {
+      e.preventDefault();
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = (index: number) => {
+    if (dragOverIndex === index) {
+      setDragOverIndex(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const sourceIndexStr = e.dataTransfer.getData('text/plain');
+    const sourceIndex = parseInt(sourceIndexStr, 10);
+    if (!isNaN(sourceIndex) && sourceIndex !== targetIndex && onSwapLeafNodes) {
+      onSwapLeafNodes(sourceIndex, targetIndex);
+    }
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDropToStanding = (e: React.DragEvent, slotIdx: number) => {
+    e.preventDefault();
+    setDragOverStandingsIndex(null);
+    const athleteName = e.dataTransfer.getData('athleteName') || e.dataTransfer.getData('text/plain');
+    if (!athleteName) return;
+
+    if (onUpdateStandings) {
+      const nextStandings = [
+        bracket.standings?.[0] || '',
+        bracket.standings?.[1] || '',
+        bracket.standings?.[2] || '',
+        bracket.standings?.[3] || '',
+      ];
+      nextStandings[slotIdx] = athleteName;
+      onUpdateStandings(nextStandings);
+    }
+  };
+
+  const clearStandingSlot = (slotIdx: number) => {
+    if (onUpdateStandings) {
+      const nextStandings = [
+        bracket.standings?.[0] || '',
+        bracket.standings?.[1] || '',
+        bracket.standings?.[2] || '',
+        bracket.standings?.[3] || '',
+      ];
+      nextStandings[slotIdx] = '';
+      onUpdateStandings(nextStandings);
+    }
+  };
+
+  
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, side: 'left' | 'right' | 'left2' | 'right2') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (side === 'left' && onChangeLeftLogo) onChangeLeftLogo(base64);
+      if (side === 'right' && onChangeRightLogo) onChangeRightLogo(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const { size, numRounds, nodes, categoryKey } = bracket;
+
+  // Sizing adapters: scale gap and pitch dynamically based on bracket rounds
+  let gap = 240;
+  if (size === 2) gap = 450;
+
+  let ROW_PITCH = 46;
+  if (size === 2) ROW_PITCH = 340;
+  else if (size === 4) ROW_PITCH = 300;
+  else if (size === 8) ROW_PITCH = 200;
+  else if (size === 16) ROW_PITCH = 140;
+  else if (size === 32) ROW_PITCH = 90;
+  else if (size === 64) ROW_PITCH = 65;
+
+  // Compute absolute positions dynamically for split symmetrical bracket
+  const positions: { x: number; y: number }[][] = [];
+  for (let k = 0; k <= numRounds; k++) {
+    const count = size / Math.pow(2, k);
+    const arr: { x: number; y: number }[] = [];
+    for (let i = 0; i < count; i++) {
+      // Calculate X
+      let x: number;
+      if (k === numRounds) {
+        x = PAD + numRounds * gap; // Perfectly centered final Champion column
+      } else {
+        const isLeft = i < count / 2;
+        if (isLeft) {
+          x = PAD + k * gap;
+        } else {
+          x = PAD + (2 * numRounds - k) * gap;
+        }
+      }
+
+      // Calculate Y
+      const STAGE_HEADER_OFFSET = 60;
+      let y: number;
+      if (k === 0) {
+        // Leaves share same vertical alignment top-to-bottom on both sides
+        const j = i < count / 2 ? i : (i - count / 2);
+        y = PAD + STAGE_HEADER_OFFSET + j * ROW_PITCH + ROW_PITCH / 2;
+      } else if (k === numRounds) {
+        const prev1Y = positions[k - 1][0].y;
+        const prev2Y = positions[k - 1][1].y;
+        y = (prev1Y + prev2Y) / 2;
+      } else {
+        const prev1Y = positions[k - 1][2 * i].y;
+        const prev2Y = positions[k - 1][2 * i + 1].y;
+        y = (prev1Y + prev2Y) / 2;
+      }
+      arr.push({ x, y });
+    }
+    positions.push(arr);
+  }
+
+  const isClassic = layout === 'classic';
+  const canvasWidth = PAD * 2 + 2 * numRounds * gap + BOX_W;
+  const STAGE_HEADER_OFFSET = 60;
+  const baseCanvasHeight = PAD * 2 + STAGE_HEADER_OFFSET + Math.max(2, size / 2) * ROW_PITCH;
+  const finalY = positions[numRounds]?.[0]?.y ?? (baseCanvasHeight / 2);
+  // Relocate Final Standings box to the very bottom (below baseCanvasHeight) and double its size.
+  // Standings box height is now around 320px with the double size padding/fonts, so we allocate 350px.
+  const minRequiredHeight = baseCanvasHeight + 350 + PAD;
+  const canvasHeight = minRequiredHeight;
+
+  const MAX_PRINT_WIDTH = 1060; // landscape width inside margins
+  const MAX_PRINT_HEIGHT = 630; // landscape height leaving room for headers
+  const scaleWidth = MAX_PRINT_WIDTH / canvasWidth;
+  const scaleHeight = MAX_PRINT_HEIGHT / canvasHeight;
+  const printScale = Math.min(1, scaleWidth, scaleHeight);
+
+  // Set up ResizeObserver to observe parent container size changes
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return;
+      const rect = entries[0].contentRect;
+      setContainerWidth(rect.width);
+    });
+
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Set the dynamic scale when auto-fit is active
+  useEffect(() => {
+    if (isAutoFit && containerWidth && canvasWidth) {
+      // Scale to fit available container width minus some margins for aesthetics
+      const horizontalPadding = 16;
+      const fitScale = (containerWidth - horizontalPadding) / canvasWidth;
+      // Clamp fitScale to reasonable bounds so it doesn't get unreadably tiny or huge
+      setScale(Math.max(0.3, Math.min(2.5, fitScale)));
+    }
+  }, [isAutoFit, containerWidth, canvasWidth]);
+
+  // Compile high-fidelity connector line commands in split-bracket mode
+  const connectorLines: string[] = [];
+
+  if (isClassic) {
+     // Draw the horizonal line under EVERY node
+     for (let k = 0; k <= numRounds; k++) {
+         if (k === numRounds) continue; // Champion node handled via vertical tick
+         const count = positions[k].length;
+         for (let i = 0; i < count; i++) {
+             const pos = positions[k][i];
+             connectorLines.push(`M ${pos.x} ${pos.y} L ${pos.x + BOX_W} ${pos.y}`);
+         }
+     }
+  }
+
+  for (let k = 1; k <= numRounds; k++) {
+    const count = positions[k].length;
+    for (let m = 0; m < count; m++) {
+      const c1 = positions[k - 1][2 * m];
+      const c2 = positions[k - 1][2 * m + 1];
+      const parent = positions[k][m];
+
+      if (k === numRounds) {
+        if (isClassic) {
+           const riserX = (c1.x + BOX_W + c2.x) / 2;
+           // Straight horizontal line joining the two sides
+           connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${c2.x} ${c2.y}`);
+        } else {
+           // Final match: LHS and RHS meet perfectly horizontal at the center node - removed per user request: "remove 1 left/right connector lines"
+           // connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${parent.x} ${parent.y}`);
+           // connectorLines.push(`M ${c2.x} ${c2.y} L ${parent.x + BOX_W} ${parent.y}`);
+        }
+      } else {
+        const isLeftParent = m < count / 2;
+        if (isLeftParent) {
+          // Left-hand side connectors flow left to right
+          const riserX = (c1.x + BOX_W + parent.x) / 2;
+          connectorLines.push(`M ${c1.x + BOX_W} ${c1.y} L ${riserX} ${c1.y}`);
+          connectorLines.push(`M ${c2.x + BOX_W} ${c2.y} L ${riserX} ${c2.y}`);
+          connectorLines.push(`M ${riserX} ${c1.y} L ${riserX} ${c2.y}`);
+          connectorLines.push(`M ${riserX} ${parent.y} L ${parent.x} ${parent.y}`);
+        } else {
+          // Right-hand side connectors flow right to left
+          const riserX = (c1.x + parent.x + BOX_W) / 2;
+          connectorLines.push(`M ${c1.x} ${c1.y} L ${riserX} ${c1.y}`);
+          connectorLines.push(`M ${c2.x} ${c2.y} L ${riserX} ${c2.y}`);
+          connectorLines.push(`M ${riserX} ${c1.y} L ${riserX} ${c2.y}`);
+          connectorLines.push(`M ${riserX} ${parent.y} L ${parent.x + BOX_W} ${parent.y}`);
+        }
+      }
+    }
+  }
+
+  const handleZoom = (factor: number) => {
+    setIsAutoFit(false);
+    setScale((prev) => Math.min(Math.max(0.3, prev * factor), 2.5));
+  };
+
+  const handleResetZoom = () => {
+    setIsAutoFit((prev) => !prev);
+  };
+
+  return (
+    <div
+      id={`page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')}`}
+      data-canvas-width={canvasWidth}
+      data-canvas-height={canvasHeight}
+      data-ring={ring}
+      data-category={categoryKey}
+      data-system-type={bracket.systemType || 'kyorugi-pk'}
+      className="bracket-page-card bracket-page bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
+    >
+      <style>{`
+        @media print {
+          #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
+             transform: scale(${printScale}) !important;
+             transform-origin: top center !important;
+          }
+          #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} .bracket-canvas {
+             width: ${canvasWidth * printScale}px !important;
+             height: ${canvasHeight * printScale}px !important;
+             margin: 0 auto !important;
+          }
+        }
+      `}</style>
+      {/* Centered Heading Layout precisely mimicking the PDF layout */}
+      <div className="text-center border-b border-slate-100 max-w-2xl mx-auto -mt-2">
+        <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-4">
+          {/* Left Logos */}
+          <div className="flex flex-shrink-0 gap-2">
+            <div className="w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center relative group">
+              {leftLogo ? (
+                <>
+                  <img src={leftLogo} alt="Left Logo 1" className="max-w-full max-h-full object-contain" />
+                  {!isPublicView && (
+                    <button onClick={() => onChangeLeftLogo && onChangeLeftLogo('')} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity no-print text-xs" title="Remove logo">
+                      ✕
+                    </button>
+                  )}
+                </>
+              ) : !isPublicView ? (
+                <label className="w-full h-full border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-xl flex items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors no-print">
+                  <span className="text-[9px] text-slate-400 font-bold text-center px-1">Logo 1</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e, 'left')} />
+                </label>
+              ) : null}
+            </div>
+            {(leftLogo || !isPublicView) && (
+              <div className="w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center relative group">
+                {leftLogo2 ? (
+                  <>
+                    <img src={leftLogo2} alt="Left Logo 2" className="max-w-full max-h-full object-contain" />
+                    {!isPublicView && (
+                      <button onClick={() => onChangeLeftLogo2 && onChangeLeftLogo2('')} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity no-print text-xs" title="Remove logo">
+                        ✕
+                      </button>
+                    )}
+                  </>
+                ) : !isPublicView ? (
+                  <label className="w-full h-full border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-xl flex items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors no-print">
+                    <span className="text-[9px] text-slate-400 font-bold text-center px-1">Logo 2</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e, 'left2')} />
+                  </label>
+                ) : null}
+              </div>
+            )}
+          </div>
+          
+          {/* Center Text */}
+          <div className="flex-1 text-center px-4">
+            <h1 className="text-[26px] md:text-[30px] font-black text-slate-900 tracking-tight uppercase">
+              {tournamentName || 'TOURNAMENT CHAMPIONSHIP'}
+            </h1>
+            <p className="text-[22px] md:text-[24px] font-black text-slate-800 tracking-widest uppercase mt-1">
+              RING {ring}
+            </p>
+            <p className="text-[24px] md:text-[26px] font-extrabold text-amber-600 tracking-normal mt-1.5 uppercase">
+              {categoryKey}
+            </p>
+            <p className="text-xs text-slate-500 font-bold mt-1">
+              {entrantCount} competitors
+            </p>
+          </div>
+
+          {/* Right Logo */}
+          <div className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center relative group">
+            {rightLogo ? (
+              <>
+                <img src={rightLogo} alt="Right Logo" className="max-w-full max-h-full object-contain" />
+                {!isPublicView && (
+                  <button onClick={() => onChangeRightLogo && onChangeRightLogo('')} className="absolute -top-2 -left-2 bg-rose-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity no-print text-xs" title="Remove logo">
+                    ✕
+                  </button>
+                )}
+              </>
+            ) : !isPublicView ? (
+              <label className="w-full h-full border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-xl flex items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors no-print">
+                <span className="text-[10px] text-slate-400 font-bold text-center px-2">Add Logo<br/>(Right)</span>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e, 'right')} />
+              </label>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Action Controls hidden on general print layout */}
+        <div className="flex justify-center items-center gap-1.5 mt-3 no-print">
+          {bracket.systemType === 'poomsae-cutoff' ? (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/65 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-black select-none">
+              <span>🥋</span>
+              <span>System: Poomsae Cut-Off Scoring Sheet</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2">
+                <button
+                  onClick={() => handleZoom(0.85)}
+                  className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleResetZoom}
+                  className={`p-1 px-2 rounded text-[10px] font-extrabold transition-all cursor-pointer uppercase tracking-wider ${isAutoFit ? 'bg-amber-500 text-slate-950 font-black' : 'bg-transparent text-slate-600 hover:bg-white font-bold'}`}
+                  title={isAutoFit ? "Auto-Fit: Active. Click to lock zoom" : "Click to auto-fit to screen"}
+                >
+                  {isAutoFit ? 'Auto-Fit' : `${(scale * 100).toFixed(0)}%`}
+                </button>
+                <button
+                  onClick={() => handleZoom(1.15)}
+                  className="p-1 px-1.5 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {!isPublicView && (
+                <>
+                  <button
+                    onClick={onReshuffle}
+                    className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 hover:text-slate-950 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Shuffle className="w-3.5 h-3.5" />
+                    <span>Reshuffle seeds</span>
+                  </button>
+
+                  <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold select-none">
+                    <span className="text-amber-500 font-sans">✨</span>
+                    <span>Drag & Drop players to swap slots</span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Symmetrical split bracket workspace container */}
+      {bracket.systemType === 'poomsae-cutoff' ? (
+        <div className="mt-6 max-w-4xl mx-auto space-y-6">
+          {/* Scoring Header / Control Panel */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-500/5 p-4 rounded-2xl border border-slate-200/50 no-print">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">📊</span>
+              <div className="text-left">
+                <h3 className="text-sm font-extrabold text-slate-900">Poomsae Cut-Off Tournament Panel</h3>
+                <p className="text-[11px] text-slate-500 font-bold">Record scores for competitor's performances. Ranks are sorted automatically descending by Final Score.</p>
+              </div>
+            </div>
+            
+            {!isPublicView && (
+              <button
+                type="button"
+                onClick={handleCalculateAndSaveRanks}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <span>🏆</span>
+                <span>Apply Ranks & Standings</span>
+              </button>
+            )}
+          </div>
+
+          {/* Scoring Sheet Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-extrabold text-[10px] font-mono uppercase tracking-wider border-b border-slate-200/60">
+                    <th className="py-3.5 px-4 text-center w-12">No.</th>
+                    <th className="py-3.5 px-4">Athlete / Club</th>
+                    <th className="py-3.5 px-4 text-center bg-blue-50/20" colSpan={3}>Poomsae 1</th>
+                    <th className="py-3.5 px-4 text-center bg-amber-50/10" colSpan={3}>Poomsae 2</th>
+                    <th className="py-3.5 px-4 text-center w-24">Final Score</th>
+                    <th className="py-3.5 px-4 text-center w-16">Rank</th>
+                    <th className="py-3.5 px-4 text-center w-24 no-print">Actions</th>
+                  </tr>
+                  <tr className="bg-slate-100/40 text-[9px] font-bold text-slate-400 border-b border-slate-200/60">
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4 text-center text-blue-600 w-16">Accuracy</th>
+                    <th className="py-1 px-4 text-center text-blue-600 w-16">Present.</th>
+                    <th className="py-1 px-4 text-center text-blue-700 bg-blue-50/30 w-16">Total</th>
+                    <th className="py-1 px-4 text-center text-amber-600 w-16">Accuracy</th>
+                    <th className="py-1 px-4 text-center text-amber-600 w-16">Present.</th>
+                    <th className="py-1 px-4 text-center text-amber-700 bg-amber-50/25 w-16">Total</th>
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4"></th>
+                    <th className="py-1 px-4 no-print"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150">
+                  {(() => {
+                    // Gather participants
+                    const items = Object.values(localScores).length > 0 
+                      ? Object.values(localScores)
+                      : (bracket.nodes?.[0]?.filter(n => !n.isBye).map(n => ({
+                          athleteName: n.name,
+                          athleteClub: n.club,
+                        })) || []);
+
+                    // If no items, show empty
+                    if (items.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-sm text-slate-400 italic">
+                            No competitors in this class.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // Sort: if ranks exist, sort by rank ascending; if not, sort by name
+                    const displayList = [...items].sort((a, b) => {
+                      if (a.rank && b.rank) return a.rank - b.rank;
+                      if (a.rank) return -1;
+                      if (b.rank) return 1;
+                      return a.athleteName.localeCompare(b.athleteName);
+                    });
+
+                    return displayList.map((ath, idx) => {
+                      const scoreKey = `${ath.athleteName}||${ath.athleteClub}`;
+                      const p1Acc = ath.accuracy1;
+                      const p1Pres = ath.presentation1;
+                      const p1Total = (p1Acc || 0) + (p1Pres || 0);
+
+                      const p2Acc = ath.accuracy2;
+                      const p2Pres = ath.presentation2;
+                      const p2Total = (p2Acc || 0) + (p2Pres || 0);
+
+                      const displayFinal = ath.finalScore !== undefined && ath.finalScore > 0
+                        ? ath.finalScore.toFixed(2)
+                        : p1Total > 0 ? p1Total.toFixed(2) : <span className="print:hidden">-</span>;
+
+                      const rank = ath.rank;
+                      let rankBadge = null;
+                      if (rank === 1) rankBadge = <span className="text-lg" title="1st Place (Gold)">🥇</span>;
+                      else if (rank === 2) rankBadge = <span className="text-lg" title="2nd Place (Silver)">🥈</span>;
+                      else if (rank === 3) rankBadge = <span className="text-lg" title="3rd Place (Bronze)">🥉</span>;
+                      else if (rank === 4) rankBadge = <span className="text-lg text-amber-700/60" title="4th Place (Bronze)">🥉</span>;
+                      else if (rank) rankBadge = <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md">#{rank}</span>;
+                      else rankBadge = <span className="text-slate-300 font-mono text-[11px] print:hidden">-</span>;
+
+                      const displayNo = idx + 1;
+
+                      return (
+                        <tr key={scoreKey} className="hover:bg-slate-50/50 transition-all text-slate-700">
+                          <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400 font-bold">{displayNo}</td>
+                          <td className="py-3 px-4 text-left">
+                            <div className="font-extrabold text-xs text-slate-900">{ath.athleteName}</div>
+                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{ath.athleteClub}</div>
+                          </td>
+                          
+                          {/* Poomsae 1 */}
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="4"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p1Acc !== undefined ? p1Acc : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'accuracy1', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="6"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p1Pres !== undefined ? p1Pres : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'presentation1', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center font-black text-xs text-blue-900 bg-blue-50/10">
+                            {p1Total > 0 ? p1Total.toFixed(2) : <span className="print:hidden">-</span>}
+                          </td>
+
+                          {/* Poomsae 2 */}
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="4"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p2Acc !== undefined ? p2Acc : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'accuracy2', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="6"
+                              step="0.1"
+                              placeholder=""
+                              disabled={isPublicView}
+                              value={p2Pres !== undefined ? p2Pres : ''}
+                              onChange={(e) => handleScoreChange(scoreKey, 'presentation2', e.target.value)}
+                              className="w-14 text-center bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs font-bold text-slate-800 focus:bg-white outline-none transition-all print:bg-transparent print:border-none print:p-0 print:font-black print:text-slate-950 disabled:bg-transparent disabled:border-none disabled:p-0 disabled:text-center placeholder:text-slate-300 print:placeholder:text-transparent"
+                            />
+                          </td>
+                          <td className="py-3 px-2 text-center font-black text-xs text-amber-900 bg-amber-50/10">
+                            {p2Total > 0 ? p2Total.toFixed(2) : <span className="print:hidden">-</span>}
+                          </td>
+
+                          {/* Final Score */}
+                          <td className="py-3 px-4 text-center font-black text-xs text-slate-900 bg-slate-50">
+                            {displayFinal}
+                          </td>
+                          <td className="py-3 px-4 text-center font-extrabold">{rankBadge}</td>
+
+                          {/* Action Button: Print Certificate */}
+                          <td className="py-3 px-4 text-center no-print">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCertificateAthlete({
+                                  name: ath.athleteName,
+                                  club: ath.athleteClub,
+                                  category: bracket.categoryKey || bracket.categoryName || '',
+                                });
+                                setShowCertificateModal(true);
+                              }}
+                              className="p-1 px-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[10px] uppercase tracking-wider cursor-pointer transition-all active:scale-95 shadow-sm"
+                              title="Print achievement certificate for this athlete"
+                            >
+                              Print Cert
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div ref={containerRef} className="overflow-x-auto overflow-y-hidden py-1 rounded-xl border border-slate-100/10 print:overflow-visible print:border-none print:flex print:justify-center">
+        <div
+          className="bracket-canvas relative origin-top-left transition-transform duration-100 print:transform-none"
+          style={{
+            width: `${canvasWidth * scale}px`,
+            height: `${canvasHeight * scale}px`,
+            '--export-width': `${canvasWidth}px`,
+            '--export-height': `${canvasHeight}px`,
+            margin: '0 auto',
+          } as React.CSSProperties}
+        >
+          <div
+            className="absolute top-0 left-0 origin-top-left print-scale-wrapper"
+            style={{ transform: `scale(${scale})`, width: canvasWidth, height: canvasHeight }}
+          >
+            {/* Stage Title Labels */}
+            {positions.map((roundPositions, k) => {
+              if (!roundPositions || roundPositions.length === 0) return null;
+              const stageLabel = getStageLabel(size, k, numRounds);
+              
+              const leftX = roundPositions[0].x;
+              const rightX = roundPositions[roundPositions.length - 1].x;
+              const isCenter = k === numRounds;
+              
+              return (
+                <React.Fragment key={`stage-label-${k}`}>
+                  <div 
+                    className="absolute text-center text-slate-800 font-extrabold print:text-black tracking-wide no-print-break-inside flex flex-col justify-end pb-2 border-b-2 border-slate-200 print:border-black uppercase"
+                    style={{
+                      left: leftX,
+                      top: PAD,
+                      width: BOX_W,
+                      height: 40,
+                      fontSize: '14px',
+                    }}
+                  >
+                    {stageLabel}
+                  </div>
+                  {!isCenter && (
+                    <div 
+                      className="absolute text-center text-slate-800 font-extrabold print:text-black tracking-wide no-print-break-inside flex flex-col justify-end pb-2 border-b-2 border-slate-200 print:border-black uppercase"
+                      style={{
+                        left: rightX,
+                        top: PAD,
+                        width: BOX_W,
+                        height: 40,
+                        fontSize: '14px',
+                      }}
+                    >
+                      {stageLabel}
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+
+            {/* Symmetrical line connectors svg layer */}
+            <svg
+              className="absolute top-0 left-0 pointer-events-none"
+              width={canvasWidth}
+              height={canvasHeight}
+              style={{ minWidth: canvasWidth, minHeight: canvasHeight }}
+            >
+              <path
+                d={connectorLines.join(' ')}
+                fill="none"
+                stroke="#1e293b"
+                strokeWidth="1.2"
+                strokeLinecap="square"
+                strokeLinejoin="miter"
+              />
+            </svg>
+
+            {/* Symmetrical riser bout number boxes */}
+            {positions.map((roundPositions, k) => {
+              if (k < 1) return null;
+              if (k === numRounds && !isClassic) return null;
+              
+              return roundPositions.map((pos, m) => {
+                const node = nodes[k]?.[m];
+                if (!node) return null;
+                const hasBout = typeof node.bout === 'number';
+                if (!hasBout) return null;
+
+                const BOUT_BOX_W = isClassic ? 110 : 100;
+                const BOUT_BOX_H = isClassic ? 52 : 52;
+
+                if (k === numRounds) {
+                   const c1 = positions[k - 1][0];
+                   const c2 = positions[k - 1][1];
+                   const riserX = (c1.x + BOX_W + c2.x) / 2;
+                   const riserY = pos.y;
+                   return (
+                     <div
+                        key={`riser-bout-final`}
+                        className={`absolute bg-white border border-slate-900 flex items-center justify-center font-sans tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white font-bold print:text-[40px] ${isClassic ? 'text-[25px]' : 'text-[18px]'}`}
+                        style={{
+                          left: `${riserX - BOUT_BOX_W / 2}px`,
+                          top: `${riserY - BOUT_BOX_H / 2}px`,
+                          width: `${BOUT_BOX_W}px`,
+                          height: `${BOUT_BOX_H}px`,
+                        }}
+                      >
+                        {getFormattedBout(ring, node.bout, boutLabelFormat)}
+                      </div>
+                   )
+                }
+
+                const c1 = positions[k - 1][2 * m];
+                const isLeftParent = m < roundPositions.length / 2;
+                const riserX = isLeftParent
+                  ? (c1.x + BOX_W + pos.x) / 2
+                  : (c1.x + pos.x + BOX_W) / 2;
+                const riserY = pos.y;
+
+                return (
+                  <div
+                    key={`riser-bout-${k}-${m}`}
+                    className={`absolute bg-white border border-slate-900 flex items-center justify-center tracking-tight text-slate-900 z-10 select-none print:border-black print:bg-white font-bold print:text-[40px] ${isClassic ? 'font-sans text-[25px]' : 'rounded-sm shadow-sm font-mono text-[18px]'}`}
+                    style={{
+                      left: `${riserX - BOUT_BOX_W / 2}px`,
+                      top: `${riserY - BOUT_BOX_H / 2}px`,
+                      width: `${BOUT_BOX_W}px`,
+                      height: `${BOUT_BOX_H}px`,
+                    }}
+                  >
+                    {getFormattedBout(ring, node.bout, boutLabelFormat)}
+                  </div>
+                );
+              });
+            })}
+
+            {/* Symmetrical render matches list */}
+            {positions.map((roundPositions, k) => {
+              return roundPositions.map((pos, i) => {
+                const node = nodes[k]?.[i];
+                if (!node) return null;
+                const hasBout = typeof node.bout === 'number';
+
+                const x = pos.x;
+                const y = pos.y - (k === numRounds ? 23 : BOX_H / 2);
+
+                const countInRound = size / Math.pow(2, k);
+                const isLeft = k < numRounds && (i < countInRound / 2);
+
+                // Leaf Nodes: Round 0
+                if (k === 0) {
+                  const sibling = nodes[k]?.[i ^ 1];
+                  const isWalkover = !!(sibling && sibling.isBye);
+
+                  const isDragging = draggingIndex === i;
+                  const isDragOver = dragOverIndex === i;
+
+                  if (node.isBye) {
+                    return (
+                      <div
+                        key={`${k}-${i}`}
+                        draggable={!isPublicView}
+                        onDragStart={(e) => handleDragStart(e, i)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleDragOver(e, i)}
+                        onDragEnter={(e) => handleDragEnter(e, i)}
+                        onDragLeave={() => handleDragLeave(i)}
+                        onDrop={(e) => handleDrop(e, i)}
+                        onClick={() => {
+                          if (isPublicView) return;
+                          setSelectedLeafIndex(i);
+                          setEditName('');
+                          setEditClub('');
+                          setEditIsBye(true);
+                          setSwapTargetIndex('');
+                          setShowModal(true);
+                        }}
+                        className={`absolute flex items-center px-2 transition-all group ${
+                          isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                        } ${
+                          isClassic 
+                            ? `bg-transparent text-[9px]` 
+                            : `bg-slate-50 border border-slate-200 border-dashed rounded text-[10px]`
+                        } text-slate-400 font-mono italic hover:border-amber-500 hover:bg-amber-50/10 ${
+                          isLeft ? 'flex-row text-left' : 'flex-row-reverse text-right'
+                        } ${isDragging ? 'opacity-40 scale-95' : ''} ${
+                          isDragOver ? 'border-amber-500 bg-amber-50/30 scale-105 shadow-md ring-2 ring-amber-500/20 z-20' : ''
+                        }`}
+                        style={{
+                          left: `${x}px`,
+                          top: `${y}px`,
+                          width: `${BOX_W}px`,
+                          height: `${BOX_H}px`,
+                        }}
+                      >
+                        {isClassic ? (
+                          <div className="flex flex-col w-full h-full justify-between min-w-0">
+                            {/* BYE text ON TOP of the line */}
+                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
+                              <span className="text-[12.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
+                              <span className="text-[14px] font-black tracking-tight text-slate-400 uppercase whitespace-nowrap min-w-0">BYE</span>
+                            </div>
+                            {/* Empty space below line */}
+                            <div className="h-[20px]" />
+                          </div>
+                        ) : (
+                          <>
+                            <span className={`w-5 text-slate-350 font-bold group-hover:text-amber-500 transition-colors ${isLeft ? 'mr-1 text-left' : 'ml-1 text-right'}`}>
+                              {node.seed}
+                            </span>
+                            <span className="flex-1 text-[11px] font-black uppercase">BYE</span>
+                          </>
+                        )}
+                        {isClassic && !isPublicView && (
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-amber-500 font-bold ml-1 absolute bottom-0 right-0 p-1">
+                              + Edit
+                            </span>
+                        )}
+                        {!isClassic && !isPublicView && (
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1">
+                              + Edit
+                            </span>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={`${k}-${i}`}
+                      draggable={!isPublicView}
+                      onDragStart={(e) => handleDragStart(e, i)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => handleDragOver(e, i)}
+                      onDragEnter={(e) => handleDragEnter(e, i)}
+                      onDragLeave={() => handleDragLeave(i)}
+                      onDrop={(e) => handleDrop(e, i)}
+                      onClick={(e) => {
+                        if (isPublicView) return;
+                        if ((e.target as HTMLElement).closest('input[type="checkbox"]')) return;
+                        setSelectedLeafIndex(i);
+                        setEditName(node.isBye ? '' : node.name);
+                        setEditClub(node.club || '');
+                        setEditIsBye(node.isBye);
+                        setSwapTargetIndex('');
+                        setSelectedTargetCategory('');
+                        setShowModal(true);
+                      }}
+                      className={`absolute flex items-center px-2 transition-all group ${
+                        isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                      } ${
+                        isClassic 
+                          ? `bg-transparent ${node.checked ? 'text-emerald-900' : ''}`
+                          : `py-1.5 bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 hover:bg-amber-50/5 ${node.checked ? 'bg-emerald-50/75 border-emerald-500 ring-1 ring-emerald-500/20' : ''}`
+                      } ${isWalkover ? (isClassic ? '' : 'bg-amber-50/10 border-slate-400') : ''} ${
+                        isLeft ? 'flex-row' : 'flex-row-reverse'
+                      } ${isDragging ? 'opacity-40 scale-95' : ''} ${
+                        isDragOver ? 'border-amber-500 bg-amber-50/30 scale-105 shadow-md ring-2 ring-amber-500/20 z-20' : ''
+                      }`}
+                      style={{
+                        left: `${x}px`,
+                        top: `${y}px`,
+                        width: `${BOX_W}px`,
+                        height: `${BOX_H}px`,
+                      }}
+                    >
+                      {/* Advancing check trigger */}
+                      {!isClassic && (
+                        <span className={`flex items-center justify-center ${isLeft ? 'mr-1.5 order-1' : 'ml-1.5 order-3'}`}>
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                            checked={node.checked}
+                            disabled={isPublicView || isWalkover}
+                            onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
+                          />
+                        </span>
+                      )}
+
+                      {isClassic ? (
+                        <div className={`classic-competitor-container absolute bottom-0 flex flex-col h-full justify-between pointer-events-none ${isLeft ? 'left-0 items-start text-left' : 'right-0 items-end text-right'}`} style={{ width: 'max-content', minWidth: '100%' }}>
+                           {/* Player Name ON TOP of the line */}
+                           <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="text-[17.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
+                              <span className={`${size === 2 ? 'text-[19.5px] print:text-[29.5px]' : 'text-[22.5px] print:text-[32.5px]'} font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto`} title={node.name}>{node.name}</span>
+                           </div>
+                           {/* Club BELOW the line */}
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full ${size === 2 ? 'text-[17.5px] print:text-[27.5px]' : 'text-[19.5px] print:text-[29.5px]'} font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || '(Ind.)'}</span>
+                           </div>
+                        </div>
+                      ) : (
+                        <>
+                          <span className={`w-5 text-slate-400 font-mono text-[10px] font-bold group-hover:text-amber-500 transition-colors order-2 ${
+                            isLeft ? 'text-left mr-0.5' : 'text-right ml-0.5'
+                          }`}>
+                            {node.seed}
+                          </span>
+                          <div className={`flex-1 min-w-0 leading-tight order-2 flex flex-col justify-center ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-[11px] font-black text-slate-800 uppercase mt-0.5" title={node.name}>
+                                {node.name}
+                              </p>
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold font-sans">
+                                ✎
+                              </span>
+                            </div>
+                            <p className="competitor-club text-[9px] text-slate-400 tracking-wide font-medium">
+                              {node.club || 'Ind.'}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Intermediate Rounds
+                if (k < numRounds) {
+                  const sibling = nodes[k]?.[i ^ 1];
+                  const isWalkover = !!(sibling && sibling.isBye);
+
+                  if (node.isBye) {
+                    return (
+                      <div
+                        key={`${k}-${i}`}
+                        className={`absolute flex items-center bg-transparent ${isClassic ? 'justify-center' : 'justify-center border border-slate-200 border-dashed rounded bg-slate-50'} text-[11px] text-slate-300 font-semibold`}
+                        style={{
+                          left: `${x}px`,
+                          top: `${y}px`,
+                          width: `${BOX_W}px`,
+                          height: `${BOX_H}px`,
+                        }}
+                      >
+                        {!isClassic && '—'}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={`${k}-${i}`}
+                      draggable={!isPublicView && !!node.name && !node.isBye}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('athleteName', node.name || '');
+                        e.dataTransfer.setData('text/plain', node.name || '');
+                        e.dataTransfer.effectAllowed = 'copyMove';
+                      }}
+                      className={`absolute flex items-center px-2 transition-all group ${
+                        isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                      } ${
+                        isClassic 
+                          ? `bg-transparent ${node.checked ? 'border-emerald-500 text-emerald-900' : ''}`
+                          : `bg-white border border-slate-900 rounded shadow-sm hover:shadow-md hover:border-amber-500 transition-all ${
+                              node.name ? 'bg-slate-50/50' : 'border-dashed border-slate-400'
+                            } ${node.checked ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500/20' : ''}`
+                      } ${
+                        isLeft ? 'flex-row' : 'flex-row-reverse'
+                      }`}
+                      style={{
+                        left: `${x}px`,
+                        top: `${y}px`,
+                        width: `${BOX_W}px`,
+                        height: `${BOX_H}px`,
+                      }}
+                    >
+                      {/* Advance Check trigger */}
+                      {!isClassic && (
+                        <span className={`flex items-center justify-center ${isLeft ? 'mr-1.5' : 'ml-1.5'}`}>
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                            checked={node.checked}
+                            disabled={isPublicView || !node.name || isWalkover}
+                            onChange={(e) => onCheckboxToggle(k, i, e.target.checked)}
+                          />
+                        </span>
+                      )}
+
+                      {/* Name input flow */}
+                      {isClassic ? (
+                        <div className={`classic-competitor-container absolute bottom-0 flex flex-col h-full justify-between pointer-events-none ${isLeft ? 'left-0 items-start text-left' : 'right-0 items-end text-right'}`} style={{ width: 'max-content', minWidth: '100%' }}>
+                           {/* Player Name ON TOP of the line */}
+                           <div className={`h-[20px] flex items-end w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <input
+                                type="text"
+                                className={`w-full min-w-[240px] bg-transparent border-none outline-none ${size === 2 ? 'text-[19.5px] print:text-[29.5px]' : 'text-[22.5px] print:text-[32.5px]'} font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
+                                  isLeft ? 'text-left' : 'text-right'
+                                }`}
+                                placeholder=""
+                                value={node.name || ''}
+                                disabled={isPublicView}
+                                onChange={(e) => onTextChange(k, i, e.target.value)}
+                              />
+                           </div>
+                           {/* Club BELOW the line */}
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full ${size === 2 ? 'text-[17.5px] print:text-[27.5px]' : 'text-[19.5px] print:text-[29.5px]'} font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || ''}</span>
+                           </div>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 tracking-tight uppercase mt-0.5 ${
+                            isLeft ? 'text-left' : 'text-right'
+                          }`}
+                          placeholder=""
+                          value={node.name || ''}
+                          disabled={isPublicView}
+                          onChange={(e) => onTextChange(k, i, e.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
+                             // Champion Node (k === numRounds)
+                if (isClassic) {
+                  return (
+                     <div
+                        key={`${k}-${i}`}
+                        draggable={!isPublicView && !!node.name}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('athleteName', node.name || '');
+                          e.dataTransfer.setData('text/plain', node.name || '');
+                          e.dataTransfer.effectAllowed = 'copyMove';
+                        }}
+                        className={`absolute flex items-center justify-center px-1 ${
+                          isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                        }`}
+                        style={{
+                          left: `${x}px`,
+                          top: `${y - 12}px`, /* Above the bout box */
+                          width: `${BOX_W}px`,
+                          height: `${BOX_H}px`,
+                        }}
+                      >
+                         <div className="flex flex-col w-full h-full justify-end items-center text-center">
+                             <input
+                               type="text"
+                               className="w-[260px] max-w-none bg-transparent pb-1 outline-none text-[24.5px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
+                               placeholder="CHAMPION"
+                               value={node.name || ''}
+                               disabled={isPublicView}
+                               onChange={(e) => onTextChange(k, i, e.target.value)}
+                             />
+                         </div>
+                       </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={`${k}-${i}`}
+                    draggable={!isPublicView && !!node.name}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('athleteName', node.name || '');
+                      e.dataTransfer.setData('text/plain', node.name || '');
+                      e.dataTransfer.effectAllowed = 'copyMove';
+                    }}
+                    className={`absolute flex items-center gap-1.5 px-3 bg-amber-50/90 hover:bg-amber-100/90 border-2 border-amber-500 rounded-lg shadow-md group animate-fade-in text-center ${
+                      isPublicView ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+                    }`}
+                    style={{
+                      left: `${x}px`,
+                      top: `${y}px`,
+                      width: `${BOX_W}px`,
+                      height: '46px',
+                    }}
+                  >
+                    {hasBout ? (
+                      <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">
+                        FINAL · {getFormattedBout(ring, node.bout, boutLabelFormat)}
+                      </span>
+                    ) : (
+                      <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">
+                        CHAMPION
+                      </span>
+                    )}
+
+                    <Trophy className="w-4.5 h-4.5 text-amber-500 flex-shrink-0" />
+                    <input
+                      type="text"
+                      className="w-full bg-transparent border-none outline-none text-xs font-black text-amber-950 placeholder-amber-400 text-center"
+                      placeholder="Grand Champion"
+                      value={node.name || ''}
+                      disabled={isPublicView}
+                      onChange={(e) => onTextChange(k, i, e.target.value)}
+                    />
+                  </div>
+                );
+              });
+            })}
+            <div
+              className="absolute border border-slate-350 rounded-xl bg-white overflow-hidden text-xs shadow-md select-none z-30"
+              style={{
+                width: '650px',
+                left: `${PAD + numRounds * gap + (BOX_W - 650) / 2}px`,
+                top: `${baseCanvasHeight + 20}px`,
+              }}
+            >
+              <div className="bg-slate-50 border-b border-slate-350 px-6 py-3.5 text-[14px] font-black text-slate-600 uppercase tracking-widest text-center flex items-center justify-center gap-2">
+                FINAL STANDINGS
+              </div>
+              <div className="divide-y divide-slate-200">
+                {(() => {
+                  const currentStandings = [
+                    bracket.standings?.[0] || '',
+                    bracket.standings?.[1] || '',
+                    bracket.standings?.[2] || '',
+                    bracket.standings?.[3] || '',
+                  ];
+                  const default1 = nodes[numRounds]?.[0]?.name || '';
+                  const default2 = (nodes[numRounds]?.[0]?.name && (nodes[numRounds - 1]?.[0]?.checked || nodes[numRounds - 1]?.[1]?.checked))
+                    ? (nodes[numRounds - 1]?.[0]?.checked ? (nodes[numRounds - 1]?.[1]?.name || '') : (nodes[numRounds - 1]?.[0]?.name || ''))
+                    : '';
+
+                  const getSlotPlaceholder = (idx: number) => {
+                    if (currentStandings[idx] === '_REMOVED_') {
+                      if (idx === 0) return `❌ (Removed: ${default1 || 'Winner'} - Click restore or drop)`;
+                      if (idx === 1) return `❌ (Removed: ${default2 || 'Runner-up'} - Click restore or drop)`;
+                      return '❌ (Medalist Removed - Click restore or drop)';
+                    }
+                    if (idx === 0) return default1 ? `${default1} (Auto)` : 'TBD (Winner of Final)';
+                    if (idx === 1) return default2 ? `${default2} (Auto)` : 'TBD (Runner-up)';
+                    return 'Drag competitor here';
+                  };
+
+                  return [0, 1, 2, 3].map((slotIdx) => {
+                    const isOver = dragOverStandingsIndex === slotIdx;
+                    const val = currentStandings[slotIdx];
+                    const isRemoved = val === '_REMOVED_';
+                    let displayName = isRemoved ? '' : val;
+                    let isComputed = false;
+
+                    if (!displayName) {
+                      if (slotIdx === 0 && !isRemoved) {
+                        displayName = default1;
+                        isComputed = !!default1;
+                      } else if (slotIdx === 1 && !isRemoved) {
+                        displayName = default2;
+                        isComputed = !!default2;
+                      }
+                    }
+
+                    const labelColor =
+                      slotIdx === 0
+                        ? 'text-amber-500'
+                        : slotIdx === 1
+                        ? 'text-slate-400'
+                        : 'text-amber-700/60';
+
+                    return (
+                      <div
+                        key={slotIdx}
+                        onDragOver={(e) => {
+                          if (isPublicView) return;
+                          e.preventDefault();
+                          if (dragOverStandingsIndex !== slotIdx) {
+                            setDragOverStandingsIndex(slotIdx);
+                          }
+                        }}
+                        onDragEnter={(e) => {
+                          if (isPublicView) return;
+                          e.preventDefault();
+                          setDragOverStandingsIndex(slotIdx);
+                        }}
+                        onDragLeave={() => {
+                          if (isPublicView) return;
+                          if (dragOverStandingsIndex === slotIdx) {
+                            setDragOverStandingsIndex(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          if (isPublicView) return;
+                          handleDropToStanding(e, slotIdx);
+                        }}
+                        className={`px-6 py-4 flex items-center gap-4 transition-all group/slot relative ${
+                          !isPublicView && isOver
+                            ? 'bg-amber-50 border-y border-amber-300 scale-[1.01] shadow-sm z-10'
+                            : 'hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <span className={`font-black w-6 text-[18px] ${labelColor}`}>
+                          {slotIdx + 1}.
+                        </span>
+                        <div className="flex-1 flex items-center min-w-0">
+                          <input
+                            type="text"
+                            value={val === '_REMOVED_' ? '' : val}
+                            disabled={isPublicView}
+                            onChange={(e) => {
+                              const nextS = [...currentStandings];
+                              nextS[slotIdx] = e.target.value;
+                              if (onUpdateStandings) onUpdateStandings(nextS);
+                            }}
+                            className={`w-full bg-transparent border-none outline-none text-[16px] p-0 placeholder-slate-400 truncate focus:ring-0 ${
+                              val && val !== '_REMOVED_'
+                                ? 'text-slate-950 font-black' 
+                                : isComputed 
+                                ? 'text-slate-700 font-extrabold italic' 
+                                : 'text-slate-400 font-medium italic'
+                            }`}
+                            placeholder={getSlotPlaceholder(slotIdx)}
+                          />
+                        </div>
+
+                        {/* Badges/Controls */}
+                        {!isPublicView && (
+                          <div className="flex items-center gap-2 shrink-0 select-none">
+                          {!val && isComputed && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextS = [...currentStandings];
+                                nextS[slotIdx] = '_REMOVED_';
+                                if (onUpdateStandings) onUpdateStandings(nextS);
+                              }}
+                              className="bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-600 hover:text-rose-700 border border-rose-200 px-2.5 py-1 rounded-md cursor-pointer transition-all no-print flex items-center justify-center gap-1.5 text-[11px] font-bold"
+                              title="Exclude this competitor from final standings"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          )}
+
+                          {val && val !== '_REMOVED_' && (
+                            <button
+                              type="button"
+                              onClick={() => clearStandingSlot(slotIdx)}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-full w-6 h-6 flex items-center justify-center text-[14px] font-bold cursor-pointer transition-all no-print"
+                              title="Clear custom result"
+                            >
+                              ×
+                            </button>
+                          )}
+
+                          {val === '_REMOVED_' && (
+                            <button
+                              type="button"
+                              onClick={() => clearStandingSlot(slotIdx)}
+                              className="bg-amber-100 hover:bg-amber-200 text-amber-700 hover:text-amber-900 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all no-print"
+                              title="Restore automatic medalist calculations"
+                            >
+                              Restore
+                            </button>
+                          )}
+                          
+                          {!displayName && !val && (
+                            <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded font-black uppercase tracking-wider group-hover/slot:opacity-0 transition-opacity no-print">
+                              Drop
+                            </span>
+                          )}
+
+                          {val && val !== '_REMOVED_' && (
+                            <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-black uppercase tracking-wider no-print">
+                              Custom
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Manual Writing Final Standings Card at the bottom center (for manual writing after download) */}
+      {bracket.systemType !== 'poomsae-cutoff' && (
+        <div className="mt-8 flex justify-center w-full no-print-break-inside manual-standings-box-wrapper">
+          <div className="w-[450px] border border-slate-300 rounded-2xl bg-white overflow-hidden shadow-sm">
+            <div className="bg-slate-50 border-b border-slate-300 px-6 py-3.5 text-[14px] font-black text-slate-700 uppercase tracking-widest text-center flex items-center justify-center gap-2">
+              FINAL STANDINGS
+            </div>
+            <div className="divide-y divide-slate-250">
+              {[1, 2, 3, 4].map((num) => {
+                const labelColor =
+                  num === 1
+                    ? 'text-amber-500'
+                    : num === 2
+                    ? 'text-slate-400'
+                    : num === 3
+                    ? 'text-amber-700/60'
+                    : 'text-slate-500';
+                return (
+                  <div key={num} className="px-6 py-4 flex items-center justify-between text-base bg-white">
+                    <div className="flex items-center gap-4">
+                      <span className={`font-black w-6 text-[18px] ${labelColor}`}>
+                        {num}.
+                      </span>
+                      {/* Empty space for manual writing */}
+                      <div className="w-[300px] h-6"></div>
+                    </div>
+                    <span className="text-slate-300 font-bold text-lg pr-2">]</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* Edit Leaf Node Modal overlay */}
+      {showModal && selectedLeafIndex !== null && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 font-sans no-print">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-xl relative">
+            <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+              <span className="text-amber-500 text-lg">🥋</span>
+              <span>Edit Competitor — Slot {selectedLeafIndex + 1} (Seed {nodes[0]?.[selectedLeafIndex]?.seed})</span>
+            </h3>
+
+            <div className="space-y-4">
+              {/* Type toggle */}
+              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setEditIsBye(false)}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    !editIsBye ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Competitor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditIsBye(true);
+                    setEditName('BYE');
+                    setEditClub('');
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    editIsBye ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  BYE / Empty
+                </button>
+              </div>
+
+              {!editIsBye && (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                      Competitor Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="e.g. John Doe"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                      Club / Team
+                    </label>
+                    <input
+                      type="text"
+                      value={editClub}
+                      onChange={(e) => {
+                        setEditClub(e.target.value);
+                        setClubSearchFocused(true);
+                      }}
+                      onFocus={() => setClubSearchFocused(true)}
+                      onBlur={() => {
+                        // Delay blurring so user can click a suggestion button
+                        setTimeout(() => setClubSearchFocused(false), 200);
+                      }}
+                      placeholder="e.g. Phoenix Judo Club (or leave blank)"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
+                    />
+                    {clubSearchFocused && (
+                      (() => {
+                        const search = editClub.trim().toLowerCase();
+                        const filtered = dbClubs.filter(name => {
+                          if (!search) return true; // Show all on empty search focus
+                          return name.toLowerCase().includes(search) && name.toLowerCase() !== search;
+                        }).slice(0, 8);
+
+                        if (filtered.length === 0) return null;
+
+                        return (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100 no-print">
+                            {filtered.map((clubName, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  // Use onMouseDown to prevent focus loss before click completes
+                                  e.preventDefault();
+                                }}
+                                onClick={() => {
+                                  setEditClub(clubName);
+                                  setClubSearchFocused(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer flex items-center justify-between"
+                              >
+                                <span>{clubName}</span>
+                                <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Select</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Swapping Dropdown */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                  Swap Position with another Seed Slot
+                </label>
+                <select
+                  value={swapTargetIndex}
+                  onChange={(e) => setSwapTargetIndex(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                >
+                  <option value="">-- Choose target slot --</option>
+                  {(nodes[0] || []).map((n, idx) => {
+                    if (idx === selectedLeafIndex) return null;
+                    const desc = n.isBye ? 'BYE' : `${n.name} (${n.club || 'Ind.'})`;
+                    return (
+                      <option key={idx} value={idx}>
+                        Slot {idx + 1} (Seed {n.seed}): {desc}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal">
+                  💡 Swapping moves this player to the selected slot and brings the target player there. You can also drag & drop players directly on the bracket canvas to swap!
+                </p>
+              </div>
+
+              {/* Move to another category dropdown */}
+              {!editIsBye && categoriesList && categoriesList.length > 0 && (
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                    Move to another Category / Division
+                  </label>
+                  <select
+                    value={selectedTargetCategory}
+                    onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                  >
+                    <option value="">-- Choose target category --</option>
+                    {categoriesList.map((catKey) => (
+                      <option key={catKey} value={catKey}>
+                        {catKey}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal font-sans">
+                    💡 Moving category transfers this competitor and updates both brackets automatically.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal actions */}
+            <div className="flex gap-2.5 justify-end mt-6 pt-3 border-t border-slate-100">
+              {!editIsBye && editName && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCertificateAthlete({
+                      name: editName,
+                      club: editClub,
+                      category: bracket.categoryName || '',
+                    });
+                    setShowCertificateModal(true);
+                  }}
+                  className="mr-auto px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  title="Print custom tournament certificate"
+                >
+                  <span>🥋</span>
+                  <span>Print Certificate</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 hover:bg-slate-100 text-slate-555 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Apply actions!
+                  if (selectedTargetCategory !== '') {
+                    if (onMoveToCategory && selectedLeafIndex !== null) {
+                      onMoveToCategory(selectedLeafIndex, selectedTargetCategory);
+                    }
+                  } else if (swapTargetIndex !== '') {
+                    const j = parseInt(swapTargetIndex, 10);
+                    if (onSwapLeafNodes && !isNaN(j)) {
+                      onSwapLeafNodes(selectedLeafIndex, j);
+                    }
+                  } else {
+                    if (onUpdateLeafNode) {
+                      onUpdateLeafNode(selectedLeafIndex, editName, editClub, editIsBye);
+                    }
+                    if (editClub.trim() && !editIsBye) {
+                      saveClubToDatabase(editClub);
+                    }
+                  }
+                  setShowModal(false);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-black shadow-sm transition-all cursor-pointer"
+              >
+                Save changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Certificate Modal Overlay */}
+      {showCertificateModal && certificateAthlete && (
+        <CertificateModal
+          athleteName={certificateAthlete.name}
+          club={certificateAthlete.club}
+          category={certificateAthlete.category}
+          tournamentName={tournamentName}
+          onClose={() => {
+            setShowCertificateModal(false);
+            setCertificateAthlete(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
