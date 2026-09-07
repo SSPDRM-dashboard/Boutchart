@@ -116,6 +116,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [editClub, setEditClub] = useState('');
   const [editIsBye, setEditIsBye] = useState(false);
   const [swapTargetIndex, setSwapTargetIndex] = useState<string>('');
+  const [nameFontOffset, setNameFontOffset] = useState(0);
+  const [clubFontOffset, setClubFontOffset] = useState(0);
   const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -554,7 +556,15 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
       className="bracket-page-card bracket-page bg-white border border-slate-200 rounded-2xl p-6 md:p-8 mb-8 shadow-sm no-print-break-inside print:border-none print:shadow-none print:p-0 print:m-0"
     >
       <style>{`
+        #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} {
+          --classic-name-size: calc(${size === 2 ? 22.5 : 22.5}px + ${nameFontOffset}px);
+          --classic-club-size: calc(${size === 2 ? 19.5 : 19.5}px + ${clubFontOffset}px);
+        }
         @media print {
+          #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} {
+            --classic-name-size: calc(${size === 2 ? 29.5 : 32.5}px + ${nameFontOffset}px);
+            --classic-club-size: calc(${size === 2 ? 27.5 : 29.5}px + ${clubFontOffset}px);
+          }
           #page-${(categoryKey || '').replace(/[^a-zA-Z0-9]/g, '_')} .print-scale-wrapper {
              transform: scale(${printScale}) !important;
              transform-origin: top center !important;
@@ -654,6 +664,20 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             </div>
           ) : (
             <>
+              <div className="flex items-center gap-2 bg-slate-100 p-1 px-2 rounded-xl border border-slate-200 mr-2">
+                <div className="flex items-center gap-1 border-r border-slate-200 pr-2">
+                  <span className="text-[9px] font-black uppercase text-slate-400 mr-1">Name</span>
+                  <button onClick={() => setNameFontOffset(f => f - 1)} className="p-0.5 px-1 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer font-bold text-xs" title="Decrease Name Size">A-</button>
+                  <div className="text-[10px] font-bold text-slate-500 w-4 text-center">{nameFontOffset > 0 ? `+${nameFontOffset}` : nameFontOffset}</div>
+                  <button onClick={() => setNameFontOffset(f => f + 1)} className="p-0.5 px-1 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer font-bold text-xs" title="Increase Name Size">A+</button>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] font-black uppercase text-slate-400 mr-1">Club</span>
+                  <button onClick={() => setClubFontOffset(f => f - 1)} className="p-0.5 px-1 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer font-bold text-xs" title="Decrease Club Size">A-</button>
+                  <div className="text-[10px] font-bold text-slate-500 w-4 text-center">{clubFontOffset > 0 ? `+${clubFontOffset}` : clubFontOffset}</div>
+                  <button onClick={() => setClubFontOffset(f => f + 1)} className="p-0.5 px-1 hover:bg-white text-slate-600 rounded bg-transparent transition-all cursor-pointer font-bold text-xs" title="Increase Club Size">A+</button>
+                </div>
+              </div>
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2">
                 <button
                   onClick={() => handleZoom(0.85)}
@@ -1190,11 +1214,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            {/* Player Name ON TOP of the line */}
                            <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <span className="text-[17.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className={`${size === 2 ? 'text-[19.5px] print:text-[29.5px]' : 'text-[22.5px] print:text-[32.5px]'} font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto`} title={node.name}>{node.name}</span>
+                              <span className={`font-black tracking-tight text-slate-900 uppercase whitespace-nowrap pointer-events-auto`} title={node.name} style={{ fontSize: 'var(--classic-name-size)' }}>{node.name}</span>
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full ${size === 2 ? 'text-[17.5px] print:text-[27.5px]' : 'text-[19.5px] print:text-[29.5px]'} font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
-                              <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || '(Ind.)'}</span>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="competitor-club whitespace-nowrap pointer-events-auto" style={{ fontSize: 'var(--classic-club-size)' }}>{node.club || '(Ind.)'}</span>
                            </div>
                         </div>
                       ) : (
@@ -1206,14 +1230,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           </span>
                           <div className={`flex-1 min-w-0 leading-tight order-2 flex flex-col justify-center ${isLeft ? 'text-left pr-1' : 'text-right pl-1'}`}>
                             <div className="flex items-center justify-between gap-1">
-                              <p className="text-[11px] font-black text-slate-800 uppercase mt-0.5" title={node.name}>
+                              <p className="font-black text-slate-800 uppercase mt-0.5" style={{ fontSize: `calc(11px + ${nameFontOffset}px)` }} title={node.name}>
                                 {node.name}
                               </p>
                               <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold font-sans">
                                 ✎
                               </span>
                             </div>
-                            <p className="competitor-club text-[9px] text-slate-400 tracking-wide font-medium">
+                            <p className="competitor-club text-slate-400 tracking-wide font-medium" style={{ fontSize: `calc(9px + ${clubFontOffset}px)` }}>
                               {node.club || 'Ind.'}
                             </p>
                           </div>
@@ -1292,24 +1316,26 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                            <div className={`h-[20px] flex items-end w-full pb-[2.5px] ${isLeft ? 'justify-start' : 'justify-end'}`}>
                               <input
                                 type="text"
-                                className={`w-full min-w-[240px] bg-transparent border-none outline-none ${size === 2 ? 'text-[19.5px] print:text-[29.5px]' : 'text-[22.5px] print:text-[32.5px]'} font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
+                                className={`w-full min-w-[240px] bg-transparent border-none outline-none font-black text-slate-900 placeholder-slate-350 uppercase tracking-tight pointer-events-auto ${
                                   isLeft ? 'text-left' : 'text-right'
                                 }`}
                                 placeholder=""
+                                style={{ fontSize: 'var(--classic-name-size)' }}
                                 value={node.name || ''}
                                 disabled={isPublicView}
                                 onChange={(e) => onTextChange(k, i, e.target.value)}
                               />
                            </div>
                            {/* Club BELOW the line */}
-                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full ${size === 2 ? 'text-[17.5px] print:text-[27.5px]' : 'text-[19.5px] print:text-[29.5px]'} font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
-                              <span className="competitor-club whitespace-nowrap pointer-events-auto">{node.club || ''}</span>
+                           <div className={`h-[20px] flex items-start pt-[2.5px] w-full font-extrabold text-slate-500 uppercase tracking-wide ${isLeft ? 'justify-start' : 'justify-end'}`}>
+                              <span className="competitor-club whitespace-nowrap pointer-events-auto" style={{ fontSize: 'var(--classic-club-size)' }}>{node.club || ''}</span>
                            </div>
                         </div>
                       ) : (
                         <input
                           type="text"
-                          className={`w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-800 placeholder-slate-300 tracking-tight uppercase mt-0.5 ${
+                          style={{ fontSize: `calc(11px + ${nameFontOffset}px)` }}
+                          className={`w-full bg-transparent border-none outline-none font-black text-slate-800 placeholder-slate-300 tracking-tight uppercase mt-0.5 ${
                             isLeft ? 'text-left' : 'text-right'
                           }`}
                           placeholder=""
@@ -1346,7 +1372,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                          <div className="flex flex-col w-full h-full justify-end items-center text-center">
                              <input
                                type="text"
-                               className="w-[260px] max-w-none bg-transparent pb-1 outline-none text-[24.5px] font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
+                               className="w-[260px] max-w-none bg-transparent pb-1 outline-none font-black text-slate-800 placeholder-slate-300 uppercase tracking-tight text-center"
+                               style={{ fontSize: `calc(24.5px + ${nameFontOffset}px)` }}
                                placeholder="CHAMPION"
                                value={node.name || ''}
                                disabled={isPublicView}
