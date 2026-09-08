@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               <span>🌎 PUBLIC REPORT VIEW</span>
             </div>
           )}
-          {!currentUser && (
+          {!currentUser && !isPublicView && (
             <button
               onClick={onLoginClick}
               className="text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all border border-amber-400 rounded-xl px-3.5 py-2 cursor-pointer ml-2 flex items-center gap-1.5 shadow-md active:scale-95 no-print"
@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               <span>Admin Login</span>
             </button>
           )}
-          {currentUser && (
+          {!isPublicView && currentUser && (
             <>
               <div className="hidden lg:flex items-center gap-2 px-3 mr-1">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -86,17 +86,6 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
                   {currentUser}
                 </span>
               </div>
-
-              {isPublicView && (
-                <button
-                  onClick={onLoginClick}
-                  className="text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all border border-amber-400 rounded-xl px-3.5 py-2 cursor-pointer ml-1 flex items-center gap-1.5 shadow-md active:scale-95 no-print"
-                  title="Open Admin Dashboard & Brackets"
-                >
-                  <span>🥋</span>
-                  <span>Open Admin Manager</span>
-                </button>
-              )}
 
               <button
                 onClick={onLogout}
