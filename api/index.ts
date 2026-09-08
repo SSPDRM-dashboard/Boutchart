@@ -103,8 +103,8 @@ app.post("/api/reports", async (req, res) => {
       return res.status(400).json({ error: "Empty or invalid report data details." });
     }
     
-    // Generate an 12-char unique hash key
-    const id = crypto.randomBytes(6).toString("hex");
+    // Generate a unique hash key or use specified report ID
+    const id = req.body._reportId || (req.body.id && typeof req.body.id === 'string' && req.body.id.length < 50 ? req.body.id : crypto.randomBytes(6).toString("hex"));
     
     // 1. Try storing in Firestore first for Vercel persistence
     if (db) {

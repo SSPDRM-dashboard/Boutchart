@@ -109,18 +109,19 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [shuffleSeed, setShuffleSeed] = useState(true);
+  const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const viewType = urlParams.get('view');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath) {
+      if (viewType === 'club-report' || isReportPath || isPublicAppMode) {
         return 'club-report';
       }
       return 'brackets';
     } catch (e) {
-      return 'brackets';
+      return isPublicAppMode ? 'club-report' : 'brackets';
     }
   });
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
@@ -156,12 +157,12 @@ export default function App() {
       const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath || dataParam || idParam) {
+      if (viewType === 'club-report' || isReportPath || dataParam || idParam || isPublicAppMode) {
         return true;
       }
       return false;
     } catch (e) {
-      return false;
+      return isPublicAppMode;
     }
   });
 
@@ -473,7 +474,21 @@ export default function App() {
                   useLocalCacheFallback();
                 });
             } else {
-              useLocalCacheFallback();
+              fetch('/api/reports/active_state')
+                .then(res => {
+                  if (!res.ok) throw new Error('No server active_state');
+                  return res.json();
+                })
+                .then(parsed => {
+                  if (parsed) {
+                    handleReportData(parsed);
+                  } else {
+                    useLocalCacheFallback();
+                  }
+                })
+                .catch(() => {
+                  useLocalCacheFallback();
+                });
             }
           };
 
@@ -3284,6 +3299,10 @@ export default function App() {
                   ringLabelFormat={ringLabelFormat}
                   boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
+                  leftLogo={leftLogo}
+                  leftLogo2={leftLogo2}
+                  rightLogo={rightLogo}
+                  rightLogo2={rightLogo2}
                   isPublicView={true} // Force public view for previewing
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
@@ -3312,6 +3331,10 @@ export default function App() {
                   ringLabelFormat={ringLabelFormat}
                   boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
+                  leftLogo={leftLogo}
+                  leftLogo2={leftLogo2}
+                  rightLogo={rightLogo}
+                  rightLogo2={rightLogo2}
                   isPublicView={false} // Force admin view
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
