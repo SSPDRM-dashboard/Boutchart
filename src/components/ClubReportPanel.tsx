@@ -70,7 +70,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart'>('photo-matrix');
-  const activeReportStyle = reportStyle;
+  const activeReportStyle = effectivePublicView && reportStyle === 'medal-standings' ? 'photo-matrix' : reportStyle;
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
   const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});
@@ -653,7 +653,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         setSelectedClub(foundClub || clubParam);
       }
       const styleParam = urlParams.get('style');
-      if (styleParam === 'photo-matrix' || styleParam === 'classic-cards' || styleParam === 'medal-standings' || styleParam === 'individual-lookup' || styleParam === 'boutchart') {
+      if (styleParam === 'photo-matrix' || styleParam === 'classic-cards' || (styleParam === 'medal-standings' && !effectivePublicView) || styleParam === 'individual-lookup' || styleParam === 'boutchart') {
         setReportStyle(styleParam);
       }
     } catch (e) {
@@ -1462,18 +1462,20 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                       <span>Classic Card Deck (Matchups Style)</span>
                     </button>
                     
-                    <button
-                      type="button"
-                      onClick={() => setReportStyle('medal-standings')}
-                      className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        reportStyle === 'medal-standings'
-                          ? 'bg-slate-900 text-white shadow-sm'
-                          : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                      }`}
-                    >
-                      <Award className="w-3.5 h-3.5 text-amber-500" />
-                      <span>🏆 Club Medal Standings &amp; Points</span>
-                    </button>
+                    {!effectivePublicView && (
+                      <button
+                        type="button"
+                        onClick={() => setReportStyle('medal-standings')}
+                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          reportStyle === 'medal-standings'
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                        }`}
+                      >
+                        <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <span>🏆 Club Medal Standings &amp; Points</span>
+                      </button>
+                    )}
                     
                     <button
                       type="button"
