@@ -29,6 +29,7 @@ interface ClubReportPanelProps {
   rightLogo?: string;
   rightLogo2?: string;
   isPublicView?: boolean;
+  hideShareControl?: boolean;
   onUpdateStandings?: (catKey: string, nextStandings: string[]) => void;
 }
 
@@ -59,6 +60,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   rightLogo,
   rightLogo2,
   isPublicView = false,
+  hideShareControl = false,
   onUpdateStandings,
 }) => {
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
@@ -1184,11 +1186,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               📋
             </span>
             <h2 className="text-lg font-black text-slate-900 tracking-tight font-sans">
-              {selectedClub === 'all' ? 'Club Report (General)' : `Club Report — ${selectedClub}`}
+              {selectedClub === 'all' ? 'Public view' : `Club Report — ${selectedClub}`}
             </h2>
             {isPublicAppMode && (
               <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md tracking-wider border border-emerald-200">
-                Public General
+                Public view
               </span>
             )}
           </div>
@@ -1196,21 +1198,23 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
         {/* Action controls */}
         <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={generateAndCopyShareLink}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            title="Generate a unique, read-only URL for this report to share with coaches"
-          >
-            <Share2 className="w-4 h-4 text-indigo-100" />
-            <span>
-              {shareStatus === 'copied'
-                ? 'Link Copied!'
-                : selectedClub === 'all'
-                ? 'Share Public Link'
-                : `Share ${selectedClub} Link`}
-            </span>
-          </button>
+          {!(hideShareControl || isPublicAppMode) && (
+            <button
+              type="button"
+              onClick={generateAndCopyShareLink}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title="Generate a unique, read-only URL for this report to share with coaches"
+            >
+              <Share2 className="w-4 h-4 text-indigo-100" />
+              <span>
+                {shareStatus === 'copied'
+                  ? 'Link Copied!'
+                  : selectedClub === 'all'
+                  ? 'Share Public Link'
+                  : `Share ${selectedClub} Link`}
+              </span>
+            </button>
+          )}
 
           {/* Download selected club matrix as PDF */}
           {selectedClub !== 'all' && (

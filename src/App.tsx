@@ -2750,7 +2750,7 @@ export default function App() {
                     title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
                   >
                     <span className="text-base">📋</span>
-                    <span className="text-left flex-1 font-extrabold text-sm">Club Reports General</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">Public view</span>
                     {bracketKeys.length > 0 ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
                         activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
@@ -3304,6 +3304,7 @@ export default function App() {
                   rightLogo={rightLogo}
                   rightLogo2={rightLogo2}
                   isPublicView={true} // Force public view for previewing
+                  hideShareControl={isPublicReportOnly}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];
