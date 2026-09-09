@@ -70,7 +70,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
   const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart'>('photo-matrix');
-  const activeReportStyle = effectivePublicView && reportStyle === 'medal-standings' ? 'photo-matrix' : reportStyle;
+  const activeReportStyle = reportStyle;
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
   const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});
@@ -653,7 +653,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         setSelectedClub(foundClub || clubParam);
       }
       const styleParam = urlParams.get('style');
-      if (styleParam === 'photo-matrix' || styleParam === 'classic-cards' || (styleParam === 'medal-standings' && !effectivePublicView) || styleParam === 'individual-lookup' || styleParam === 'boutchart') {
+      if (styleParam === 'photo-matrix' || styleParam === 'classic-cards' || styleParam === 'medal-standings' || styleParam === 'individual-lookup' || styleParam === 'boutchart') {
         setReportStyle(styleParam);
       }
     } catch (e) {
@@ -1195,79 +1195,77 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         </div>
 
         {/* Action controls */}
-        {!effectivePublicView && (
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={generateAndCopyShareLink}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            title="Generate a unique, read-only URL for this report to share with coaches"
+          >
+            <Share2 className="w-4 h-4 text-indigo-100" />
+            <span>
+              {shareStatus === 'copied'
+                ? 'Link Copied!'
+                : selectedClub === 'all'
+                ? 'Share Public Link'
+                : `Share ${selectedClub} Link`}
+            </span>
+          </button>
+
+          {/* Download selected club matrix as PDF */}
+          {selectedClub !== 'all' && (
             <button
               type="button"
-              onClick={generateAndCopyShareLink}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title="Generate a unique, read-only URL for this report to share with coaches"
+              onClick={() => downloadSingleClubMatrixPDF(selectedClub)}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title={`Download the Taekwondo Matrix Grid for ${selectedClub} as a print-ready PDF`}
             >
-              <Share2 className="w-4 h-4 text-indigo-100" />
-              <span>
-                {shareStatus === 'copied'
-                  ? 'Link Copied!'
-                  : selectedClub === 'all'
-                  ? 'Share Public Link'
-                  : `Share ${selectedClub} Link`}
-              </span>
+              <Grid className="w-4 h-4 text-slate-950" />
+              <span>Download {selectedClub} Matrix (PDF)</span>
             </button>
+          )}
 
-            {/* Download selected club matrix as PDF */}
-            {selectedClub !== 'all' && (
-              <button
-                type="button"
-                onClick={() => downloadSingleClubMatrixPDF(selectedClub)}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-                title={`Download the Taekwondo Matrix Grid for ${selectedClub} as a print-ready PDF`}
-              >
-                <Grid className="w-4 h-4 text-slate-950" />
-                <span>Download {selectedClub} Matrix (PDF)</span>
-              </button>
-            )}
+          {/* Download all clubs matrix as ZIP */}
+          <button
+            type="button"
+            disabled={zipExportLoading}
+            onClick={downloadAllClubsMatrixZIP}
+            className={`bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95 ${
+              zipExportLoading ? 'opacity-70 cursor-not-allowed animate-pulse' : ''
+            }`}
+            title="Download Taekwondo Matrix Grid PDFs for every club in a single ZIP folder"
+          >
+            <Download className="w-4 h-4 text-teal-100" />
+            <span>{zipExportLoading ? 'Packaging ZIP...' : 'Download All Matrices (ZIP)'}</span>
+          </button>
 
-            {/* Download all clubs matrix as ZIP */}
-            <button
-              type="button"
-              disabled={zipExportLoading}
-              onClick={downloadAllClubsMatrixZIP}
-              className={`bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95 ${
-                zipExportLoading ? 'opacity-70 cursor-not-allowed animate-pulse' : ''
-              }`}
-              title="Download Taekwondo Matrix Grid PDFs for every club in a single ZIP folder"
-            >
-              <Download className="w-4 h-4 text-teal-100" />
-              <span>{zipExportLoading ? 'Packaging ZIP...' : 'Download All Matrices (ZIP)'}</span>
-            </button>
+          {/* Download button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (activeReportStyle === 'medal-standings') {
+                downloadClubMedalStandingsCSV();
+              } else {
+                downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
+              }
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+            title={activeReportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
+          >
+            <Download className="w-4 h-4 text-emerald-100" />
+            <span>{activeReportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
+          </button>
 
-            {/* Download button */}
-            <button
-              type="button"
-              onClick={() => {
-                if (activeReportStyle === 'medal-standings') {
-                  downloadClubMedalStandingsCSV();
-                } else {
-                  downloadClubReportCSV(selectedClub !== 'all' ? selectedClub : undefined);
-                }
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-              title={activeReportStyle === 'medal-standings' ? "Download overall medal standings of clubs as a CSV spreadsheet" : "Download fight schedules for current filtered selection as a CSV spreadsheet"}
-            >
-              <Download className="w-4 h-4 text-emerald-100" />
-              <span>{activeReportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
-            </button>
-
-            {/* Print button */}
-            <button
-              type="button"
-              onClick={triggerPrintReport}
-              className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
-            >
-              <Printer className="w-4 h-4 text-amber-400" />
-              <span>Print Active View</span>
-            </button>
-          </div>
-        )}
+          {/* Print button */}
+          <button
+            type="button"
+            onClick={triggerPrintReport}
+            className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+          >
+            <Printer className="w-4 h-4 text-amber-400" />
+            <span>Print Active View</span>
+          </button>
+        </div>
       </div>
 
       {shareStatus === 'copied' && (
@@ -1462,20 +1460,18 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                       <span>Classic Card Deck (Matchups Style)</span>
                     </button>
                     
-                    {!effectivePublicView && (
-                      <button
-                        type="button"
-                        onClick={() => setReportStyle('medal-standings')}
-                        className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          reportStyle === 'medal-standings'
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
-                        }`}
-                      >
-                        <Award className="w-3.5 h-3.5 text-amber-500" />
-                        <span>🏆 Club Medal Standings &amp; Points</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setReportStyle('medal-standings')}
+                      className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        reportStyle === 'medal-standings'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-650 hover:bg-slate-300/40 hover:text-slate-900'
+                      }`}
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-500" />
+                      <span>🏆 Club Medal Standings &amp; Points</span>
+                    </button>
                     
                     <button
                       type="button"
@@ -1536,7 +1532,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    {!effectivePublicView && (
+                    {!isPublicView && (
                       <span className={`w-2 h-2 rounded-full ${showOnlyScheduled ? 'bg-amber-600 animate-pulse' : 'bg-slate-400'}`} />
                     )}
                     <span>{showOnlyScheduled ? 'Scheduled Fights Only' : 'Show All Registered'}</span>
@@ -1701,7 +1697,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none rounded-r-3xl" />
                   
                   <div className="relative z-10 space-y-4 max-w-2xl">
-                    <div className={`inline-flex bg-amber-500/10 border border-amber-500/25 px-3 py-1 ${effectivePublicView ? 'rounded-xl' : 'rounded-full'} text-xs font-black text-amber-400 font-mono uppercase tracking-widest leading-none`}>
+                    <div className={`inline-flex bg-amber-500/10 border border-amber-500/25 px-3 py-1 ${isPublicView ? 'rounded-xl' : 'rounded-full'} text-xs font-black text-amber-400 font-mono uppercase tracking-widest leading-none`}>
                       🥋 Public Fighter Portal
                     </div>
                     <h3 className="text-xl md:text-2xl font-black tracking-tight text-white font-sans">
@@ -1767,7 +1763,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                 {/* Athlete lookup cards list */}
                 {searchQuery.trim() === '' ? (
                   <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
-                    <div className={`inline-flex bg-amber-500/10 text-amber-600 p-4 ${effectivePublicView ? 'rounded-xl' : 'rounded-full'} border border-amber-500/15`}>
+                    <div className={`inline-flex bg-amber-500/10 text-amber-600 p-4 ${isPublicView ? 'rounded-xl' : 'rounded-full'} border border-amber-500/15`}>
                       <Search className="w-6 h-6 text-amber-500" />
                     </div>
                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Awaiting Search Query</h4>
@@ -1777,7 +1773,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   </div>
                 ) : filteredAthletesForLookup.length === 0 ? (
                   <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
-                    <div className={`inline-flex bg-rose-50 text-rose-600 p-4 ${effectivePublicView ? 'rounded-xl' : 'rounded-full'} border border-rose-100`}>
+                    <div className={`inline-flex bg-rose-50 text-rose-600 p-4 ${isPublicView ? 'rounded-xl' : 'rounded-full'} border border-rose-100`}>
                       <ShieldAlert className="w-6 h-6 text-rose-500" />
                     </div>
                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">No Players Found</h4>
@@ -1949,7 +1945,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                   }
                                   return (
                                     <div className="bg-white border border-slate-200/70 rounded-xl p-3.5 flex items-center gap-3">
-                                      {effectivePublicView ? (
+                                      {isPublicView ? (
                                         <Check className="w-5 h-5 text-emerald-500 shrink-0" />
                                       ) : (
                                         <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
@@ -2184,7 +2180,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                     }
                                     return (
                                       <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
-                                        {effectivePublicView ? (
+                                        {isPublicView ? (
                                           <Check className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
                                         ) : (
                                           <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
@@ -2356,9 +2352,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                           
                           // Badge styling for top 3
                           let rankBadge = <span className="font-mono font-black text-slate-500 text-xs">{index + 1}</span>;
-                          if (index === 0) rankBadge = effectivePublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥇</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center font-black text-amber-700 border border-amber-300">🥇</span>;
-                          else if (index === 1) rankBadge = effectivePublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥈</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-700 border border-slate-300">🥈</span>;
-                          else if (index === 2) rankBadge = effectivePublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥉</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center font-black text-amber-800 border border-amber-200">🥉</span>;
+                          if (index === 0) rankBadge = isPublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥇</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center font-black text-amber-700 border border-amber-300">🥇</span>;
+                          else if (index === 1) rankBadge = isPublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥈</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-700 border border-slate-300">🥈</span>;
+                          else if (index === 2) rankBadge = isPublicView ? <span className="text-sm font-sans flex items-center justify-center font-black">🥉</span> : <span className="text-sm shadow-2xs font-sans w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center font-black text-amber-800 border border-amber-200">🥉</span>;
 
                           return (
                             <React.Fragment key={club.clubName}>
@@ -2481,7 +2477,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                                   <Award className="w-3.5 h-3.5" />
                                                   <span>Cert</span>
                                                 </button>
-                                                {!effectivePublicView && (
+                                                {!isPublicView && (
                                                   <button
                                                     type="button"
                                                     onClick={(e) => {
