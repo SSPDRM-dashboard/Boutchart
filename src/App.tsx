@@ -108,6 +108,7 @@ export default function App() {
   const [ringCount, setRingCount] = useState(13);
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
+  const [boutSequenceOrder, setBoutSequenceOrder] = useState<'sequential' | 'stages'>('sequential');
   const [shuffleSeed, setShuffleSeed] = useState(true);
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
@@ -594,6 +595,7 @@ export default function App() {
           ringCount,
           ringLabelFormat,
           boutLabelFormat,
+          boutSequenceOrder,
           shuffleSeed,
           dismissedDuplicates,
           currentEventId,
@@ -624,7 +626,7 @@ export default function App() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
+  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
 
   // 3. Import Core Roster Handler
   const handleLoadRoster = (text: string, source: string, adminNotes?: string) => {
@@ -738,7 +740,7 @@ export default function App() {
       }
     });
 
-    assignAllBoutNumbers(nextCategories, nextBrackets);
+    assignAllBoutNumbers(nextCategories, nextBrackets, boutSequenceOrder);
     setBrackets(nextBrackets);
 
     setStatusMessage({
@@ -813,7 +815,7 @@ export default function App() {
       if (mockCategories[categoryKey]) {
         mockCategories[categoryKey].ring = ring;
       }
-      assignAllBoutNumbers(mockCategories, next);
+      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
       return next;
     });
   };
@@ -875,7 +877,7 @@ export default function App() {
           mockCategories[key].ring = (idx % ringCount) + 1;
         }
       });
-      assignAllBoutNumbers(mockCategories, next);
+      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
       return next;
     });
   };
@@ -941,7 +943,7 @@ export default function App() {
       }
 
       // Re-assign all bout numbers
-      assignAllBoutNumbers(grouped, next);
+      assignAllBoutNumbers(grouped, next, boutSequenceOrder);
       return next;
     });
 
@@ -970,7 +972,7 @@ export default function App() {
         setBrackets((prev) => {
           const next = { ...prev };
           delete next[categoryKey];
-          assignAllBoutNumbers(grouped, next);
+          assignAllBoutNumbers(grouped, next, boutSequenceOrder);
           return next;
         });
 
@@ -1006,7 +1008,7 @@ export default function App() {
               delete next[k];
             }
           });
-          assignAllBoutNumbers(categories, next);
+          assignAllBoutNumbers(categories, next, boutSequenceOrder);
           setBrackets(next);
           setStatusMessage({
             text: `Cleared existing bracket draws for Ring ${ringLabel}.`,
@@ -1062,7 +1064,7 @@ export default function App() {
       nextBrackets[key] = model;
     });
 
-    assignAllBoutNumbers(categories, nextBrackets);
+    assignAllBoutNumbers(categories, nextBrackets, boutSequenceOrder);
     setBrackets(nextBrackets);
 
     const targetLabel = targetRing
@@ -1085,7 +1087,7 @@ export default function App() {
     setBrackets((prev) => {
       const next = handleCheckboxToggle(prev, catKey, k, i, checked);
       // Re-number bout codes across the ring
-      assignAllBoutNumbers(categories, next);
+      assignAllBoutNumbers(categories, next, boutSequenceOrder);
       return next;
     });
   };
@@ -1124,7 +1126,7 @@ export default function App() {
             model.cutoffScores = scores;
           }
           next[catKey] = model;
-          assignAllBoutNumbers(categories, next);
+          assignAllBoutNumbers(categories, next, boutSequenceOrder);
           return next;
         });
       }
@@ -1205,6 +1207,7 @@ export default function App() {
       ringCount,
       ringLabelFormat,
       boutLabelFormat,
+      boutSequenceOrder,
       shuffleSeed,
       dismissedDuplicates,
     };
@@ -1273,6 +1276,7 @@ export default function App() {
           ringCount,
           ringLabelFormat,
           boutLabelFormat,
+          boutSequenceOrder,
           shuffleSeed,
           dismissedDuplicates,
         };
@@ -1334,6 +1338,7 @@ export default function App() {
       setRingCount(target.ringCount || 13);
       setRingLabelFormat(target.ringLabelFormat || 'letter');
       setBoutLabelFormat(target.boutLabelFormat || 'alpha-2');
+      setBoutSequenceOrder(target.boutSequenceOrder || 'sequential');
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
       setCurrentEventId(target.id);
@@ -1348,6 +1353,7 @@ export default function App() {
         ringCount: target.ringCount,
         ringLabelFormat: target.ringLabelFormat,
         boutLabelFormat: target.boutLabelFormat || 'alpha-2',
+        boutSequenceOrder: target.boutSequenceOrder || 'sequential',
         shuffleSeed: target.shuffleSeed,
         dismissedDuplicates: target.dismissedDuplicates,
       };
@@ -3279,6 +3285,8 @@ export default function App() {
                     setRingLabelFormat={setRingLabelFormat}
                     boutLabelFormat={boutLabelFormat}
                     setBoutLabelFormat={setBoutLabelFormat}
+                    boutSequenceOrder={boutSequenceOrder}
+                    setBoutSequenceOrder={setBoutSequenceOrder}
                     onExportPdf={() => setShowExportModal(true)}
                     onDownloadSearchablePdf={handleDownloadSearchablePdf}
                     hasBrackets={bracketKeys.length > 0}
@@ -3659,14 +3667,14 @@ export default function App() {
                             onUpdateLeafNode={(i, name, club, isBye) => {
                               setBrackets((prev) => {
                                 const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
-                                assignAllBoutNumbers(categories, next);
+                                assignAllBoutNumbers(categories, next, boutSequenceOrder);
                                 return next;
                               });
                             }}
                             onSwapLeafNodes={(i, j) => {
                               setBrackets((prev) => {
                                 const next = handleSwapLeafNodes(prev, key, i, j);
-                                assignAllBoutNumbers(categories, next);
+                                assignAllBoutNumbers(categories, next, boutSequenceOrder);
                                 return next;
                               });
                             }}

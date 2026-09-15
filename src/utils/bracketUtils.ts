@@ -441,6 +441,70 @@ export function countRealBouts(model: BracketModel): number {
   return n;
 }
 
+export function assignBoutNumbersByStagesForRing(brackets: Record<string, BracketModel>, keysInOrder: string[], startCounter: number = 1): number {
+  if (keysInOrder.length === 0) return startCounter;
+  
+  let counter = startCounter;
+  
+  // Find max rounds across all models in this ring to determine the highest stage needed
+  let maxRounds = 0;
+  keysInOrder.forEach(key => {
+    const model = brackets[key];
+    if (model && model.numRounds > maxRounds) {
+      maxRounds = model.numRounds;
+    }
+  });
+
+  // Assign poomsae cutoff bouts first (they don't fit neatly into the kyorugi stage logic)
+  keysInOrder.forEach(key => {
+    const model = brackets[key];
+    if (model && model.systemType === 'poomsae-cutoff') {
+      const round = model.nodes[0];
+      for (let i = 0; i < round.length; i++) {
+        if (round[i] && !round[i].isBye && round[i].name) {
+          model.nodes[0][i].bout = counter;
+          counter++;
+        }
+      }
+    }
+  });
+
+  // Assign standard kyorugi bouts by iterating stage by stage (from the earliest round (k=1) to the finals (k=maxRounds))
+  for (let currentRound = 1; currentRound <= maxRounds; currentRound++) {
+    keysInOrder.forEach(key => {
+      const model = brackets[key];
+      if (!model || model.systemType === 'poomsae-cutoff') return;
+      
+      // Calculate how many rounds this category has. 
+      // If a category has fewer rounds than maxRounds, its "finals" happens earlier.
+      // We process a bracket's round K during the loop's currentRound if its relative depth matches.
+      // E.g., if a bracket only has 2 rounds, and maxRounds is 4, then:
+      // When currentRound=3 (Semi-finals stage overall), this bracket plays its k=1
+      // When currentRound=4 (Finals stage overall), this bracket plays its k=2
+      
+      const depthOffset = maxRounds - model.numRounds;
+      
+      if (currentRound > depthOffset) {
+        const k = currentRound - depthOffset; // The actual round index for this specific bracket model
+        
+        if (k >= 1 && k <= model.numRounds) {
+          const round = model.nodes[k];
+          for (let i = 0; i < round.length; i++) {
+            if (isRealBout(model, k, i)) {
+              model.nodes[k][i].bout = counter;
+              counter++;
+            } else {
+              model.nodes[k][i].bout = undefined;
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  return counter;
+}
+
 export function assignBoutNumbersForRing(brackets: Record<string, BracketModel>, keysInOrder: string[], startCounter: number = 1): number {
   if (keysInOrder.length === 0) return startCounter;
 
@@ -475,7 +539,7 @@ export function assignBoutNumbersForRing(brackets: Record<string, BracketModel>,
   return counter;
 }
 
-export function assignAllBoutNumbers(categories: Record<string, WeightCategory>, brackets: Record<string, BracketModel>): void {
+export function assignAllBoutNumbers(categories: Record<string, WeightCategory>, brackets: Record<string, BracketModel>, sequenceOrder: 'sequential' | 'stages' = 'sequential'): void {
   const eligibleKeys = Object.keys(categories).filter(k => brackets[k]);
   const ringGroups: Record<string, string[]> = {};
 
@@ -486,7 +550,11 @@ export function assignAllBoutNumbers(categories: Record<string, WeightCategory>,
   });
 
   Object.keys(ringGroups).forEach(ringKey => {
-    assignBoutNumbersForRing(brackets, ringGroups[ringKey], 1);
+    if (sequenceOrder === 'sequential') {
+      assignBoutNumbersForRing(brackets, ringGroups[ringKey], 1);
+    } else {
+      assignBoutNumbersByStagesForRing(brackets, ringGroups[ringKey], 1);
+    }
   });
 }
 

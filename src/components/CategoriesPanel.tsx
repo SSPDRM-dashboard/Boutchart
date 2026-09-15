@@ -16,6 +16,8 @@ interface CategoriesPanelProps {
   setRingLabelFormat: (format: 'number' | 'letter') => void;
   boutLabelFormat: 'alpha-2' | 'thousands-3';
   setBoutLabelFormat: (format: 'alpha-2' | 'thousands-3') => void;
+  boutSequenceOrder: 'sequential' | 'stages';
+  setBoutSequenceOrder: (order: 'sequential' | 'stages') => void;
   onExportPdf: () => void;
   onDownloadSearchablePdf?: (ringFilter: 'all' | number) => void;
   hasBrackets: boolean;
@@ -37,6 +39,8 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setRingLabelFormat,
   boutLabelFormat,
   setBoutLabelFormat,
+  boutSequenceOrder,
+  setBoutSequenceOrder,
   onExportPdf,
   onDownloadSearchablePdf,
   hasBrackets,
@@ -166,6 +170,36 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
               title="Numeric Thousands format (e.g. 1001, 2001)"
             >
               1001 / 2001
+            </button>
+          </div>
+
+          <div className="h-6 w-[1px] bg-slate-200"></div>
+          
+          {/* SEQUENCE ORDER TOGGLE */}
+          <div className="flex bg-white rounded-md border border-slate-200 p-0.5" title="Bout Sequence Order within each Ring">
+            <button
+              type="button"
+              onClick={() => setBoutSequenceOrder('sequential')}
+              className={`px-2.5 py-1 rounded text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                boutSequenceOrder === 'sequential'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+              title="Sequential: Finish one category completely before starting the next"
+            >
+              Sequential
+            </button>
+            <button
+              type="button"
+              onClick={() => setBoutSequenceOrder('stages')}
+              className={`px-2.5 py-1 rounded text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                boutSequenceOrder === 'stages'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+              title="By Stages: Process all Round of 64s, then all Round of 32s, etc."
+            >
+              By Stages
             </button>
           </div>
 
