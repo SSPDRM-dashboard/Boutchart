@@ -621,7 +621,7 @@ export default function App() {
         console.error('Failed to write state', e);
         setSaveStatus('idle');
       }
-    }, 1000);
+    }, 3000);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -803,6 +803,13 @@ export default function App() {
       const next = { ...prev };
       if (next[categoryKey]) {
         next[categoryKey] = { ...next[categoryKey], ring };
+        
+        // If moving to a new ring, optionally append to the end by setting a high order
+        if (ring !== 0) {
+            const values = Object.values(prev) as WeightCategory[];
+            const maxOrder = Math.max(0, ...values.filter(c => c.ring === ring).map(c => c.order || 0));
+            next[categoryKey].order = maxOrder + 1;
+        }
       }
       return next;
     });
@@ -815,6 +822,69 @@ export default function App() {
       if (mockCategories[categoryKey]) {
         mockCategories[categoryKey].ring = ring;
       }
+      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
+      return next;
+    });
+  };
+
+  const handleReorderCategory = (categoryKey: string, direction: 'up' | 'down') => {
+    setCategories((prev) => {
+      const cat = prev[categoryKey];
+      if (!cat || !cat.ring) return prev;
+      
+      const ringCats = Object.keys(prev)
+        .filter(k => prev[k].ring === cat.ring)
+        .sort((a, b) => (prev[a].order ?? 99999) - (prev[b].order ?? 99999));
+        
+      const currentIndex = ringCats.indexOf(categoryKey);
+      if (currentIndex === -1) return prev;
+      if (direction === 'up' && currentIndex === 0) return prev;
+      if (direction === 'down' && currentIndex === ringCats.length - 1) return prev;
+      
+      const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      const swapKey = ringCats[swapIndex];
+      
+      const next = { ...prev };
+      // Assign explicit orders to all if they don't have them
+      ringCats.forEach((k, i) => {
+         next[k] = { ...next[k], order: i };
+      });
+      
+      // Swap their explicit orders
+      const temp = next[categoryKey].order;
+      next[categoryKey].order = next[swapKey].order;
+      next[swapKey].order = temp;
+      
+      return next;
+    });
+    
+    // Re-order sequential ring numbering on adjustment
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      // Because state update is async, we have to simulate it for the bout numbering
+      const mockCategories = { ...categories };
+      
+      // Duplicate the logic for mock
+      const cat = mockCategories[categoryKey];
+      if (!cat || !cat.ring) return prev;
+      const ringCats = Object.keys(mockCategories)
+        .filter(k => mockCategories[k].ring === cat.ring)
+        .sort((a, b) => (mockCategories[a].order ?? 99999) - (mockCategories[b].order ?? 99999));
+      
+      const currentIndex = ringCats.indexOf(categoryKey);
+      if (currentIndex === -1) return prev;
+      if (direction === 'up' && currentIndex === 0) return prev;
+      if (direction === 'down' && currentIndex === ringCats.length - 1) return prev;
+      
+      const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      const swapKey = ringCats[swapIndex];
+      
+      ringCats.forEach((k, i) => { mockCategories[k].order = i; });
+      const temp = mockCategories[categoryKey].order;
+      mockCategories[categoryKey].order = mockCategories[swapKey].order;
+      mockCategories[swapKey].order = temp;
+
       assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
       return next;
     });
@@ -3292,6 +3362,7 @@ export default function App() {
                     hasBrackets={bracketKeys.length > 0}
                     onDeleteCategory={handleDeleteCategory}
                     onResetBrackets={handleResetBrackets}
+                    onReorderCategory={handleReorderCategory}
                   />
                 )}
               </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2 } from 'lucide-react';
+import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { WeightCategory } from '../types';
 
 interface CategoriesPanelProps {
@@ -23,6 +23,7 @@ interface CategoriesPanelProps {
   hasBrackets: boolean;
   onDeleteCategory?: (categoryKey: string) => void;
   onResetBrackets?: () => void;
+  onReorderCategory?: (categoryKey: string, direction: 'up' | 'down') => void;
 }
 
 export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
@@ -46,6 +47,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   hasBrackets,
   onDeleteCategory,
   onResetBrackets,
+  onReorderCategory
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
@@ -482,7 +484,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                           <span className="text-[10px] font-bold text-slate-400">Drop &amp; Assign Here</span>
                         </div>
                       ) : (
-                        ringCats.map((catKey) => {
+                        ringCats.map((catKey, index, arr) => {
                           const cat = categories[catKey];
                           return (
                             <div
@@ -500,6 +502,34 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
+                                  {onReorderCategory && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onReorderCategory(catKey, 'up');
+                                        }}
+                                        disabled={index === 0}
+                                        className="text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent p-1 rounded transition-all cursor-pointer animate-in fade-in"
+                                        title="Move Up"
+                                      >
+                                        <ChevronUp className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onReorderCategory(catKey, 'down');
+                                        }}
+                                        disabled={index === arr.length - 1}
+                                        className="text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent p-1 rounded transition-all cursor-pointer animate-in fade-in"
+                                        title="Move Down"
+                                      >
+                                        <ChevronDown className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
                                   {onDeleteCategory && (
                                     <button
                                       type="button"
@@ -523,7 +553,6 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                   </button>
                                 </div>
                               </div>
-
                               <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold font-mono">
                                 <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{cat.count} athletes</span>
                                 {cat.systemType === 'poomsae-cutoff' ? (

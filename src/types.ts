@@ -31,6 +31,7 @@ export interface WeightCategory {
   ring: number;
   entrants: Athlete[];
   systemType?: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff';
+  order?: number;
 }
 
 export interface BracketNode {
