@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               <span>🌎 PUBLIC REPORT VIEW</span>
             </div>
           )}
-          {!currentUser && (
+          {!currentUser && !isPublicView && (
             <button
               onClick={onLoginClick}
               className="text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all border border-amber-400 rounded-xl px-3.5 py-2 cursor-pointer ml-2 flex items-center gap-1.5 shadow-md active:scale-95 no-print"

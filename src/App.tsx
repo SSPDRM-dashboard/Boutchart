@@ -818,9 +818,14 @@ export default function App() {
     setBrackets((prev) => {
       if (Object.keys(prev).length === 0) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      const mockCategories = { ...categories };
+      const mockCategories = JSON.parse(JSON.stringify(categories));
       if (mockCategories[categoryKey]) {
         mockCategories[categoryKey].ring = ring;
+        if (ring !== 0) {
+            const values = Object.values(mockCategories) as WeightCategory[];
+            const maxOrder = Math.max(0, ...values.filter(c => c.ring === ring).map(c => c.order || 0));
+            mockCategories[categoryKey].order = maxOrder + 1;
+        }
       }
       assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
       return next;
@@ -863,7 +868,7 @@ export default function App() {
       if (Object.keys(prev).length === 0) return prev;
       const next = JSON.parse(JSON.stringify(prev));
       // Because state update is async, we have to simulate it for the bout numbering
-      const mockCategories = { ...categories };
+      const mockCategories = JSON.parse(JSON.stringify(categories));
       
       // Duplicate the logic for mock
       const cat = mockCategories[categoryKey];

@@ -70,7 +70,9 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
   // Get categories allocated to a specific ring
   const getCategoriesForRing = (rVal: number) => {
-    return catKeys.filter((key) => categories[key].ring === rVal);
+    return catKeys
+      .filter((key) => categories[key].ring === rVal)
+      .sort((a, b) => (categories[a].order ?? 99999) - (categories[b].order ?? 99999));
   };
 
   const handleDragStart = (e: React.DragEvent, key: string) => {
