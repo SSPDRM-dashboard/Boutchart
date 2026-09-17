@@ -550,10 +550,15 @@ export function assignAllBoutNumbers(categories: Record<string, WeightCategory>,
   });
 
   Object.keys(ringGroups).forEach(ringKey => {
+    // Sort keys within the ring by their explicit order
+    const sortedKeys = ringGroups[ringKey].sort((a, b) => {
+      return (categories[a].order ?? 99999) - (categories[b].order ?? 99999);
+    });
+
     if (sequenceOrder === 'sequential') {
-      assignBoutNumbersForRing(brackets, ringGroups[ringKey], 1);
+      assignBoutNumbersForRing(brackets, sortedKeys, 1);
     } else {
-      assignBoutNumbersByStagesForRing(brackets, ringGroups[ringKey], 1);
+      assignBoutNumbersByStagesForRing(brackets, sortedKeys, 1);
     }
   });
 }

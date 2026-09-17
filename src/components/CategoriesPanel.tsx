@@ -24,6 +24,7 @@ interface CategoriesPanelProps {
   onDeleteCategory?: (categoryKey: string) => void;
   onResetBrackets?: () => void;
   onReorderCategory?: (categoryKey: string, direction: 'up' | 'down') => void;
+  onReorderCategoryTo?: (sourceKey: string, targetKey: string) => void;
 }
 
 export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
@@ -47,11 +48,13 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   hasBrackets,
   onDeleteCategory,
   onResetBrackets,
-  onReorderCategory
+  onReorderCategory,
+  onReorderCategoryTo
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
   const [dragOverRing, setDragOverRing] = useState<number | null>(null);
+  const [dragOverCatKey, setDragOverCatKey] = useState<string | null>(null);
   const [selectedGenRing, setSelectedGenRing] = useState<string>('all');
   const [selectedDownloadRing, setSelectedDownloadRing] = useState<string>('all');
 
@@ -488,13 +491,34 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                       ) : (
                         ringCats.map((catKey, index, arr) => {
                           const cat = categories[catKey];
+                          const isCatOver = dragOverCatKey === catKey;
                           return (
                             <div
                               key={catKey}
                               draggable
                               onDragStart={(e) => handleDragStart(e, catKey)}
                               onDragEnd={handleDragEnd}
-                              className="bg-white border border-slate-250 rounded-lg p-2.5 shadow-sm hover:border-amber-500 hover:shadow-md transition-all duration-150 flex flex-col gap-1.5 cursor-grab active:cursor-grabbing relative group/card"
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDragOverCatKey(catKey);
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverCatKey === catKey) setDragOverCatKey(null);
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDragOverCatKey(null);
+                                const sourceKey = e.dataTransfer.getData('text/plain');
+                                if (sourceKey && sourceKey !== catKey && onReorderCategoryTo) {
+                                  onReorderCategoryTo(sourceKey, catKey);
+                                } else if (sourceKey && sourceKey !== catKey && onUpdateCategoryRing) {
+                                  // Fallback: if dropped from another ring, just assign to this ring
+                                  onUpdateCategoryRing(sourceKey, rVal);
+                                }
+                              }}
+                              className={`bg-white border rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all duration-150 flex flex-col gap-1.5 cursor-grab active:cursor-grabbing relative group/card ${isCatOver ? 'border-amber-500 bg-amber-50/50 scale-105 z-10' : 'border-slate-250 hover:border-amber-500'}`}
                             >
                               <div className="flex items-start justify-between gap-1">
                                 <div className="flex items-center gap-1.5 min-w-0">

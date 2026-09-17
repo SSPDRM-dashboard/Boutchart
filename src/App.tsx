@@ -895,6 +895,72 @@ export default function App() {
     });
   };
 
+  const handleReorderCategoryTo = (sourceKey: string, targetKey: string) => {
+    if (sourceKey === targetKey) return;
+    setCategories((prev) => {
+      const sourceCat = prev[sourceKey];
+      const targetCat = prev[targetKey];
+      if (!sourceCat || !targetCat || !sourceCat.ring || !targetCat.ring || sourceCat.ring !== targetCat.ring) return prev;
+      
+      const ringCats = Object.keys(prev)
+        .filter(k => prev[k].ring === sourceCat.ring)
+        .sort((a, b) => (prev[a].order ?? 99999) - (prev[b].order ?? 99999));
+        
+      const sourceIndex = ringCats.indexOf(sourceKey);
+      const targetIndex = ringCats.indexOf(targetKey);
+      
+      if (sourceIndex === -1 || targetIndex === -1) return prev;
+      
+      // Remove source and insert at target
+      ringCats.splice(sourceIndex, 1);
+      ringCats.splice(targetIndex, 0, sourceKey);
+      
+      const next = { ...prev };
+      ringCats.forEach((k, i) => {
+         next[k] = { ...next[k], order: i };
+      });
+      return next;
+    });
+
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      const mockCategories = JSON.parse(JSON.stringify(categories));
+      
+      const sourceCat = mockCategories[sourceKey];
+      const targetCat = mockCategories[targetKey];
+      if (!sourceCat || !targetCat || !sourceCat.ring || !targetCat.ring || sourceCat.ring !== targetCat.ring) return prev;
+      
+      const ringCats = Object.keys(mockCategories)
+        .filter(k => mockCategories[k].ring === sourceCat.ring)
+        .sort((a, b) => (mockCategories[a].order ?? 99999) - (mockCategories[b].order ?? 99999));
+        
+      const sourceIndex = ringCats.indexOf(sourceKey);
+      const targetIndex = ringCats.indexOf(targetKey);
+      if (sourceIndex === -1 || targetIndex === -1) return prev;
+      
+      ringCats.splice(sourceIndex, 1);
+      ringCats.splice(targetIndex, 0, sourceKey);
+      
+      ringCats.forEach((k, i) => {
+         mockCategories[k].order = i;
+      });
+
+      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
+      return next;
+    });
+  };
+
+  const handleBoutSequenceOrderChange = (order: 'sequential' | 'stages') => {
+    setBoutSequenceOrder(order);
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      assignAllBoutNumbers(categories, next, order);
+      return next;
+    });
+  };
+
   const handleUpdateCategorySystemType = (categoryKey: string, systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => {
     setCategories((prev) => {
       const next = { ...prev };
@@ -3361,13 +3427,14 @@ export default function App() {
                     boutLabelFormat={boutLabelFormat}
                     setBoutLabelFormat={setBoutLabelFormat}
                     boutSequenceOrder={boutSequenceOrder}
-                    setBoutSequenceOrder={setBoutSequenceOrder}
+                    setBoutSequenceOrder={handleBoutSequenceOrderChange}
                     onExportPdf={() => setShowExportModal(true)}
                     onDownloadSearchablePdf={handleDownloadSearchablePdf}
                     hasBrackets={bracketKeys.length > 0}
                     onDeleteCategory={handleDeleteCategory}
                     onResetBrackets={handleResetBrackets}
                     onReorderCategory={handleReorderCategory}
+                    onReorderCategoryTo={handleReorderCategoryTo}
                   />
                 )}
               </div>
