@@ -9,6 +9,7 @@ import { CertificateBuilderPanel } from './components/CertificateBuilderPanel';
 import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { ScoreboardSyncPanel } from './components/ScoreboardSyncPanel';
+import { FourInAGroupPanel } from './components/FourInAGroupPanel';
 import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged } from './lib/firebase';
 import { PdfBracketParserPanel } from './components/PdfBracketParserPanel';
 import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent, CutoffScore } from './types';
@@ -29,7 +30,7 @@ import {
   shuffle,
   findDuplicateAthletes
 } from './utils/bracketUtils';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -109,9 +110,10 @@ export default function App() {
   const [ringLabelFormat, setRingLabelFormat] = useState<'number' | 'letter'>('letter');
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [boutSequenceOrder, setBoutSequenceOrder] = useState<'sequential' | 'stages'>('sequential');
+  const [ringSequenceOrders, setRingSequenceOrders] = useState<Record<number, 'sequential' | 'stages'>>({});
   const [shuffleSeed, setShuffleSeed] = useState(true);
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
-  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates'>(() => {
+  const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates' | 'four-group'>(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const viewType = urlParams.get('view');
@@ -150,6 +152,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
+  const [bracketSortMode, setBracketSortMode] = useState<'ring' | 'csv'>('ring');
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -227,6 +230,8 @@ export default function App() {
              if (snap.ringCount) setRingCount(snap.ringCount);
              if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
              if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+             if (snap.boutSequenceOrder) setBoutSequenceOrder(snap.boutSequenceOrder);
+             if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
              if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
              if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
              if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
@@ -293,6 +298,8 @@ export default function App() {
     cancelText?: string;
     isDanger?: boolean;
   } | null>(null);
+
+  const [resetChoiceModalOpen, setResetChoiceModalOpen] = useState(false);
 
   const askConfirmation = (options: {
     title: string;
@@ -556,6 +563,8 @@ export default function App() {
           if (snap.ringCount) setRingCount(snap.ringCount);
           if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
           if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+          if (snap.boutSequenceOrder) setBoutSequenceOrder(snap.boutSequenceOrder);
+          if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
           if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
           if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
           
@@ -596,6 +605,7 @@ export default function App() {
           ringLabelFormat,
           boutLabelFormat,
           boutSequenceOrder,
+          ringSequenceOrders,
           shuffleSeed,
           dismissedDuplicates,
           currentEventId,
@@ -626,7 +636,7 @@ export default function App() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
+  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, ringSequenceOrders, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
 
   // 3. Import Core Roster Handler
   const handleLoadRoster = (text: string, source: string, adminNotes?: string) => {
@@ -664,8 +674,8 @@ export default function App() {
     setRoster(nextRoster);
     setDismissedDuplicates([]);
     
-    // Maintain existing configured rings when grouping
-    const grouped = groupRoster(nextRoster, categories);
+    // Maintain existing configured rings when grouping if appending, or fresh sequence on replace
+    const grouped = groupRoster(nextRoster, mode === 'replace' ? {} : categories);
     setCategories(grouped);
     setBrackets({}); // Flush existing match trees in favor of new structure
 
@@ -740,7 +750,7 @@ export default function App() {
       }
     });
 
-    assignAllBoutNumbers(nextCategories, nextBrackets, boutSequenceOrder);
+    assignAllBoutNumbers(nextCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder);
     setBrackets(nextBrackets);
 
     setStatusMessage({
@@ -827,7 +837,7 @@ export default function App() {
             mockCategories[categoryKey].order = maxOrder + 1;
         }
       }
-      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
     });
   };
@@ -890,7 +900,7 @@ export default function App() {
       mockCategories[categoryKey].order = mockCategories[swapKey].order;
       mockCategories[swapKey].order = temp;
 
-      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
     });
   };
@@ -946,17 +956,35 @@ export default function App() {
          mockCategories[k].order = i;
       });
 
-      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
+    });
+  };
+
+  const handleUpdateRingSequenceOrder = (ring: number, order: 'sequential' | 'stages') => {
+    setRingSequenceOrders((prev) => {
+      const nextOrders = { ...prev, [ring]: order };
+      setBrackets((prevBrackets) => {
+        if (Object.keys(prevBrackets).length === 0) return prevBrackets;
+        const next = JSON.parse(JSON.stringify(prevBrackets));
+        assignAllBoutNumbers(categories, next, nextOrders, boutSequenceOrder);
+        return next;
+      });
+      return nextOrders;
     });
   };
 
   const handleBoutSequenceOrderChange = (order: 'sequential' | 'stages') => {
     setBoutSequenceOrder(order);
+    const updatedRingOrders: Record<number, 'sequential' | 'stages'> = {};
+    for (let r = 1; r <= ringCount; r++) {
+      updatedRingOrders[r] = order;
+    }
+    setRingSequenceOrders(updatedRingOrders);
     setBrackets((prev) => {
       if (Object.keys(prev).length === 0) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      assignAllBoutNumbers(categories, next, order);
+      assignAllBoutNumbers(categories, next, updatedRingOrders, order);
       return next;
     });
   };
@@ -997,7 +1025,9 @@ export default function App() {
   };
 
   const handleAutoAssignRings = () => {
-    const keys = Object.keys(categories).filter((k) => categories[k].count >= 1);
+    const keys = Object.keys(categories)
+      .filter((k) => categories[k].count >= 1)
+      .sort((a, b) => (categories[a]?.order ?? 99999) - (categories[b]?.order ?? 99999));
     if (keys.length === 0) return;
 
     setCategories((prev) => {
@@ -1018,7 +1048,7 @@ export default function App() {
           mockCategories[key].ring = (idx % ringCount) + 1;
         }
       });
-      assignAllBoutNumbers(mockCategories, next, boutSequenceOrder);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
     });
   };
@@ -1084,7 +1114,7 @@ export default function App() {
       }
 
       // Re-assign all bout numbers
-      assignAllBoutNumbers(grouped, next, boutSequenceOrder);
+      assignAllBoutNumbers(grouped, next, ringSequenceOrders, boutSequenceOrder);
       return next;
     });
 
@@ -1113,7 +1143,7 @@ export default function App() {
         setBrackets((prev) => {
           const next = { ...prev };
           delete next[categoryKey];
-          assignAllBoutNumbers(grouped, next, boutSequenceOrder);
+          assignAllBoutNumbers(grouped, next, ringSequenceOrders, boutSequenceOrder);
           return next;
         });
 
@@ -1127,13 +1157,36 @@ export default function App() {
 
   // 5. Build/Draw Bracket Assemblies
   const handleGenerateBrackets = (targetRing?: number) => {
-    const keysAll = Object.keys(categories);
-    const eligibleKeys = keysAll.filter((k) => {
+    const keysAll = Object.keys(categories).sort((a, b) => {
+      const orderA = categories[a]?.order ?? 99999;
+      const orderB = categories[b]?.order ?? 99999;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.localeCompare(b);
+    });
+
+    let eligibleKeys = keysAll.filter((k) => {
       const matchesRing = !targetRing 
         ? (categories[k].ring !== undefined && categories[k].ring > 0)
         : categories[k].ring === targetRing;
       return categories[k].count >= 1 && matchesRing;
     });
+
+    let currentCategories = categories;
+
+    // If user clicks "Generate All Brackets" but categories have not been allocated to a ring yet,
+    // automatically assign active categories to Ring 1 in their exact CSV sequence so brackets can be drawn immediately
+    if (eligibleKeys.length === 0 && !targetRing) {
+      const unassignedActive = keysAll.filter(k => categories[k].count >= 1);
+      if (unassignedActive.length > 0) {
+        const autoAllocated = { ...categories };
+        unassignedActive.forEach(k => {
+          autoAllocated[k] = { ...autoAllocated[k], ring: 1 };
+        });
+        setCategories(autoAllocated);
+        currentCategories = autoAllocated;
+        eligibleKeys = unassignedActive;
+      }
+    }
 
     if (eligibleKeys.length === 0 && targetRing) {
       const ringLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing);
@@ -1149,7 +1202,7 @@ export default function App() {
               delete next[k];
             }
           });
-          assignAllBoutNumbers(categories, next, boutSequenceOrder);
+          assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
           setBrackets(next);
           setStatusMessage({
             text: `Cleared existing bracket draws for Ring ${ringLabel}.`,
@@ -1205,8 +1258,9 @@ export default function App() {
       nextBrackets[key] = model;
     });
 
-    assignAllBoutNumbers(categories, nextBrackets, boutSequenceOrder);
+    assignAllBoutNumbers(currentCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder);
     setBrackets(nextBrackets);
+    setBracketSortMode('ring');
 
     const targetLabel = targetRing
       ? `Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing)}`
@@ -1228,7 +1282,7 @@ export default function App() {
     setBrackets((prev) => {
       const next = handleCheckboxToggle(prev, catKey, k, i, checked);
       // Re-number bout codes across the ring
-      assignAllBoutNumbers(categories, next, boutSequenceOrder);
+      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
     });
   };
@@ -1267,7 +1321,7 @@ export default function App() {
             model.cutoffScores = scores;
           }
           next[catKey] = model;
-          assignAllBoutNumbers(categories, next, boutSequenceOrder);
+          assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
           return next;
         });
       }
@@ -1297,28 +1351,58 @@ export default function App() {
 
   // 7. Full Session Reset Handler
   const handleClearAll = () => {
-    askConfirmation({
-      title: 'Reset Tournament Data',
-      message: 'This will permanently delete your imported athlete list, weight categories, brackets, and match statuses. This action cannot be undone.',
-      confirmText: 'Reset Everyone & All Brackets',
-      isDanger: true,
-      onConfirm: () => {
-        setTournamentName('');
-        setLeftLogo('');
-        setRightLogo('');
-        setRoster([]);
-        setDismissedDuplicates([]);
-        setCategories({});
-        setBrackets({});
-        setRingCount(4);
-        setShuffleSeed(true);
-        setActiveTab('brackets');
-        setCurrentEventId(null);
-        safeLocalStorage.removeItem(CURRENT_ID_STORAGE_KEY);
-        setStatusMessage({ text: 'Data has been reset successfully.', type: 'ok' });
-        safeLocalStorage.removeItem(STORAGE_KEY);
-      }
+    setResetChoiceModalOpen(true);
+  };
+
+  const handleClearRosterKeepCategories = () => {
+    setResetChoiceModalOpen(false);
+    setRoster([]);
+    setDismissedDuplicates([]);
+    setCategories(prev => {
+      const next: Record<string, WeightCategory> = {};
+      Object.keys(prev).forEach(catKey => {
+        const cat = prev[catKey];
+        if (cat) {
+          next[catKey] = {
+            name: cat.name,
+            count: 0,
+            size: 0,
+            status: 'bad',
+            ring: cat.ring,
+            entrants: [],
+            systemType: cat.systemType,
+            order: cat.order
+          };
+        }
+      });
+      return next;
     });
+    setBrackets({});
+    setActiveTab('brackets');
+    setStatusMessage({
+      text: 'Roster and matches cleared. All category names have been retained!',
+      type: 'ok',
+    });
+  };
+
+  const handleFullReset = () => {
+    setResetChoiceModalOpen(false);
+    setTournamentName('');
+    setLeftLogo('');
+    setLeftLogo2('');
+    setRightLogo('');
+    setRightLogo2('');
+    setRoster([]);
+    setDismissedDuplicates([]);
+    setCategories({});
+    setBrackets({});
+    setRingCount(4);
+    setShuffleSeed(true);
+    setActiveTab('brackets');
+    setCurrentEventId(null);
+    safeLocalStorage.removeItem(CURRENT_ID_STORAGE_KEY);
+    setStatusMessage({ text: 'Data has been reset successfully.', type: 'ok' });
+    safeLocalStorage.removeItem(STORAGE_KEY);
   };
 
   // Event Archives Persistence Handlers
@@ -1349,6 +1433,7 @@ export default function App() {
       ringLabelFormat,
       boutLabelFormat,
       boutSequenceOrder,
+      ringSequenceOrders,
       shuffleSeed,
       dismissedDuplicates,
     };
@@ -1418,6 +1503,7 @@ export default function App() {
           ringLabelFormat,
           boutLabelFormat,
           boutSequenceOrder,
+          ringSequenceOrders,
           shuffleSeed,
           dismissedDuplicates,
         };
@@ -1480,6 +1566,7 @@ export default function App() {
       setRingLabelFormat(target.ringLabelFormat || 'letter');
       setBoutLabelFormat(target.boutLabelFormat || 'alpha-2');
       setBoutSequenceOrder(target.boutSequenceOrder || 'sequential');
+      setRingSequenceOrders(target.ringSequenceOrders || {});
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
       setCurrentEventId(target.id);
@@ -1495,6 +1582,7 @@ export default function App() {
         ringLabelFormat: target.ringLabelFormat,
         boutLabelFormat: target.boutLabelFormat || 'alpha-2',
         boutSequenceOrder: target.boutSequenceOrder || 'sequential',
+        ringSequenceOrders: target.ringSequenceOrders || {},
         shuffleSeed: target.shuffleSeed,
         dismissedDuplicates: target.dismissedDuplicates,
       };
@@ -2727,10 +2815,17 @@ export default function App() {
 
   const hasData = roster.length > 0;
   const bracketKeys = Object.keys(brackets).sort((a, b) => {
-    const ringA = categories[a]?.ring || 0;
-    const ringB = categories[b]?.ring || 0;
-    if (ringA !== ringB) {
-      return ringA - ringB;
+    if (bracketSortMode === 'ring') {
+      const ringA = categories[a]?.ring && categories[a].ring > 0 ? categories[a].ring : 9999;
+      const ringB = categories[b]?.ring && categories[b].ring > 0 ? categories[b].ring : 9999;
+      if (ringA !== ringB) {
+        return ringA - ringB;
+      }
+    }
+    const orderA = categories[a]?.order ?? 99999;
+    const orderB = categories[b]?.order ?? 99999;
+    if (orderA !== orderB) {
+      return orderA - orderB;
     }
     return a.localeCompare(b);
   });
@@ -2937,6 +3032,22 @@ export default function App() {
                     ) : (
                       <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 font-mono rounded">Lock</span>
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('four-group')}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
+                      activeTab === 'four-group'
+                        ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
+                        : 'bg-slate-50 border-slate-200/50 hover:border-slate-300 text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="text-base">👥</span>
+                    <span className="text-left flex-1 font-extrabold text-sm">4 in a group</span>
+                    <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0">
+                      NEW
+                    </span>
                   </button>
 
                   <button
@@ -3233,7 +3344,7 @@ export default function App() {
                   </p>
                 </div>
               )
-            ) : (!tournamentName || !currentEventId) && !isPublicReportOnly ? (
+            ) : (!tournamentName || !currentEventId) && !isPublicReportOnly && activeTab !== 'four-group' && activeTab !== 'pdf-bracket' ? (
               <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
                 <div className="text-center space-y-3">
                   <div className="inline-flex bg-amber-500/10 p-5 rounded-full border border-amber-500/20 text-amber-500 mb-2">
@@ -3428,6 +3539,8 @@ export default function App() {
                     setBoutLabelFormat={setBoutLabelFormat}
                     boutSequenceOrder={boutSequenceOrder}
                     setBoutSequenceOrder={handleBoutSequenceOrderChange}
+                    ringSequenceOrders={ringSequenceOrders}
+                    onUpdateRingSequenceOrder={handleUpdateRingSequenceOrder}
                     onExportPdf={() => setShowExportModal(true)}
                     onDownloadSearchablePdf={handleDownloadSearchablePdf}
                     hasBrackets={bracketKeys.length > 0}
@@ -3536,6 +3649,36 @@ export default function App() {
               </div>
             )}
 
+            {/* 2.7 4 IN A GROUP ALLOCATION VIEW */}
+            {activeTab === 'four-group' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <FourInAGroupPanel
+                  currentRoster={roster}
+                  tournamentName={tournamentName}
+                  onPushToTournament={(newCategories, newRoster) => {
+                    setRoster(newRoster);
+                    setCategories(newCategories);
+                    const nextBrackets: Record<string, BracketModel> = {};
+                    Object.keys(newCategories).forEach((key) => {
+                      const cat = newCategories[key];
+                      if (cat && cat.entrants.length >= 1) {
+                        const entrants = cat.entrants.slice(0, 64);
+                        nextBrackets[key] = buildBracketModel(entrants, cat.size, key);
+                      }
+                    });
+                    assignAllBoutNumbers(newCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder);
+                    setBrackets(nextBrackets);
+                    setBracketSortMode('ring');
+                    setStatusMessage({
+                      text: `Transferred ${Object.keys(newCategories).length} 4-in-a-group pools into tournament brackets!`,
+                      type: 'ok',
+                    });
+                    setActiveTab('brackets');
+                  }}
+                />
+              </div>
+            )}
+
 
             {activeTab === 'brackets' && bracketKeys.length > 0 && (
               <div className="mt-8 pt-6 border-t border-slate-200 print:mt-0 print:pt-0 print:border-none">
@@ -3543,7 +3686,25 @@ export default function App() {
                   <h2 id="bracketsSectionTitle" className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                     🥋 Generated Tournament Brackets
                   </h2>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setBracketSortMode('ring')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${bracketSortMode === 'ring' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        title="Group brackets by Competition Ring starting with Ring A"
+                      >
+                        By Ring
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBracketSortMode('csv')}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${bracketSortMode === 'csv' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        title="Sort brackets following the category sequence arranged in the uploaded CSV file"
+                      >
+                        CSV Sequence
+                      </button>
+                    </div>
                     <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button
                         onClick={() => setBracketLayout('modern')}
@@ -3810,14 +3971,14 @@ export default function App() {
                             onUpdateLeafNode={(i, name, club, isBye) => {
                               setBrackets((prev) => {
                                 const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
-                                assignAllBoutNumbers(categories, next, boutSequenceOrder);
+                                assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
                                 return next;
                               });
                             }}
                             onSwapLeafNodes={(i, j) => {
                               setBrackets((prev) => {
                                 const next = handleSwapLeafNodes(prev, key, i, j);
-                                assignAllBoutNumbers(categories, next, boutSequenceOrder);
+                                assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
                                 return next;
                               });
                             }}
@@ -4216,6 +4377,82 @@ export default function App() {
                   }`}
                 >
                   {confirmConfig.confirmText || 'Yes, Proceed'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Reset Tournament Choice Modal */}
+      {resetChoiceModalOpen && (
+        <div className="fixed inset-0 z-[200] overflow-y-auto no-print">
+          <div 
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
+            onClick={() => setResetChoiceModalOpen(false)}
+          />
+
+          <div className="flex min-h-full items-center justify-center p-4 text-center animate-fade-in">
+            <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full max-w-md border border-slate-100 p-6 space-y-5">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <h4 className="text-base font-black text-slate-900 tracking-tight">
+                    Reset Tournament Data
+                  </h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Choose whether you want to preserve your existing category names or perform a full wipe.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-1">
+                {/* Option 1: Keep Category Names */}
+                <button
+                  type="button"
+                  onClick={handleClearRosterKeepCategories}
+                  className="w-full text-left p-4 rounded-xl border-2 border-amber-400 bg-amber-50/50 hover:bg-amber-100/70 transition-all cursor-pointer group shadow-xs"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-amber-600" />
+                      Clear Athletes &amp; Brackets (Remain Category Names)
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/80 text-amber-900">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-normal pl-5.5">
+                    Deletes current competitors and bracket matches, but <strong>strictly retains all category names</strong> and ring assignments ready for new entries.
+                  </p>
+                </button>
+
+                {/* Option 2: Full Reset */}
+                <button
+                  type="button"
+                  onClick={handleFullReset}
+                  className="w-full text-left p-4 rounded-xl border border-rose-200 bg-rose-50/30 hover:bg-rose-50 text-slate-700 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-black text-rose-800 flex items-center gap-1.5">
+                      <Trash2 className="w-4 h-4 text-rose-600" />
+                      Full Reset (Delete Categories &amp; Everything)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-normal pl-5.5">
+                    Permanently deletes all athlete data, category names, logos, and custom tournament configurations.
+                  </p>
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setResetChoiceModalOpen(false)}
+                  className="w-full py-2.5 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs text-center"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

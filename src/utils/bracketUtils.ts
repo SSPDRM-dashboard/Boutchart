@@ -269,34 +269,42 @@ export function buildRosterFromText(
   return roster;
 }
 
-export function groupRoster(roster: Athlete[], existingConfigs: Record<string, { ring: number }> = {}): Record<string, WeightCategory> {
+export function groupRoster(
+  roster: Athlete[], 
+  existingConfigs: Record<string, Partial<WeightCategory> | { ring: number }> = {}
+): Record<string, WeightCategory> {
+  const orderedKeys: string[] = [];
   const cats: Record<string, Athlete[]> = {};
+
   roster.forEach(r => {
-    const key = r.weight || 'Unspecified';
-    if (!cats[key]) cats[key] = [];
+    const key = (r.weight || 'Unspecified').trim() || 'Unspecified';
+    if (!cats[key]) {
+      cats[key] = [];
+      orderedKeys.push(key);
+    }
     cats[key].push(r);
   });
 
-  const sortedKeys = Object.keys(cats).sort((a, b) => {
-    const fa = parseFloat(a);
-    const fb = parseFloat(b);
-    const na = isNaN(fa);
-    const nb = isNaN(fb);
-    if (na && nb) return a.localeCompare(b);
-    if (na) return 1;
-    if (nb) return -1;
-    return fa - fb;
+  // Also include any pre-existing or retained categories that have no athletes currently
+  Object.keys(existingConfigs).forEach(key => {
+    const trimmed = (key || 'Unspecified').trim() || 'Unspecified';
+    if (!cats[trimmed]) {
+      cats[trimmed] = [];
+      orderedKeys.push(trimmed);
+    }
   });
 
   const out: Record<string, WeightCategory> = {};
-  sortedKeys.forEach(key => {
-    const entrants = cats[key];
+  orderedKeys.forEach((key, index) => {
+    const entrants = cats[key] || [];
     const size = nextPow2(entrants.length);
     let status: 'ready' | 'warn' | 'bad' = 'ready';
     if (entrants.length < 1) status = 'bad';
     else if (entrants.length > 64) status = 'warn';
 
-    const ring = existingConfigs[key]?.ring !== undefined ? existingConfigs[key].ring : 0;
+    const existing = existingConfigs[key] as (WeightCategory | undefined);
+    const ring = existing?.ring !== undefined ? existing.ring : 0;
+    const systemType = existing?.systemType;
 
     out[key] = {
       name: key,
@@ -304,7 +312,9 @@ export function groupRoster(roster: Athlete[], existingConfigs: Record<string, {
       size: Math.min(size, 64),
       status,
       count: entrants.length,
-      ring
+      ring,
+      systemType,
+      order: index
     };
   });
 
@@ -539,7 +549,12 @@ export function assignBoutNumbersForRing(brackets: Record<string, BracketModel>,
   return counter;
 }
 
-export function assignAllBoutNumbers(categories: Record<string, WeightCategory>, brackets: Record<string, BracketModel>, sequenceOrder: 'sequential' | 'stages' = 'sequential'): void {
+export function assignAllBoutNumbers(
+  categories: Record<string, WeightCategory>, 
+  brackets: Record<string, BracketModel>, 
+  sequenceOrder: 'sequential' | 'stages' | Record<number, 'sequential' | 'stages'> = 'sequential',
+  defaultOrder: 'sequential' | 'stages' = 'sequential'
+): void {
   const eligibleKeys = Object.keys(categories).filter(k => brackets[k]);
   const ringGroups: Record<string, string[]> = {};
 
@@ -549,13 +564,24 @@ export function assignAllBoutNumbers(categories: Record<string, WeightCategory>,
     ringGroups[ring].push(key);
   });
 
-  Object.keys(ringGroups).forEach(ringKey => {
+  Object.keys(ringGroups)
+    .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
+    .forEach(ringKey => {
     // Sort keys within the ring by their explicit order
     const sortedKeys = ringGroups[ringKey].sort((a, b) => {
       return (categories[a].order ?? 99999) - (categories[b].order ?? 99999);
     });
 
-    if (sequenceOrder === 'sequential') {
+    const ringNum = parseInt(ringKey, 10);
+    let orderForRing: 'sequential' | 'stages' = defaultOrder;
+
+    if (typeof sequenceOrder === 'string') {
+      orderForRing = sequenceOrder;
+    } else if (sequenceOrder && typeof sequenceOrder === 'object') {
+      orderForRing = sequenceOrder[ringNum] || defaultOrder;
+    }
+
+    if (orderForRing === 'sequential') {
       assignBoutNumbersForRing(brackets, sortedKeys, 1);
     } else {
       assignBoutNumbersByStagesForRing(brackets, sortedKeys, 1);

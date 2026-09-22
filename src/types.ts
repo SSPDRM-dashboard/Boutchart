@@ -89,6 +89,7 @@ export interface SavedEvent {
   ringLabelFormat: 'number' | 'letter';
   boutLabelFormat?: 'alpha-2' | 'thousands-3';
   boutSequenceOrder?: 'sequential' | 'stages';
+  ringSequenceOrders?: Record<number, 'sequential' | 'stages'>;
   shuffleSeed: boolean;
   dismissedDuplicates: string[];
 }

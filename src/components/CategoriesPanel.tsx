@@ -18,6 +18,8 @@ interface CategoriesPanelProps {
   setBoutLabelFormat: (format: 'alpha-2' | 'thousands-3') => void;
   boutSequenceOrder: 'sequential' | 'stages';
   setBoutSequenceOrder: (order: 'sequential' | 'stages') => void;
+  ringSequenceOrders?: Record<number, 'sequential' | 'stages'>;
+  onUpdateRingSequenceOrder?: (ring: number, order: 'sequential' | 'stages') => void;
   onExportPdf: () => void;
   onDownloadSearchablePdf?: (ringFilter: 'all' | number) => void;
   hasBrackets: boolean;
@@ -43,6 +45,8 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setBoutLabelFormat,
   boutSequenceOrder,
   setBoutSequenceOrder,
+  ringSequenceOrders,
+  onUpdateRingSequenceOrder,
   onExportPdf,
   onDownloadSearchablePdf,
   hasBrackets,
@@ -58,7 +62,12 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   const [selectedGenRing, setSelectedGenRing] = useState<string>('all');
   const [selectedDownloadRing, setSelectedDownloadRing] = useState<string>('all');
 
-  const catKeys = Object.keys(categories);
+  const catKeys = Object.keys(categories).sort((a, b) => {
+    const orderA = categories[a]?.order ?? 99999;
+    const orderB = categories[b]?.order ?? 99999;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.localeCompare(b);
+  });
   const eligibleKeys = catKeys.filter(k => categories[k].count >= 1);
 
   // Unassigned keys (categories where ring is 0 or undefined)
@@ -446,31 +455,65 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                 const rLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + rVal) : String(rVal);
                 const ringCats = getCategoriesForRing(rVal);
                 const isOver = dragOverRing === rVal;
+                const ringOrder = (ringSequenceOrders && ringSequenceOrders[rVal]) || boutSequenceOrder;
 
                 return (
-                  <div
-                    key={rVal}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOverRing(rVal);
-                    }}
-                    onDragLeave={() => {
-                      if (dragOverRing === rVal) setDragOverRing(null);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOverRing(null);
-                      const catKey = e.dataTransfer.getData('text/plain');
-                      if (catKey && categories[catKey]) {
-                        onUpdateCategoryRing(catKey, rVal);
-                      }
-                    }}
-                    className={`bg-slate-50 border-2 rounded-xl p-4 flex flex-col min-h-[180px] transition-all duration-200 ${
-                      isOver 
-                        ? 'border-amber-400 bg-amber-50/20 ring-4 ring-amber-500/5 scale-[1.02] shadow-sm' 
-                        : 'border-slate-200/90 hover:border-slate-300'
-                    }`}
-                  >
+                  <div key={rVal} className="flex flex-col gap-2">
+                    {/* On top of each ring: Sequential / By Stages selector */}
+                    <div className="flex items-center justify-between bg-white border border-slate-200/90 rounded-xl px-3 py-2 shadow-2xs">
+                      <span className="text-xs font-black font-mono text-slate-800 uppercase tracking-wide">
+                        Ring {rLabel}
+                      </span>
+                      <div className="flex bg-slate-100 rounded-lg border border-slate-200/80 p-0.5" title={`Bout sequence order for Ring ${rLabel}`}>
+                        <button
+                          type="button"
+                          onClick={() => onUpdateRingSequenceOrder?.(rVal, 'sequential')}
+                          className={`px-2.5 py-1 text-[10px] uppercase font-black tracking-wide rounded-md transition-all cursor-pointer ${
+                            ringOrder === 'sequential'
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                          }`}
+                          title={`Ring ${rLabel}: Sequential - finish one division completely before starting the next`}
+                        >
+                          Sequential
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onUpdateRingSequenceOrder?.(rVal, 'stages')}
+                          className={`px-2.5 py-1 text-[10px] uppercase font-black tracking-wide rounded-md transition-all cursor-pointer ${
+                            ringOrder === 'stages'
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                          }`}
+                          title={`Ring ${rLabel}: By Stages - play prelims for all divisions first, then semis, then finals`}
+                        >
+                          By Stages
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverRing(rVal);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverRing === rVal) setDragOverRing(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverRing(null);
+                        const catKey = e.dataTransfer.getData('text/plain');
+                        if (catKey && categories[catKey]) {
+                          onUpdateCategoryRing(catKey, rVal);
+                        }
+                      }}
+                      className={`bg-slate-50 border-2 rounded-xl p-4 flex flex-col flex-1 min-h-[180px] transition-all duration-200 ${
+                        isOver 
+                          ? 'border-amber-400 bg-amber-50/20 ring-4 ring-amber-500/5 scale-[1.02] shadow-sm' 
+                          : 'border-slate-200/90 hover:border-slate-300'
+                      }`}
+                    >
                     {/* Ring Header */}
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
                       <span className="text-xs font-black text-slate-800 tracking-wider uppercase font-mono">
@@ -520,14 +563,9 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                               }}
                               className={`bg-white border rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all duration-150 flex flex-col gap-1.5 cursor-grab active:cursor-grabbing relative group/card ${isCatOver ? 'border-amber-500 bg-amber-50/50 scale-105 z-10' : 'border-slate-250 hover:border-amber-500'}`}
                             >
-                              <div className="flex items-start justify-between gap-1">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <Dumbbell className="w-3.5 h-3.5 text-slate-400 group-hover/card:text-amber-500 shrink-0 transition-colors" />
-                                  <span className="font-extrabold text-xs text-slate-900 truncate">
-                                    {catKey}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
+                              {/* Card Action Controls (top-right) */}
+                              <div className="flex items-center justify-end -mt-0.5">
+                                <div className="flex items-center gap-0.5 shrink-0 bg-slate-50/80 rounded p-0.5 border border-slate-200/60">
                                   {onReorderCategory && (
                                     <>
                                       <button
@@ -578,6 +616,16 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                     <X className="w-3 h-3" />
                                   </button>
                                 </div>
+                              </div>
+
+                              {/* Centered Weight Class Name */}
+                              <div className="flex items-center justify-center text-center px-1 my-0.5">
+                                <span 
+                                  className="font-extrabold text-xs text-slate-900 break-words leading-snug text-center group-hover/card:text-amber-600 transition-colors"
+                                  title={catKey}
+                                >
+                                  {catKey}
+                                </span>
                               </div>
                               <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold font-mono">
                                 <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{cat.count} athletes</span>
@@ -653,8 +701,9 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                       </button>
                     )}
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
             </div>
           </div>
 
