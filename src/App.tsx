@@ -3270,18 +3270,6 @@ export default function App() {
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     No tournament data could be found. Please ensure you copied the entire URL, or ask your event organizer to generate a new public link.
                   </p>
-                  <div className="pt-2">
-                    <button
-                      onClick={() => {
-                        setIsPublicReportOnly(false);
-                        setActiveTab('account');
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition-all"
-                    >
-                      <span>🔑</span>
-                      <span>Organizer / Admin Login</span>
-                    </button>
-                  </div>
                 </div>
               ) : statusMessage.type === 'idle' ? (
                 <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-md text-center space-y-4">
@@ -3294,21 +3282,9 @@ export default function App() {
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     There is currently no active tournament report to view. Please use a shared public report link, or ask your administrator/organizer to share their club report.
                   </p>
-                  <div className="pt-2">
-                    <button
-                      onClick={() => {
-                        setIsPublicReportOnly(false);
-                        setActiveTab('account');
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition-all"
-                    >
-                      <span>🔑</span>
-                      <span>Organizer / Admin Login</span>
-                    </button>
-                  </div>
                 </div>
               ) : statusMessage.type === 'ok' ? (
-                 <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-md text-center space-y-4">
+                <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-md text-center space-y-4">
                   <div className="inline-flex bg-emerald-50 text-emerald-500 p-4 rounded-full border border-emerald-100">
                     <Trophy className="w-6 h-6 text-emerald-600" />
                   </div>
@@ -3318,18 +3294,6 @@ export default function App() {
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     The report has been loaded, but the organizer has not published any brackets yet. Check back later!
                   </p>
-                  <div className="pt-2">
-                    <button
-                      onClick={() => {
-                        setIsPublicReportOnly(false);
-                        setActiveTab('account');
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition-all"
-                    >
-                      <span>🔑</span>
-                      <span>Organizer / Admin Login</span>
-                    </button>
-                  </div>
                 </div>
               ) : (
                 <div className="max-w-md mx-auto bg-white border border-slate-200/80 rounded-2xl p-8 shadow-md text-center space-y-4 animate-pulse">
