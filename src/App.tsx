@@ -30,7 +30,7 @@ import {
   shuffle,
   findDuplicateAthletes
 } from './utils/bracketUtils';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -153,6 +153,68 @@ export default function App() {
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
   const [bracketSortMode, setBracketSortMode] = useState<'ring' | 'csv'>('ring');
+
+  // Admin Gatekeeper Security Passcode state
+  const [adminPasscode, setAdminPasscode] = useState<string>(() => {
+    return safeLocalStorage.getItem('bracket_builder_admin_passcode') || 'admin123';
+  });
+  const [isAdminPasscodePromptOpen, setIsAdminPasscodePromptOpen] = useState(false);
+  const [enteredAdminPasscode, setEnteredAdminPasscode] = useState('');
+  const [adminPasscodeError, setAdminPasscodeError] = useState<string | null>(null);
+  const [showAdminPasscode, setShowAdminPasscode] = useState(false);
+
+  // Admin Settings State (in Account & Admin tab)
+  const [newPasscode, setNewPasscode] = useState('');
+  const [passcodeSuccessMsg, setPasscodeSuccessMsg] = useState('');
+  const [showCurrentPasscodeSetting, setShowCurrentPasscodeSetting] = useState(false);
+
+  const handleAttemptAdminLogin = () => {
+    if (currentUser) {
+      setIsPublicReportOnly(false);
+      setActiveTab('account');
+      return;
+    }
+    setEnteredAdminPasscode('');
+    setAdminPasscodeError(null);
+    setShowAdminPasscode(false);
+    setIsAdminPasscodePromptOpen(true);
+  };
+
+  const handleVerifyAdminPasscode = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (enteredAdminPasscode.trim() === adminPasscode.trim()) {
+      setIsAdminPasscodePromptOpen(false);
+      setEnteredAdminPasscode('');
+      setAdminPasscodeError(null);
+      setIsPublicReportOnly(false);
+      setActiveTab('account');
+    } else {
+      setAdminPasscodeError('Incorrect admin security passcode. Access denied.');
+    }
+  };
+
+  const handleUpdatePasscode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPasscode.trim()) {
+      safeAlert('Please enter a valid passcode.');
+      return;
+    }
+    const updated = newPasscode.trim();
+    setAdminPasscode(updated);
+    safeLocalStorage.setItem('bracket_builder_admin_passcode', updated);
+    setNewPasscode('');
+    setPasscodeSuccessMsg('Admin security passcode updated successfully!');
+    setTimeout(() => setPasscodeSuccessMsg(''), 4000);
+  };
+
+  const handleResetPasscode = () => {
+    if (safeConfirm('Reset admin security passcode to default ("admin123")?')) {
+      setAdminPasscode('admin123');
+      safeLocalStorage.setItem('bracket_builder_admin_passcode', 'admin123');
+      setPasscodeSuccessMsg('Passcode reset to default ("admin123")');
+      setTimeout(() => setPasscodeSuccessMsg(''), 4000);
+    }
+  };
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -2937,10 +2999,7 @@ export default function App() {
           onLogout={handleLogout}
           currentUser={currentUser}
           isPublicView={isPublicReportOnly}
-          onLoginClick={() => {
-            setIsPublicReportOnly(false);
-            setActiveTab('account');
-          }}
+          onLoginClick={handleAttemptAdminLogin}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
@@ -3105,7 +3164,13 @@ export default function App() {
 
                   <button
                     type="button"
-                    onClick={() => setActiveTab('account')}
+                    onClick={() => {
+                      if (!currentUser) {
+                        handleAttemptAdminLogin();
+                      } else {
+                        setActiveTab('account');
+                      }
+                    }}
                     className={`w-full py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-3 cursor-pointer border ${
                       activeTab === 'account'
                         ? 'bg-slate-900 border-slate-900 text-amber-400 shadow-md'
@@ -3246,6 +3311,87 @@ export default function App() {
                             </button>
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* ADMIN PASSCODE SECURITY SETTINGS CARD */}
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm no-print mb-6 space-y-4">
+                      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                        <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl border border-amber-500/20">
+                          <Lock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-black text-slate-800 tracking-tight">
+                            Admin Gatekeeper Security Passcode Settings
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium">
+                            Set or change the passcode required before opening the Admin Login portal window.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start pt-1">
+                        {/* Current Passcode Info */}
+                        <div className="bg-slate-50 border border-slate-200/70 p-4 rounded-xl space-y-2">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider font-mono">
+                            Current Active Passcode
+                          </p>
+                          <div className="flex items-center justify-between bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl font-mono text-sm">
+                            <span className="font-black text-slate-900 tracking-widest">
+                              {showCurrentPasscodeSetting ? adminPasscode : '••••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPasscodeSetting(!showCurrentPasscodeSetting)}
+                              className="text-xs text-slate-500 hover:text-slate-800 font-sans font-bold flex items-center gap-1 cursor-pointer"
+                            >
+                              {showCurrentPasscodeSetting ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              <span>{showCurrentPasscodeSetting ? 'Hide' : 'Show'}</span>
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-medium">
+                            This passcode is requested when users click <strong>🔑 Admin Login</strong>.
+                          </p>
+                        </div>
+
+                        {/* Update Passcode Form */}
+                        <form onSubmit={handleUpdatePasscode} className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 uppercase font-mono">
+                              New Passcode
+                            </label>
+                            <input
+                              type="text"
+                              value={newPasscode}
+                              onChange={(e) => setNewPasscode(e.target.value)}
+                              placeholder="Enter new passcode..."
+                              className="w-full bg-white border border-slate-300 focus:border-amber-500 text-slate-900 placeholder-slate-400 rounded-xl px-3.5 py-2.5 text-sm transition-all outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                            />
+                          </div>
+
+                          {passcodeSuccessMsg && (
+                            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>{passcodeSuccessMsg}</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="submit"
+                              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black shadow transition-all cursor-pointer border border-amber-400"
+                            >
+                              Update Passcode
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleResetPasscode}
+                              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-200"
+                            >
+                              Reset Default
+                            </button>
+                          </div>
+                        </form>
                       </div>
                     </div>
 
@@ -4420,6 +4566,104 @@ export default function App() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ADMIN GATEKEEPER PASSCODE MODAL WINDOW */}
+      {isAdminPasscodePromptOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200 no-print">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 md:p-8 shadow-2xl space-y-6 text-white relative">
+            
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdminPasscodePromptOpen(false);
+                setAdminPasscodeError(null);
+              }}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
+              title="Close window"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3.5">
+              <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-2xl text-amber-400 shrink-0">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black tracking-tight text-white">
+                  Admin Access Security Check
+                </h3>
+                <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                  Enter admin security passcode to unlock portal
+                </p>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleVerifyAdminPasscode} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider font-mono">
+                  Security Passcode
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showAdminPasscode ? 'text' : 'password'}
+                    autoFocus
+                    value={enteredAdminPasscode}
+                    onChange={(e) => {
+                      setEnteredAdminPasscode(e.target.value);
+                      if (adminPasscodeError) setAdminPasscodeError(null);
+                    }}
+                    placeholder="Enter admin passcode..."
+                    className="w-full bg-slate-800/90 border border-slate-700 focus:border-amber-500 text-white placeholder-slate-500 rounded-xl pl-10 pr-10 py-3 text-sm transition-all outline-none focus:ring-2 focus:ring-amber-500/30 font-mono tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPasscode(!showAdminPasscode)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
+                    title={showAdminPasscode ? "Hide passcode" : "Show passcode"}
+                  >
+                    {showAdminPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
+                  Default passcode: <code className="bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded font-mono font-bold">admin123</code>
+                </p>
+              </div>
+
+              {adminPasscodeError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{adminPasscodeError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdminPasscodePromptOpen(false);
+                    setAdminPasscodeError(null);
+                  }}
+                  className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-400 transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Unlock Portal</span>
+                  <span>🔑</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
