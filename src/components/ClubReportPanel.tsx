@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download, Share2, Copy, Check, Trash2, ExternalLink, Globe, Lock, AlertTriangle, Info } from 'lucide-react';
 import { Athlete, WeightCategory, BracketModel } from '../types';
 import { compressToGzipBase64 } from '../utils/compression';
+import { compareCategoriesByAgeAndWeight } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { BracketCanvas } from './BracketCanvas';
 import { db, doc, setDoc, collection } from '../lib/firebase';
+import { getQuotaExceeded, setQuotaExceeded, isQuotaError } from '../utils/quotaManager';
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 
@@ -438,29 +440,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         leftLogo, leftLogo2, rightLogo, rightLogo2
       };
       
-      const newDocRef = doc(collection(db, 'reports'));
-      setDoc(newDocRef, { payload: JSON.stringify(payload) })
-      .then(() => {
-        let relPath = `/?view=club-report&id=${newDocRef.id}`;
-        if (selectedClub && selectedClub !== 'all') {
-          relPath += `&club=${encodeURIComponent(selectedClub)}`;
-        }
-        
-        const styleToSet = activeReportStyle;
-        const uObj = new URL(relPath, 'https://example.com');
-        if (styleToSet !== 'photo-matrix') {
-           uObj.searchParams.set('style', styleToSet);
-        }
-        relPath = `${uObj.pathname}${uObj.search}`;
-        
-        setShareRelativePath(relPath);
-        const finalUrl = `${getDomainForMode(shareDomainMode)}${relPath}`;
-        setShareUrl(finalUrl);
-        copyText(finalUrl);
-        setShareStatus('copied');
-      })
-      .catch(err => {
-        console.log('Firebase save failed, falling back to local server api', err);
+      const saveToLocalApi = () => {
         fetch('/api/reports', {
           method: 'POST',
           headers: {
@@ -492,39 +472,62 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             copyText(finalUrl);
             setShareStatus('copied');
           } else {
-            throw new Error('No ID returned');
+            throw new Error('Invalid API response');
           }
         })
-        .catch(apiErr => {
-          console.log('Using native GZIP client compressed URL format', apiErr);
-          // Fallback to high-compression gzip base64 if server request fails
-          const jsonStr = JSON.stringify(payload);
-          compressToGzipBase64(jsonStr)
-            .then(base64Str => {
-              const pathname = window.location.pathname.startsWith('/') ? window.location.pathname : `/${window.location.pathname}`;
-              let relPath = `${pathname}?view=club-report&data=${base64Str}`;
-              if (selectedClub && selectedClub !== 'all') {
-                relPath += `&club=${encodeURIComponent(selectedClub)}`;
-              }
-              
-              const styleToSet = activeReportStyle;
-              const uObj = new URL(relPath, 'https://example.com');
-              if (styleToSet !== 'photo-matrix') {
-                 uObj.searchParams.set('style', styleToSet);
-              }
-              relPath = `${uObj.pathname}${uObj.search}`;
-              
-              setShareRelativePath(relPath);
-              const finalUrl = `${getDomainForMode(shareDomainMode)}${relPath}`;
-              setShareUrl(finalUrl);
-              copyText(finalUrl);
-              setShareStatus('copied');
-            })
-            .catch(fbErr => {
-              console.error('Fallback compression failed', fbErr);
-              setShareStatus('error');
-            });
+        .catch(() => {
+          // Final fallback to offline gzip link
+          compressToGzipBase64(JSON.stringify(payload)).then(gzipBase64 => {
+            let relPath = `/?view=club-report&data=${encodeURIComponent(gzipBase64)}`;
+            if (selectedClub && selectedClub !== 'all') {
+              relPath += `&club=${encodeURIComponent(selectedClub)}`;
+            }
+            const styleToSet = activeReportStyle;
+            const uObj = new URL(relPath, 'https://example.com');
+            if (styleToSet !== 'photo-matrix') {
+               uObj.searchParams.set('style', styleToSet);
+            }
+            relPath = `${uObj.pathname}${uObj.search}`;
+            setShareRelativePath(relPath);
+            const finalUrl = `${getDomainForMode(shareDomainMode)}${relPath}`;
+            setShareUrl(finalUrl);
+            copyText(finalUrl);
+            setShareStatus('copied');
+          });
         });
+      };
+
+      if (getQuotaExceeded()) {
+        saveToLocalApi();
+        return;
+      }
+      
+      const newDocRef = doc(collection(db, 'reports'));
+      setDoc(newDocRef, { payload: JSON.stringify(payload) })
+      .then(() => {
+        let relPath = `/?view=club-report&id=${newDocRef.id}`;
+        if (selectedClub && selectedClub !== 'all') {
+          relPath += `&club=${encodeURIComponent(selectedClub)}`;
+        }
+        
+        const styleToSet = activeReportStyle;
+        const uObj = new URL(relPath, 'https://example.com');
+        if (styleToSet !== 'photo-matrix') {
+           uObj.searchParams.set('style', styleToSet);
+        }
+        relPath = `${uObj.pathname}${uObj.search}`;
+        
+        setShareRelativePath(relPath);
+        const finalUrl = `${getDomainForMode(shareDomainMode)}${relPath}`;
+        setShareUrl(finalUrl);
+        copyText(finalUrl);
+        setShareStatus('copied');
+      })
+      .catch(err => {
+        if (isQuotaError(err)) {
+          setQuotaExceeded(true);
+        }
+        saveToLocalApi();
       });
     } catch (e) {
       console.error('Failed to generate shareable link', e);
@@ -2554,10 +2557,29 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             }).sort((a, b) => {
               const catA = categories[a];
               const catB = categories[b];
-              if (catA?.ring !== catB?.ring) {
-                 return (catA?.ring || 1) - (catB?.ring || 1);
+              return compareCategoriesByAgeAndWeight(a, b, catA, catB);
+            });
+
+            // Ensure sequential bout numbering for Poomsae Cut-Off boutcharts:
+            // 1, 2, 3, 4, 5, 6, 7... continuously from the 1st boutchart until the last boutchart
+            let poomsaeSequenceCounter = 1;
+            bracketsToRenderKeys.forEach(key => {
+              const model = brackets[key];
+              if (model && model.systemType === 'poomsae-cutoff') {
+                const round = model.nodes?.[0] || [];
+                for (let i = 0; i < round.length; i++) {
+                  if (round[i] && !round[i].isBye && round[i].name) {
+                    round[i].bout = poomsaeSequenceCounter;
+                    if (model.cutoffScores) {
+                      const scoreKey = `${round[i].name}||${round[i].club || ''}`;
+                      if (model.cutoffScores[scoreKey]) {
+                        model.cutoffScores[scoreKey].bout = poomsaeSequenceCounter;
+                      }
+                    }
+                    poomsaeSequenceCounter++;
+                  }
+                }
               }
-              return a.localeCompare(b);
             });
 
             if (bracketsToRenderKeys.length === 0) {

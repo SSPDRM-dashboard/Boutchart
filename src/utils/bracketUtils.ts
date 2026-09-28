@@ -524,10 +524,16 @@ export function assignBoutNumbersForRing(brackets: Record<string, BracketModel>,
     if (!model) return;
     
     if (model.systemType === 'poomsae-cutoff') {
-      const round = model.nodes[0];
+      const round = model.nodes[0] || [];
       for (let i = 0; i < round.length; i++) {
         if (round[i] && !round[i].isBye && round[i].name) {
           model.nodes[0][i].bout = counter;
+          if (model.cutoffScores) {
+            const scoreKey = `${round[i].name}||${round[i].club || ''}`;
+            if (model.cutoffScores[scoreKey]) {
+              model.cutoffScores[scoreKey].bout = counter;
+            }
+          }
           counter++;
         }
       }
@@ -567,9 +573,14 @@ export function assignAllBoutNumbers(
   Object.keys(ringGroups)
     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
     .forEach(ringKey => {
-    // Sort keys within the ring by their explicit order
+    // Sort keys within the ring by explicit order or age (smallest age first)
     const sortedKeys = ringGroups[ringKey].sort((a, b) => {
-      return (categories[a].order ?? 99999) - (categories[b].order ?? 99999);
+      const orderA = categories[a]?.order;
+      const orderB = categories[b]?.order;
+      if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]);
     });
 
     const ringNum = parseInt(ringKey, 10);
@@ -587,6 +598,42 @@ export function assignAllBoutNumbers(
       assignBoutNumbersByStagesForRing(brackets, sortedKeys, 1);
     }
   });
+
+  // Ensure all Poomsae Cut-Off boutcharts are sequenced 1, 2, 3, 4, 5, 6, 7...
+  // starting from the 1st boutchart until the last boutchart (from smallest age to oldest age)
+  const allPoomsaeCutoffKeys = eligibleKeys
+    .filter(k => brackets[k]?.systemType === 'poomsae-cutoff')
+    .sort((a, b) => {
+      const catA = categories[a];
+      const catB = categories[b];
+      const orderA = catA?.order;
+      const orderB = catB?.order;
+      if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return compareCategoriesByAgeAndWeight(a, b, catA, catB);
+    });
+
+  if (allPoomsaeCutoffKeys.length > 0) {
+    let poomsaeCounter = 1;
+    allPoomsaeCutoffKeys.forEach(key => {
+      const model = brackets[key];
+      if (!model) return;
+      const round = model.nodes[0] || [];
+      for (let i = 0; i < round.length; i++) {
+        if (round[i] && !round[i].isBye && round[i].name) {
+          model.nodes[0][i].bout = poomsaeCounter;
+          if (model.cutoffScores) {
+            const scoreKey = `${round[i].name}||${round[i].club || ''}`;
+            if (model.cutoffScores[scoreKey]) {
+              model.cutoffScores[scoreKey].bout = poomsaeCounter;
+            }
+          }
+          poomsaeCounter++;
+        }
+      }
+    });
+  }
 }
 
 export function fullClear(nodes: BracketNode[][], numRounds: number, k: number, i: number): void {
@@ -881,4 +928,132 @@ export function applyParsedBoutNumbers(
       }
     }
   }
+}
+
+export function parseAgeValue(categoryName: string): number {
+  if (!categoryName) return 999;
+  const name = categoryName.toLowerCase();
+
+  // Pattern 1: Age bracket ranges e.g. "6 - 7", "6 to 8", "12-14", "30-30"
+  // (Checked first so "6-7 years" picks the range start 6, not 7)
+  const rangeMatch = name.match(/(\d+)\s*(?:-|to|&)\s*(\d+)/i);
+  if (rangeMatch) {
+    const startNum = parseInt(rangeMatch[1], 10);
+    if (startNum >= 3 && startNum <= 75) return startNum;
+  }
+
+  // Pattern 2: Over / Above / Plus e.g. "O30", "O-30", "Over 30", "30+", "30 and above", "30 & above"
+  const overMatch = name.match(/\b(?:o|over|above)\s*[-_]?\s*(\d+)\b/i);
+  if (overMatch) {
+    return parseInt(overMatch[1], 10);
+  }
+  const plusMatch = name.match(/(\d+)\s*(?:\+|and\s*above|&\s*above|above|plus|years\s*and\s*above|years\s*old\s*and\s*above)/i);
+  if (plusMatch) {
+    return parseInt(plusMatch[1], 10);
+  }
+
+  // Pattern 3: U6, U-8, U 10, U12, U-14
+  const uMatch = name.match(/\bu\s*[-_]?\s*(\d+)\b/i) || name.match(/u\s*(\d+)/i);
+  if (uMatch) {
+    return parseInt(uMatch[1], 10);
+  }
+
+  // Pattern 4: "Under 12", "Below 8", "Umur 8"
+  const underMatch = name.match(/(?:under|below|umur)\s*(\d+)/i);
+  if (underMatch) {
+    return parseInt(underMatch[1], 10);
+  }
+
+  // Pattern 5: "6 years", "12 yrs", "8 yo", "6 years old"
+  const yrMatch = name.match(/(\d+)\s*(?:years|yrs|yo|year|yr|years old|years-old)/i);
+  if (yrMatch) {
+    return parseInt(yrMatch[1], 10);
+  }
+
+  // Pattern 6: Keywords
+  if (name.includes('toddler') || name.includes('tiny') || name.includes('suci') || name.includes('tunas')) return 4;
+  if (name.includes('super junior') || name.includes('hyper junior') || name.includes('pra cadet') || name.includes('pra-cadet') || name.includes('pre cadet') || name.includes('pre-cadet') || name.includes('perintis')) return 6;
+  if (name.includes('pewee') || name.includes('child') || name.includes('kids') || name.includes('kanak')) return 8;
+  if (name.includes('cadet') || name.includes('youth') || name.includes('remaja')) return 12;
+  if (name.includes('junior') || name.includes('belia')) return 15;
+  if (name.includes('senior') || name.includes('open') || name.includes('dewasa')) return 18;
+  if (name.includes('master') || name.includes('executive')) return 35;
+  if (name.includes('veteran')) return 45;
+
+  // Pattern 7: First standalone number found in string if it's a reasonable age (3 - 75)
+  const numbers = name.match(/\d+/g);
+  if (numbers) {
+    for (const numStr of numbers) {
+      const val = parseInt(numStr, 10);
+      if (val >= 3 && val <= 75 && !name.includes(`${val}kg`)) {
+        return val;
+      }
+    }
+  }
+
+  return 999;
+}
+
+export function getCategoryGender(categoryKey: string, catObj?: WeightCategory): 'male' | 'female' | 'mixed' {
+  const name = categoryKey.toLowerCase();
+  
+  if (/\b(female|girls?|women|perempuan|ladies|lady)\b/i.test(name) || name.includes('female') || name.startsWith('f-') || name.includes(' f ') || name.includes('girl')) {
+    return 'female';
+  }
+  if (/\b(male|boys?|men|lelaki|gentlemen)\b/i.test(name) || name.includes('male') || name.startsWith('m-') || name.includes(' m ') || name.includes('boy')) {
+    return 'male';
+  }
+
+  if (catObj && catObj.entrants && catObj.entrants.length > 0) {
+    const genders = catObj.entrants.map(e => (e.gender || '').toLowerCase().trim());
+    const hasFemale = genders.some(g => g === 'f' || g === 'female' || g === 'perempuan' || g === 'girl');
+    const hasMale = genders.some(g => g === 'm' || g === 'male' || g === 'lelaki' || g === 'boy');
+    if (hasFemale && !hasMale) return 'female';
+    if (hasMale && !hasFemale) return 'male';
+  }
+
+  return 'mixed';
+}
+
+export function compareCategoriesByAgeAndWeight(
+  catAKey: string,
+  catBKey: string,
+  catAObj?: WeightCategory,
+  catBObj?: WeightCategory,
+  genderSequence: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only' = 'all'
+): number {
+  if (genderSequence === 'male-first' || genderSequence === 'female-first') {
+    const genderA = getCategoryGender(catAKey, catAObj);
+    const genderB = getCategoryGender(catBKey, catBObj);
+    if (genderA !== genderB) {
+      if (genderSequence === 'male-first') {
+        if (genderA === 'male' && genderB !== 'male') return -1;
+        if (genderB === 'male' && genderA !== 'male') return 1;
+        if (genderA === 'female' && genderB === 'mixed') return -1;
+        if (genderB === 'female' && genderA === 'mixed') return 1;
+      } else if (genderSequence === 'female-first') {
+        if (genderA === 'female' && genderB !== 'female') return -1;
+        if (genderB === 'female' && genderA !== 'female') return 1;
+        if (genderA === 'male' && genderB === 'mixed') return -1;
+        if (genderB === 'male' && genderA === 'mixed') return 1;
+      }
+    }
+  }
+
+  const ageA = parseAgeValue(catAKey);
+  const ageB = parseAgeValue(catBKey);
+
+  if (ageA !== ageB) {
+    return ageA - ageB; // Smallest age first!
+  }
+
+  // Secondary sort by order if available
+  const orderA = catAObj?.order ?? 99999;
+  const orderB = catBObj?.order ?? 99999;
+  if (orderA !== orderB) {
+    return orderA - orderB;
+  }
+
+  // Tertiary sort alphabetically
+  return catAKey.localeCompare(catBKey);
 }

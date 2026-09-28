@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { WeightCategory } from '../types';
+import { compareCategoriesByAgeAndWeight, getCategoryGender } from '../utils/bracketUtils';
 
 interface CategoriesPanelProps {
   categories: Record<string, WeightCategory>;
@@ -8,7 +9,11 @@ interface CategoriesPanelProps {
   setRingCount: (count: number) => void;
   onAutoAssignRings: () => void;
   onUpdateCategoryRing: (categoryKey: string, ring: number) => void;
+  onBulkUpdateRing?: (keys: string[], ring: number) => void;
   onUpdateCategorySystemType?: (categoryKey: string, systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => void;
+  onBulkUpdateSystemType?: (keys: string[], systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => void;
+  ringGenderSequence?: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only';
+  onUpdateRingGenderSequence?: (mode: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only') => void;
   shuffleSeed: boolean;
   setShuffleSeed: (shuffle: boolean) => void;
   onGenerateBrackets: (targetRing?: number) => void;
@@ -35,7 +40,11 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setRingCount,
   onAutoAssignRings,
   onUpdateCategoryRing,
+  onBulkUpdateRing,
   onUpdateCategorySystemType,
+  onBulkUpdateSystemType,
+  ringGenderSequence = 'all',
+  onUpdateRingGenderSequence,
   shuffleSeed,
   setShuffleSeed,
   onGenerateBrackets,
@@ -82,9 +91,15 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
   // Get categories allocated to a specific ring
   const getCategoriesForRing = (rVal: number) => {
-    return catKeys
-      .filter((key) => categories[key].ring === rVal)
-      .sort((a, b) => (categories[a].order ?? 99999) - (categories[b].order ?? 99999));
+    let keys = catKeys.filter((key) => categories[key].ring === rVal);
+
+    if (ringGenderSequence === 'male-only') {
+      keys = keys.filter((k) => getCategoryGender(k, categories[k]) === 'male');
+    } else if (ringGenderSequence === 'female-only') {
+      keys = keys.filter((k) => getCategoryGender(k, categories[k]) === 'female');
+    }
+
+    return keys.sort((a, b) => compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b], ringGenderSequence as any));
   };
 
   const handleDragStart = (e: React.DragEvent, key: string) => {
@@ -271,8 +286,61 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   />
                 </div>
                 
-                <div className="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                  {unassignedKeys.length} classes unassigned
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const val = e.target.value as 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff';
+                      if (!val) return;
+                      const targetKeys = filteredUnassignedKeys.length > 0 ? filteredUnassignedKeys : catKeys;
+                      if (onBulkUpdateSystemType) {
+                        onBulkUpdateSystemType(targetKeys, val);
+                      } else if (onUpdateCategorySystemType) {
+                        targetKeys.forEach((k) => onUpdateCategorySystemType(k, val));
+                      }
+                      e.target.value = '';
+                    }}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl px-3 py-2 border border-amber-400 outline-none cursor-pointer transition-all shadow-sm active:scale-98 flex items-center gap-1.5"
+                    title="Set System Type for ALL categories currently shown in table"
+                  >
+                    <option value="" disabled>⚡ Choose System Type for All ({filteredUnassignedKeys.length})...</option>
+                    <option value="kyorugi-pk">Set All ({filteredUnassignedKeys.length}) → Sparring (Kyorugi PK)</option>
+                    <option value="poomsae-pk">Set All ({filteredUnassignedKeys.length}) → Poomsae (PK/Bracket)</option>
+                    <option value="poomsae-cutoff">Set All ({filteredUnassignedKeys.length}) → Poomsae (Cut-off Score)</option>
+                  </select>
+
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const ringVal = parseInt(e.target.value, 10);
+                      if (isNaN(ringVal)) return;
+                      const targetKeys = filteredUnassignedKeys.length > 0 ? filteredUnassignedKeys : catKeys;
+                      if (onBulkUpdateRing) {
+                        onBulkUpdateRing(targetKeys, ringVal);
+                      } else {
+                        targetKeys.forEach((k) => onUpdateCategoryRing(k, ringVal));
+                      }
+                      e.target.value = '';
+                    }}
+                    className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs rounded-xl px-3 py-2 border border-slate-700 outline-none cursor-pointer transition-all shadow-sm active:scale-98 flex items-center gap-1.5"
+                    title="Assign ALL categories currently shown in table to a specific ring"
+                  >
+                    <option value="" disabled>🎯 Assign All to Ring ({filteredUnassignedKeys.length})...</option>
+                    <option value="0">Assign All → Unassigned</option>
+                    {Array.from({ length: ringCount }, (_, idx) => {
+                      const val = idx + 1;
+                      const label = ringLabelFormat === 'letter' ? String.fromCharCode(64 + val) : String(val);
+                      return (
+                        <option key={val} value={val}>
+                          Assign All ({filteredUnassignedKeys.length}) → Ring {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  <div className="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 shrink-0">
+                    {unassignedKeys.length} classes unassigned
+                  </div>
                 </div>
               </div>
 
@@ -282,12 +350,69 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-bold text-[11px] uppercase tracking-wider">
                       <th className="px-4 py-3">Weight Class</th>
-                      <th className="px-4 py-3">System Type</th>
+                      <th className="px-4 py-2.5">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="font-extrabold text-slate-700">System Type</span>
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              const val = e.target.value as 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff';
+                              if (!val) return;
+                              const targetKeys = filteredUnassignedKeys.length > 0 ? filteredUnassignedKeys : catKeys;
+                              if (onBulkUpdateSystemType) {
+                                onBulkUpdateSystemType(targetKeys, val);
+                              } else if (onUpdateCategorySystemType) {
+                                targetKeys.forEach((k) => onUpdateCategorySystemType(k, val));
+                              }
+                              e.target.value = '';
+                            }}
+                            className="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 font-extrabold text-[10px] rounded-lg px-2 py-1 outline-none cursor-pointer transition-all shadow-2xs normal-case font-sans tracking-normal"
+                            title="Set System Type for ALL categories in this table"
+                          >
+                            <option value="" disabled>⚡ Set All ({filteredUnassignedKeys.length})...</option>
+                            <option value="kyorugi-pk">Set All → Sparring (Kyorugi PK)</option>
+                            <option value="poomsae-pk">Set All → Poomsae (PK/Bracket)</option>
+                            <option value="poomsae-cutoff">Set All → Poomsae (Cut-off Score)</option>
+                          </select>
+                        </div>
+                      </th>
                       <th className="px-4 py-3">Entrants Count</th>
                       <th className="px-4 py-3">Matches Needed</th>
                       <th className="px-4 py-3">Bracket Layout Size</th>
                       <th className="px-4 py-3">Status Info</th>
-                      <th className="px-4 py-3 text-right">Target Arena / Ring</th>
+                      <th className="px-4 py-2.5 text-right">
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="font-extrabold text-slate-700">Target Arena / Ring</span>
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              const ringVal = parseInt(e.target.value, 10);
+                              if (isNaN(ringVal)) return;
+                              const targetKeys = filteredUnassignedKeys.length > 0 ? filteredUnassignedKeys : catKeys;
+                              if (onBulkUpdateRing) {
+                                onBulkUpdateRing(targetKeys, ringVal);
+                              } else {
+                                targetKeys.forEach((k) => onUpdateCategoryRing(k, ringVal));
+                              }
+                              e.target.value = '';
+                            }}
+                            className="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 font-extrabold text-[10px] rounded-lg px-2 py-1 outline-none cursor-pointer transition-all shadow-2xs normal-case font-sans tracking-normal"
+                            title="Assign ALL categories in this table to a specific Competition Ring"
+                          >
+                            <option value="" disabled>🎯 Assign All ({filteredUnassignedKeys.length})...</option>
+                            <option value="0">Assign All → Unassigned</option>
+                            {Array.from({ length: ringCount }, (_, idx) => {
+                              const val = idx + 1;
+                              const label = ringLabelFormat === 'letter' ? String.fromCharCode(64 + val) : String(val);
+                              return (
+                                <option key={val} value={val}>
+                                  Assign All → Ring {label}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
@@ -445,6 +570,39 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
               {/* Drag instruction notice */}
               <div className="hidden md:flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 rounded-lg text-[10px] font-bold">
                 <span>💡 Drag weight cards directly to moves rings quickly</span>
+              </div>
+            </div>
+
+            {/* Ring Sequencing & Gender Ordering Control Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white rounded-xl p-3.5 mb-4 shadow-sm border border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-500 text-slate-950 rounded-lg font-black text-xs shrink-0">
+                  ⚙️ Ring Sequencing
+                </div>
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-400 block">
+                    Gender &amp; Age Sequencing Rule
+                  </span>
+                  <span className="text-[11px] text-slate-300">
+                    Auto-arranges categories from youngest to oldest age automatically when assigned.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-300">Gender Sequencing:</span>
+                <select
+                  value={ringGenderSequence}
+                  onChange={(e) => onUpdateRingGenderSequence?.(e.target.value as any)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl px-3.5 py-2 border border-amber-400 outline-none cursor-pointer transition-all shadow-sm"
+                  title="Choose Gender Sequencing for all Competition Rings (Smallest to oldest age auto-sorted)"
+                >
+                  <option value="all">🚻 All Genders (Sorted Youngest → Oldest Age)</option>
+                  <option value="male-first">♂️ Male First → ♀️ Female (Youngest → Oldest Age)</option>
+                  <option value="female-first">♀️ Female First → ♂️ Male (Youngest → Oldest Age)</option>
+                  <option value="male-only">♂️ Filter: Male Divisions Only</option>
+                  <option value="female-only">♀️ Filter: Female Divisions Only</option>
+                </select>
               </div>
             </div>
 

@@ -28,8 +28,10 @@ import {
   handleUpdateLeafNode,
   handleSwapLeafNodes,
   shuffle,
-  findDuplicateAthletes
+  findDuplicateAthletes,
+  compareCategoriesByAgeAndWeight
 } from './utils/bracketUtils';
+import { isQuotaError, setQuotaExceeded, getQuotaExceeded } from './utils/quotaManager';
 import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
@@ -111,6 +113,7 @@ export default function App() {
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [boutSequenceOrder, setBoutSequenceOrder] = useState<'sequential' | 'stages'>('sequential');
   const [ringSequenceOrders, setRingSequenceOrders] = useState<Record<number, 'sequential' | 'stages'>>({});
+  const [ringGenderSequence, setRingGenderSequence] = useState<'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only'>('all');
   const [shuffleSeed, setShuffleSeed] = useState(true);
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates' | 'four-group'>(() => {
@@ -153,6 +156,7 @@ export default function App() {
   const [systemUsers, setSystemUsers] = useState<Record<string, string>>({});
   const [bracketLayout, setBracketLayout] = useState<'modern' | 'classic'>('classic');
   const [bracketSortMode, setBracketSortMode] = useState<'ring' | 'csv'>('ring');
+  const lastWrittenPayloadRef = useRef<string>('');
 
   // Admin Gatekeeper Security Passcode state
   const [adminPasscode, setAdminPasscode] = useState<string>(() => {
@@ -261,45 +265,52 @@ export default function App() {
         setIsPublicReportOnly(false);
         setActiveTab('brackets');
         try {
-          // Load saved events
-          const eventsRef = collection(db, `users/${user.email}/events`);
-          const snapshot = await getDocs(eventsRef);
-          const eventsList: SavedEvent[] = [];
-          snapshot.forEach(d => {
-            const data = d.data();
-            if (data.payload) {
-              eventsList.push(JSON.parse(data.payload));
-            } else {
-              eventsList.push(data as SavedEvent);
-            }
-          });
-          setSavedEvents(eventsList.sort((a, b) => b.timestamp - a.timestamp));
+          if (!getQuotaExceeded()) {
+            // Load saved events
+            const eventsRef = collection(db, `users/${user.email}/events`);
+            const snapshot = await getDocs(eventsRef);
+            const eventsList: SavedEvent[] = [];
+            snapshot.forEach(d => {
+              const data = d.data();
+              if (data.payload) {
+                eventsList.push(JSON.parse(data.payload));
+              } else {
+                eventsList.push(data as SavedEvent);
+              }
+            });
+            setSavedEvents(eventsList.sort((a, b) => b.timestamp - a.timestamp));
 
-          // Load current ongoing state
-          const currentRef = doc(db, `users/${user.email}/current/state`);
-          const currentStateSnap = await getDoc(currentRef);
-          if (currentStateSnap.exists()) {
-             const data = currentStateSnap.data();
-             const snap = data.payload ? JSON.parse(data.payload) : data;
-             if (snap.tournamentName) setTournamentName(snap.tournamentName);
-             if (snap.leftLogo) setLeftLogo(snap.leftLogo);
-             if (snap.leftLogo2) setLeftLogo2(snap.leftLogo2);
-             if (snap.rightLogo) setRightLogo(snap.rightLogo);
-             if (snap.rightLogo2) setRightLogo2(snap.rightLogo2);
-             if (snap.roster) setRoster(snap.roster);
-             if (snap.categories) setCategories(snap.categories);
-             if (snap.brackets) setBrackets(snap.brackets);
-             if (snap.ringCount) setRingCount(snap.ringCount);
-             if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
-             if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
-             if (snap.boutSequenceOrder) setBoutSequenceOrder(snap.boutSequenceOrder);
-             if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
-             if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
-             if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
-             if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
+            // Load current ongoing state
+            const currentRef = doc(db, `users/${user.email}/current/state`);
+            const currentStateSnap = await getDoc(currentRef);
+            if (currentStateSnap.exists()) {
+               const data = currentStateSnap.data();
+               const snap = data.payload ? JSON.parse(data.payload) : data;
+               if (snap.tournamentName) setTournamentName(snap.tournamentName);
+               if (snap.leftLogo) setLeftLogo(snap.leftLogo);
+               if (snap.leftLogo2) setLeftLogo2(snap.leftLogo2);
+               if (snap.rightLogo) setRightLogo(snap.rightLogo);
+               if (snap.rightLogo2) setRightLogo2(snap.rightLogo2);
+               if (snap.roster) setRoster(snap.roster);
+               if (snap.categories) setCategories(snap.categories);
+               if (snap.brackets) setBrackets(snap.brackets);
+               if (snap.ringCount) setRingCount(snap.ringCount);
+               if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+               if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
+               if (snap.boutSequenceOrder) setBoutSequenceOrder(snap.boutSequenceOrder);
+               if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
+               if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
+               if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
+               if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
+            }
           }
-        } catch (err) {
-          console.error("Error loading Firestore data:", err);
+        } catch (err: any) {
+          if (isQuotaError(err)) {
+            setQuotaExceeded(true);
+            console.warn("Firestore quota limit reached during load; seamlessly operating via local storage.");
+          } else {
+            console.error("Error loading Firestore data:", err);
+          }
         }
       } else {
         setCurrentUser(null);
@@ -562,6 +573,11 @@ export default function App() {
             }
           };
 
+          if (getQuotaExceeded()) {
+            handleFallback();
+            return;
+          }
+
           // 8-second timeout for rapid loading and instant fallback
           const timeoutId = setTimeout(() => {
             console.warn('Firestore fetch timed out, utilizing local storage/API fallback');
@@ -587,7 +603,11 @@ export default function App() {
             })
             .catch(err => {
               clearTimeout(timeoutId);
-              console.error('Failed to query Firestore reports', err);
+              if (isQuotaError(err)) {
+                setQuotaExceeded(true);
+              } else {
+                console.error('Failed to query Firestore reports', err);
+              }
               handleFallback();
             });
           return;
@@ -672,15 +692,29 @@ export default function App() {
           dismissedDuplicates,
           currentEventId,
         };
-        safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        const currentPayloadStr = JSON.stringify(snapshot);
+        safeLocalStorage.setItem(STORAGE_KEY, currentPayloadStr);
         
-        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
-          const currentRef = doc(db, `users/${currentUser}/current/state`);
-          await setDoc(currentRef, { payload: JSON.stringify(snapshot) });
-          
-          // Also publish to the global active state for public viewers without an ID
-          const publicActiveRef = doc(db, 'reports', 'active_state');
-          await setDoc(publicActiveRef, { payload: JSON.stringify(snapshot) });
+        if (!getQuotaExceeded() && lastWrittenPayloadRef.current !== currentPayloadStr) {
+          if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+            try {
+              const currentRef = doc(db, `users/${currentUser}/current/state`);
+              await setDoc(currentRef, { payload: currentPayloadStr });
+              
+              // Also publish to the global active state for public viewers without an ID
+              const publicActiveRef = doc(db, 'reports', 'active_state');
+              await setDoc(publicActiveRef, { payload: currentPayloadStr });
+              
+              lastWrittenPayloadRef.current = currentPayloadStr;
+            } catch (err: any) {
+              if (isQuotaError(err)) {
+                setQuotaExceeded(true);
+                console.warn('Firestore write quota limit reached. Application running in Local Offline Mode.');
+              } else {
+                console.error('Failed to write state to Firestore', err);
+              }
+            }
+          }
         }
 
         setSaveStatus('saved');
@@ -693,7 +727,7 @@ export default function App() {
         console.error('Failed to write state', e);
         setSaveStatus('idle');
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -869,38 +903,114 @@ export default function App() {
     setDismissedDuplicates(prev => [...prev, ...activeGroups.map(g => g.signature)]);
   };
 
+  // Helper to re-arrange categories within each ring from smallest age to oldest age
+  const autoArrangeRingsByAge = (
+    cats: Record<string, WeightCategory>,
+    genderSeq: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only' = ringGenderSequence
+  ) => {
+    const next = { ...cats };
+    const ringMap: Record<number, string[]> = {};
+    
+    Object.keys(next).forEach((key) => {
+      const r = next[key].ring || 0;
+      if (r > 0) {
+        if (!ringMap[r]) ringMap[r] = [];
+        ringMap[r].push(key);
+      }
+    });
+
+    Object.keys(ringMap).forEach((rStr) => {
+      const r = parseInt(rStr, 10);
+      const keys = ringMap[r];
+      keys.sort((a, b) => compareCategoriesByAgeAndWeight(a, b, next[a], next[b], genderSeq));
+      keys.forEach((k, idx) => {
+        next[k] = { ...next[k], order: idx + 1 };
+      });
+    });
+
+    return next;
+  };
+
+  const handleRingGenderSequenceChange = (mode: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only') => {
+    setRingGenderSequence(mode);
+    setCategories((prev) => autoArrangeRingsByAge(prev, mode));
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      const mockCategories = autoArrangeRingsByAge(categories, mode);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
+      return next;
+    });
+
+    const modeLabels = {
+      'all': 'All Genders (Age: Youngest → Oldest)',
+      'male-first': 'Male First → Female (Age: Youngest → Oldest)',
+      'female-first': 'Female First → Male (Age: Youngest → Oldest)',
+      'male-only': 'Filter: Male Divisions Only',
+      'female-only': 'Filter: Female Divisions Only'
+    };
+    setStatusMessage({
+      text: `Updated Ring Sequencing rule to "${modeLabels[mode]}". Competition rings re-ordered.`,
+      type: 'ok',
+    });
+  };
+
   // 4. Group Configuration Actions
   const handleUpdateCategoryRing = (categoryKey: string, ring: number) => {
     setCategories((prev) => {
       const next = { ...prev };
       if (next[categoryKey]) {
         next[categoryKey] = { ...next[categoryKey], ring };
-        
-        // If moving to a new ring, optionally append to the end by setting a high order
-        if (ring !== 0) {
-            const values = Object.values(prev) as WeightCategory[];
-            const maxOrder = Math.max(0, ...values.filter(c => c.ring === ring).map(c => c.order || 0));
-            next[categoryKey].order = maxOrder + 1;
-        }
       }
-      return next;
+      return autoArrangeRingsByAge(next);
     });
 
     // Re-order sequential ring numbering on adjustment
     setBrackets((prev) => {
       if (Object.keys(prev).length === 0) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      const mockCategories = JSON.parse(JSON.stringify(categories));
+      let mockCategories = JSON.parse(JSON.stringify(categories));
       if (mockCategories[categoryKey]) {
         mockCategories[categoryKey].ring = ring;
-        if (ring !== 0) {
-            const values = Object.values(mockCategories) as WeightCategory[];
-            const maxOrder = Math.max(0, ...values.filter(c => c.ring === ring).map(c => c.order || 0));
-            mockCategories[categoryKey].order = maxOrder + 1;
-        }
       }
+      mockCategories = autoArrangeRingsByAge(mockCategories);
       assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
+    });
+  };
+
+  const handleBulkUpdateCategoryRing = (keys: string[], ring: number) => {
+    if (!keys || keys.length === 0) return;
+    const keySet = new Set(keys);
+
+    setCategories((prev) => {
+      const next = { ...prev };
+      keySet.forEach((categoryKey) => {
+        if (next[categoryKey]) {
+          next[categoryKey] = { ...next[categoryKey], ring };
+        }
+      });
+      return autoArrangeRingsByAge(next);
+    });
+
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      let mockCategories = JSON.parse(JSON.stringify(categories));
+      keySet.forEach((categoryKey) => {
+        if (mockCategories[categoryKey]) {
+          mockCategories[categoryKey].ring = ring;
+        }
+      });
+      mockCategories = autoArrangeRingsByAge(mockCategories);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
+      return next;
+    });
+
+    const ringLabel = ring === 0 ? 'Unassigned' : `Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + ring) : ring}`;
+    setStatusMessage({
+      text: `Assigned ${keys.length} categories to ${ringLabel} (auto-sorted by age: youngest → oldest)!`,
+      type: 'ok',
     });
   };
 
@@ -1082,14 +1192,64 @@ export default function App() {
           next[categoryKey].cutoffScores = scores;
         }
       }
+      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
+    });
+  };
+
+  const handleBulkUpdateCategorySystemType = (keys: string[], systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => {
+    if (!keys || keys.length === 0) return;
+    const keySet = new Set(keys);
+
+    setCategories((prev) => {
+      const next = { ...prev };
+      keySet.forEach((key) => {
+        if (next[key]) {
+          next[key] = { ...next[key], systemType };
+        }
+      });
+      return next;
+    });
+
+    setBrackets((prev) => {
+      const next = { ...prev };
+      keySet.forEach((key) => {
+        if (next[key]) {
+          const existing = next[key];
+          next[key] = {
+            ...existing,
+            systemType,
+          };
+          if (systemType === 'poomsae-cutoff' && !next[key].cutoffScores) {
+            const cat = categories[key];
+            const entrants = cat?.entrants || [];
+            const scores: Record<string, CutoffScore> = {};
+            entrants.forEach((ent) => {
+              const scoreKey = `${ent.name}||${ent.club}`;
+              scores[scoreKey] = {
+                athleteName: ent.name,
+                athleteClub: ent.club,
+              };
+            });
+            next[key].cutoffScores = scores;
+          }
+        }
+      });
+      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
+      return next;
+    });
+
+    const sysLabel = systemType === 'poomsae-cutoff' ? 'Poomsae (Cut-off Score)' : systemType === 'poomsae-pk' ? 'Poomsae (PK/Bracket)' : 'Sparring (Kyorugi PK)';
+    setStatusMessage({
+      text: `Updated System Type to "${sysLabel}" across ${keys.length} categories!`,
+      type: 'ok',
     });
   };
 
   const handleAutoAssignRings = () => {
     const keys = Object.keys(categories)
       .filter((k) => categories[k].count >= 1)
-      .sort((a, b) => (categories[a]?.order ?? 99999) - (categories[b]?.order ?? 99999));
+      .sort((a, b) => compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]));
     if (keys.length === 0) return;
 
     setCategories((prev) => {
@@ -1097,19 +1257,20 @@ export default function App() {
       keys.forEach((key, idx) => {
         next[key] = { ...next[key], ring: (idx % ringCount) + 1 };
       });
-      return next;
+      return autoArrangeRingsByAge(next);
     });
 
     // Cascade update to bouts if brackets are already drawn
     setBrackets((prev) => {
       if (Object.keys(prev).length === 0) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      const mockCategories = { ...categories };
+      let mockCategories = { ...categories };
       keys.forEach((key, idx) => {
         if (mockCategories[key]) {
           mockCategories[key].ring = (idx % ringCount) + 1;
         }
       });
+      mockCategories = autoArrangeRingsByAge(mockCategories);
       assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
     });
@@ -1473,9 +1634,11 @@ export default function App() {
     safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
   };
 
-  const handleSaveCurrentEvent = async (customName?: string) => {
+  const handleSaveCurrentEvent = async (customName?: string, forceNewEvent: boolean = false) => {
     const finalName = customName || tournamentName || 'Untitled Event';
-    const newId = currentEventId || (Math.random().toString(36).substring(2, 9) + '-' + Date.now());
+    const newId = (forceNewEvent || !currentEventId)
+      ? (Math.random().toString(36).substring(2, 9) + '-' + Date.now())
+      : currentEventId;
     
     const newEvent: SavedEvent = {
       id: newId,
@@ -1504,7 +1667,7 @@ export default function App() {
     if (savedEvents.some(e => e.id === newId)) {
       updatedList = savedEvents.map(e => e.id === newId ? newEvent : e);
     } else {
-      updatedList = [...savedEvents, newEvent];
+      updatedList = [newEvent, ...savedEvents];
     }
     updatedList = updatedList.sort((a, b) => b.timestamp - a.timestamp);
 
@@ -1513,7 +1676,7 @@ export default function App() {
     safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
     setTournamentName(finalName);
 
-    if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+    if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
       try {
         const eventRef = doc(db, `users/${currentUser}/events/${newId}`);
         await setDoc(eventRef, {
@@ -1531,8 +1694,13 @@ export default function App() {
           timestamp: newEvent.timestamp,
           tournamentName: finalName
         });
-      } catch (err) {
-        console.error("Failed to save event to Firestore", err);
+      } catch (err: any) {
+        if (isQuotaError(err)) {
+          setQuotaExceeded(true);
+          console.warn("Firestore quota reached when saving event; saved locally.");
+        } else {
+          console.error("Failed to save event to Firestore", err);
+        }
       }
     }
 
@@ -1573,7 +1741,7 @@ export default function App() {
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
         saveEventListToStorage(updatedList.sort((a, b) => b.timestamp - a.timestamp));
         
-        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+        if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           try {
             const eventRef = doc(db, `users/${currentUser}/events/${id}`);
             await setDoc(eventRef, {
@@ -1597,8 +1765,13 @@ export default function App() {
               leftLogo2: updatedEvent.leftLogo2,
               rightLogo: updatedEvent.rightLogo
             });
-          } catch (err) {
-            console.error("Failed to update event in Firestore", err);
+          } catch (err: any) {
+            if (isQuotaError(err)) {
+              setQuotaExceeded(true);
+              console.warn("Firestore quota reached when overwriting event; saved locally.");
+            } else {
+              console.error("Failed to update event in Firestore", err);
+            }
           }
         }
 
@@ -1682,12 +1855,16 @@ export default function App() {
         const updatedList = savedEvents.filter(e => e.id !== id);
         saveEventListToStorage(updatedList);
 
-        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+        if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           try {
             const eventRef = doc(db, `users/${currentUser}/events/${id}`);
             await deleteDoc(eventRef);
-          } catch (err) {
-            console.error("Failed to delete event from Firestore", err);
+          } catch (err: any) {
+            if (isQuotaError(err)) {
+              setQuotaExceeded(true);
+            } else {
+              console.error("Failed to delete event from Firestore", err);
+            }
           }
         }
 
@@ -2884,12 +3061,7 @@ export default function App() {
         return ringA - ringB;
       }
     }
-    const orderA = categories[a]?.order ?? 99999;
-    const orderB = categories[b]?.order ?? 99999;
-    if (orderA !== orderB) {
-      return orderA - orderB;
-    }
-    return a.localeCompare(b);
+    return compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b], ringGenderSequence as any);
   });
 
   const filteredBracketKeys = bracketKeys.filter((key) => {
@@ -3639,7 +3811,11 @@ export default function App() {
                     setRingCount={setRingCount}
                     onAutoAssignRings={handleAutoAssignRings}
                     onUpdateCategoryRing={handleUpdateCategoryRing}
+                    onBulkUpdateRing={handleBulkUpdateCategoryRing}
                     onUpdateCategorySystemType={handleUpdateCategorySystemType}
+                    onBulkUpdateSystemType={handleBulkUpdateCategorySystemType}
+                    ringGenderSequence={ringGenderSequence}
+                    onUpdateRingGenderSequence={handleRingGenderSequenceChange}
                     shuffleSeed={shuffleSeed}
                     setShuffleSeed={setShuffleSeed}
                     onGenerateBrackets={handleGenerateBrackets}

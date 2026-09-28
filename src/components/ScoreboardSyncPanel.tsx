@@ -6,6 +6,8 @@ import { getFirestore } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 import { BracketModel, Athlete, WeightCategory } from '../types';
 
+import { isQuotaError, setQuotaExceeded } from '../utils/quotaManager';
+
 interface ScoreboardSyncPanelProps {
   brackets: Record<string, BracketModel>;
   roster: Athlete[];
@@ -118,7 +120,12 @@ export function ScoreboardSyncPanel({ brackets, roster, categories, tournamentNa
       setTimeout(() => setSyncStatus('idle'), 5000);
     } catch (err: any) {
       console.error('Failed to sync to scoreboard:', err);
-      setErrorMessage(err.message || 'Failed to sync to scoreboard. Check permissions or network.');
+      if (isQuotaError(err)) {
+        setQuotaExceeded(true);
+        setErrorMessage('Daily Firestore database quota reached for today. Local updates remain intact.');
+      } else {
+        setErrorMessage(err.message || 'Failed to sync to scoreboard. Check permissions or network.');
+      }
       setSyncStatus('error');
     }
   };

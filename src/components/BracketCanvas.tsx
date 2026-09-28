@@ -4,6 +4,7 @@ import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
 import { isRealBout, countRealBouts } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
+import { getQuotaExceeded, setQuotaExceeded, isQuotaError } from '../utils/quotaManager';
 
 const getStageLabel = (size: number, k: number, numRounds: number) => {
   if (k === numRounds) return 'CHAMPION';
@@ -53,17 +54,26 @@ function getFormattedBout(
   if (boutNumber === undefined) return '';
 
   let ringNum = 1;
+  let ringLetter = 'A';
   if (typeof ring === 'number') {
     ringNum = ring;
+    ringLetter = String.fromCharCode(64 + Math.max(1, ringNum));
   } else {
-    const cleaned = String(ring).trim().toLowerCase();
-    const numMatch = cleaned.match(/\d+$/);
-    if (numMatch) {
-      ringNum = parseInt(numMatch[0], 10);
+    const cleaned = String(ring).trim().toUpperCase();
+    if (/^[A-Z]$/.test(cleaned)) {
+      ringLetter = cleaned;
+      ringNum = cleaned.charCodeAt(0) - 64;
     } else {
-      const letterMatch = cleaned.match(/[a-z]$/);
-      if (letterMatch) {
-        ringNum = letterMatch[0].charCodeAt(0) - 96;
+      const numMatch = cleaned.match(/\d+$/);
+      if (numMatch) {
+        ringNum = parseInt(numMatch[0], 10);
+        ringLetter = String.fromCharCode(64 + Math.max(1, ringNum));
+      } else {
+        const letterMatch = cleaned.match(/[A-Z]$/);
+        if (letterMatch) {
+          ringLetter = letterMatch[0];
+          ringNum = letterMatch[0].charCodeAt(0) - 64;
+        }
       }
     }
   }
@@ -74,9 +84,8 @@ function getFormattedBout(
     const pad = String(boutNumber).padStart(3, '0');
     return `${ringNum}${pad}`;
   } else {
-    const letter = String.fromCharCode(64 + ringNum);
     const pad = String(boutNumber).padStart(2, '0');
-    return `${letter}${pad}`;
+    return `${ringLetter}${pad}`;
   }
 }
 
@@ -228,7 +237,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
       let firestoreClubs: string[] = [];
       const user = auth.currentUser;
-      if (user && user.email) {
+      if (user && user.email && !getQuotaExceeded()) {
         try {
           const docRef = doc(db, `users/${user.email}/clubs/all`);
           const snap = await getDoc(docRef);
@@ -239,7 +248,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             }
           }
         } catch (err) {
-          console.error('Error loading clubs from Firestore:', err);
+          if (isQuotaError(err)) {
+            setQuotaExceeded(true);
+          } else {
+            console.error('Error loading clubs from Firestore:', err);
+          }
         }
       }
 
@@ -276,12 +289,16 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
     }
 
     const user = auth.currentUser;
-    if (user && user.email) {
+    if (user && user.email && !getQuotaExceeded()) {
       try {
         const docRef = doc(db, `users/${user.email}/clubs/all`);
         await setDoc(docRef, { names: updatedClubs });
       } catch (err) {
-        console.error('Error saving club to Firestore:', err);
+        if (isQuotaError(err)) {
+          setQuotaExceeded(true);
+        } else {
+          console.error('Error saving club to Firestore:', err);
+        }
       }
     }
   };
@@ -778,15 +795,16 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-extrabold text-[10px] font-mono uppercase tracking-wider border-b border-slate-200/60">
                     <th className="py-3.5 px-4 text-center w-12">No.</th>
+                    <th className="py-3.5 px-3 text-center w-24 text-amber-700 bg-amber-50/30 font-mono font-black border-x border-amber-200/50">BOUT NO.</th>
                     <th className="py-3.5 px-4">Athlete / Club</th>
                     <th className="py-3.5 px-4 text-center bg-blue-50/20" colSpan={3}>Poomsae 1</th>
                     <th className="py-3.5 px-4 text-center bg-amber-50/10" colSpan={3}>Poomsae 2</th>
                     <th className="py-3.5 px-4 text-center w-24">Final Score</th>
                     <th className="py-3.5 px-4 text-center w-16">Rank</th>
-                    <th className="py-3.5 px-4 text-center w-24 no-print">Actions</th>
                   </tr>
                   <tr className="bg-slate-100/40 text-[9px] font-bold text-slate-400 border-b border-slate-200/60">
                     <th className="py-1 px-4"></th>
+                    <th className="py-1 px-3 text-center text-amber-600/80 bg-amber-50/20 border-x border-amber-200/50 font-mono text-[8px]">Match ID</th>
                     <th className="py-1 px-4"></th>
                     <th className="py-1 px-4 text-center text-blue-600 w-16">Accuracy</th>
                     <th className="py-1 px-4 text-center text-blue-600 w-16">Present.</th>
@@ -796,7 +814,6 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     <th className="py-1 px-4 text-center text-amber-700 bg-amber-50/25 w-16">Total</th>
                     <th className="py-1 px-4"></th>
                     <th className="py-1 px-4"></th>
-                    <th className="py-1 px-4 no-print"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150">
@@ -820,11 +837,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       );
                     }
 
-                    // Sort: if ranks exist, sort by rank ascending; if not, sort by name
+                    // Sort: if ranks exist, sort by rank ascending; if not, sort by assigned bout number then name
                     const displayList = [...items].sort((a, b) => {
                       if (a.rank && b.rank) return a.rank - b.rank;
                       if (a.rank) return -1;
                       if (b.rank) return 1;
+                      const boutA = bracket.nodes?.[0]?.find(n => !n.isBye && n.name === a.athleteName && (n.club ? n.club === a.athleteClub : true))?.bout || (a as any).bout || 99999;
+                      const boutB = bracket.nodes?.[0]?.find(n => !n.isBye && n.name === b.athleteName && (n.club ? n.club === b.athleteClub : true))?.bout || (b as any).bout || 99999;
+                      if (boutA !== boutB) return boutA - boutB;
                       return a.athleteName.localeCompare(b.athleteName);
                     });
 
@@ -853,9 +873,21 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                       const displayNo = idx + 1;
 
+                      // Lookup assigned bout number or derive sequence
+                      const matchingNode = bracket.nodes?.[0]?.find(
+                        n => n && !n.isBye && n.name === ath.athleteName && (n.club ? n.club === ath.athleteClub : true)
+                      );
+                      const boutNum = matchingNode?.bout ?? (ath as any).bout ?? (ath as any).boutNumber ?? (idx + 1);
+                      const formattedBout = getFormattedBout(ring, boutNum, boutLabelFormat);
+
                       return (
                         <tr key={scoreKey} className="hover:bg-slate-50/50 transition-all text-slate-700">
                           <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400 font-bold">{displayNo}</td>
+                          <td className="py-3 px-3 text-center bg-amber-50/10 border-x border-amber-200/40">
+                            <span className="inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-mono font-black bg-amber-500 text-slate-950 shadow-2xs border border-amber-600/30">
+                              {formattedBout}
+                            </span>
+                          </td>
                           <td className="py-3 px-4 text-left">
                             <div className="font-extrabold text-xs text-slate-900">{ath.athleteName}</div>
                             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{ath.athleteClub}</div>
@@ -928,25 +960,6 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             {displayFinal}
                           </td>
                           <td className="py-3 px-4 text-center font-extrabold">{rankBadge}</td>
-
-                          {/* Action Button: Print Certificate */}
-                          <td className="py-3 px-4 text-center no-print">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCertificateAthlete({
-                                  name: ath.athleteName,
-                                  club: ath.athleteClub,
-                                  category: bracket.categoryKey || bracket.categoryName || '',
-                                });
-                                setShowCertificateModal(true);
-                              }}
-                              className="p-1 px-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[10px] uppercase tracking-wider cursor-pointer transition-all active:scale-95 shadow-sm"
-                              title="Print achievement certificate for this athlete"
-                            >
-                              Print Cert
-                            </button>
-                          </td>
                         </tr>
                       );
                     });

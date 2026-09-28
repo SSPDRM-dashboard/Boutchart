@@ -8,7 +8,7 @@ interface EventsManagerModalProps {
   savedEvents: SavedEvent[];
   currentEventId: string | null;
   onLoadEvent: (id: string) => void;
-  onSaveCurrentEvent: (name?: string) => void;
+  onSaveCurrentEvent: (name?: string, forceNewEvent?: boolean) => void;
   onDeleteEvent: (id: string) => void;
   onOverwriteEvent: (id: string) => void;
   onCreateNewBlankEvent: () => void;
@@ -37,7 +37,7 @@ export const EventsManagerModal: React.FC<EventsManagerModalProps> = ({
   const handleSaveNew = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newEventName.trim() || tournamentName || 'Untitled Event';
-    onSaveCurrentEvent(name);
+    onSaveCurrentEvent(name, true);
     setNewEventName('');
     setShowForm(false);
   };
@@ -77,28 +77,44 @@ export const EventsManagerModal: React.FC<EventsManagerModalProps> = ({
           <div className="p-6 overflow-y-auto space-y-6 flex-1">
             {/* Quick Actions Bar */}
             <div className="flex flex-col sm:flex-row gap-3 items-stretch justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={onCreateNewBlankEvent}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                  className="inline-flex items-center justify-center gap-2 px-3.5 py-2 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                  title="Clear layout and start a fresh tournament draw"
                 >
                   <Plus className="w-4 h-4 text-slate-500" />
                   <span>New Blank Event</span>
                 </button>
 
-                {hasData && !showForm && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewEventName(tournamentName || '');
-                      setShowForm(true);
-                    }}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Current Event</span>
-                  </button>
+                {hasData && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewEventName(tournamentName ? `${tournamentName}` : 'New Tournament');
+                        setShowForm(true);
+                      }}
+                      className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                      title="Save current layout as a new archive slot in history"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Save as New Event</span>
+                    </button>
+
+                    {currentEventId && activeEvent && (
+                      <button
+                        type="button"
+                        onClick={() => onSaveCurrentEvent(tournamentName || activeEvent.tournamentName, false)}
+                        className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                        title="Update current loaded event in place"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Update Current</span>
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 

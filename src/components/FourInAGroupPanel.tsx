@@ -3,9 +3,12 @@ import {
   Users, Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, 
   RefreshCw, Search, Filter, Printer, ArrowRight, Sparkles, Copy, 
   Plus, Trash2, ShieldCheck, Dumbbell, MoveRight, Layers, Eye, FileText, Check, HelpCircle,
-  GripVertical, ArrowLeftRight, RotateCcw, PlusCircle
+  GripVertical, ArrowLeftRight, RotateCcw, PlusCircle, Settings2, XCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { 
+  buildRosterFromText, parseDelimitedLine, detectDelimiter, ColumnMappingConfig 
+} from '../utils/bracketUtils';
 import { 
   FourGroupParticipant, FourGroup, CategoryGroupResult, FourGroupOptions,
   generateFourGroupsForAllCategories, generateFourGroupsForCategory, flattenGroupsToRows, 
@@ -83,6 +86,79 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
     text: 'Preloaded example: 16 athletes across 2 categories demonstrating 4-pax club distribution.',
     type: 'info'
   });
+
+  // System type state for current table
+  const [currentTableSystemType, setCurrentTableSystemType] = useState<
+    'four-group' | 'single-elimination' | 'double-elimination' | 'round-robin' | 'poomsae-cutoff'
+  >('four-group');
+  const [isSystemTypeModalOpen, setIsSystemTypeModalOpen] = useState(false);
+
+  // Custom Column Mapping state for 4-in-a-Group
+  const [showCustomMapper, setShowCustomMapper] = useState(false);
+  const [stagedRawText, setStagedRawText] = useState<string>(() => {
+    return [
+      'Participant Name,Category,Club,School',
+      ...DEMO_EXACT_SPEC_DATA.map(p => `"${p.name}","${p.category}","${p.club}","${p.school || ''}"`)
+    ].join('\n');
+  });
+  const [stagedFileName, setStagedFileName] = useState<string>('Preloaded Demo Dataset');
+  const [mappingConfig, setMappingConfig] = useState<ColumnMappingConfig>({
+    headerRowIndex: 0,
+    nameIdx: -1,
+    categoryIdx: -1,
+    clubIdx: -1,
+    schoolIdx: -1,
+    genderIdx: -1,
+  });
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [rawLinesSample, setRawLinesSample] = useState<string[]>([]);
+
+  // Automatically compute available columns and line samples whenever stagedRawText updates
+  useEffect(() => {
+    if (!stagedRawText.trim()) {
+      setAvailableColumns([]);
+      setRawLinesSample([]);
+      return;
+    }
+
+    const delim = detectDelimiter(stagedRawText);
+    const lines = stagedRawText.split(/\r?\n/).filter(l => l.trim().length > 0);
+    setRawLinesSample(lines.slice(0, 10));
+
+    let bestHeaderLine = 0;
+    let maxCols = 0;
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      const parsed = parseDelimitedLine(lines[i], delim);
+      if (parsed.length > maxCols) {
+        maxCols = parsed.length;
+        bestHeaderLine = i;
+      }
+    }
+
+    const headerCells = parseDelimitedLine(lines[bestHeaderLine] || lines[0], delim);
+    setAvailableColumns(headerCells.map((c, i) => c.trim() ? `${i + 1}. ${c.trim()}` : `Column ${i + 1} (Unnamed)`));
+  }, [stagedRawText]);
+
+  const applyCustomColumnMapping = (configOverride?: ColumnMappingConfig) => {
+    if (!stagedRawText.trim()) return;
+    const cfg = configOverride || mappingConfig;
+    const athletes = buildRosterFromText(stagedRawText, undefined, cfg);
+    if (athletes.length > 0) {
+      const mappedParts: FourGroupParticipant[] = athletes.map((a, idx) => ({
+        id: `p_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+        name: a.name,
+        category: a.weight || 'Open Category',
+        club: a.club || 'Independent',
+        school: a.school,
+        gender: a.gender
+      }));
+      setParticipants(mappedParts);
+      setStatusFeedback({
+        text: `Custom Column Mapping Applied: Loaded ${mappedParts.length} participants across ${new Set(mappedParts.map(p => p.category)).size} categories.`,
+        type: 'ok'
+      });
+    }
+  };
 
   // Algorithm options
   const [options, setOptions] = useState<FourGroupOptions>({
@@ -234,7 +310,10 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
         return;
       }
 
-      // Detect header row index and column indexes
+      // Convert worksheet to CSV string for custom column mapping
+      const csvString = XLSX.utils.sheet_to_csv(worksheet);
+      setStagedRawText(csvString);
+      setStagedFileName(file.name);
       let headerIdx = -1;
       let nameCol = -1;
       let catCol = -1;
@@ -318,7 +397,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
 
       setParticipants(parsedList);
       setStatusFeedback({
-        text: `Successfully imported ${parsedList.length} participants across ${new Set(parsedList.map(p => p.category)).size} categories from "${file.name}".`,
+        text: `Successfully imported ${parsedList.length} participants across ${new Set(parsedList.map(p => p.category)).size} categories from "${file.name}". You can click "Customize Column Mapping" below to adjust fields.`,
         type: 'ok'
       });
       setViewMode('cards');
@@ -380,9 +459,11 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
       }
 
       if (parsed.length > 0) {
+        setStagedRawText(pasteText);
+        setStagedFileName('Pasted Spreadsheet Rows');
         setParticipants(parsed);
         setStatusFeedback({
-          text: `Loaded ${parsed.length} participants from pasted text.`,
+          text: `Loaded ${parsed.length} participants from pasted text. Click "Customize Column Mapping" below to adjust fields if needed.`,
           type: 'ok'
         });
         setPasteText('');
@@ -411,6 +492,13 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
       gender: ath.gender,
       notes: ath.notes || ath.description
     }));
+
+    const csvContent = [
+      'Name,Category,Club,School,Gender',
+      ...currentRoster.map(a => `"${(a.name || '').replace(/"/g, '""')}","${(a.weight || 'General').replace(/"/g, '""')}","${(a.club || 'Independent').replace(/"/g, '""')}","${(a.school || '').replace(/"/g, '""')}","${(a.gender || '').replace(/"/g, '""')}"`)
+    ].join('\n');
+    setStagedRawText(csvContent);
+    setStagedFileName('Main Tournament Roster');
 
     setParticipants(converted);
     setStatusFeedback({
@@ -1353,11 +1441,268 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
         )}
       </div>
 
+      {/* STAGED ROSTER & CUSTOM COLUMN MAPPER FOR 4 IN A GROUP */}
+      {stagedRawText.trim().length > 0 && (
+        <div className="bg-amber-50/70 border border-amber-300/80 rounded-2xl p-5 shadow-sm space-y-4 no-print animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200/80">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-500 text-slate-950 text-xs font-black shrink-0">
+                ✓
+              </span>
+              <div>
+                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                  STAGED ROSTER READY FOR ADMIN VERIFICATION &amp; UPLOAD
+                </h3>
+                {stagedFileName && (
+                  <p className="text-[11px] font-mono text-slate-600 mt-0.5">
+                    Source: <strong className="text-slate-900">{stagedFileName}</strong> ({participants.length} total athletes mapped)
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCustomMapper(!showCustomMapper)}
+                className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
+                  showCustomMapper
+                    ? 'bg-amber-600 text-white border-amber-700 font-black'
+                    : 'bg-white text-slate-800 hover:text-amber-800 border-slate-300'
+                }`}
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                <span>{showCustomMapper ? 'Hide Column Mapping' : 'Customize Column Mapping'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStagedRawText('');
+                  setStagedFileName('');
+                  setShowCustomMapper(false);
+                }}
+                className="text-xs text-slate-500 hover:text-rose-600 flex items-center gap-1 font-bold cursor-pointer px-2 py-1"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Remove</span>
+              </button>
+            </div>
+          </div>
+
+          {/* VISUAL COLUMN MAPPING DRAWER */}
+          {showCustomMapper && (
+            <div className="p-4 bg-white border border-amber-300/80 rounded-xl space-y-4 text-xs shadow-inner animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <Settings2 className="w-4 h-4 text-amber-600" />
+                  Visual Column Mapping Tool (4 in a Group Allocation)
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Select which spreadsheet column corresponds to each field below
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* 1. Header Row Line Selector */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Table Header Starts On Line:
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium outline-none focus:border-amber-500 font-mono"
+                    value={mappingConfig.headerRowIndex ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const updated = { ...mappingConfig, headerRowIndex: val };
+                      setMappingConfig(updated);
+                      applyCustomColumnMapping(updated);
+                    }}
+                  >
+                    {rawLinesSample.map((line, idx) => (
+                      <option key={idx} value={idx}>
+                        Line {idx + 1}: {line.slice(0, 40)}...
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Participant Name Column */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    👤 Participant Name Column <span className="text-rose-600">*</span>:
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium outline-none focus:border-amber-500 font-mono"
+                    value={mappingConfig.nameIdx ?? -1}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const updated = { ...mappingConfig, nameIdx: val };
+                      setMappingConfig(updated);
+                      applyCustomColumnMapping(updated);
+                    }}
+                  >
+                    <option value={-1}>Auto-Detect (Smart)</option>
+                    {availableColumns.map((col, idx) => (
+                      <option key={idx} value={idx}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Category / Division Column */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    🥋 Category / Event / Weight <span className="text-rose-600">*</span>:
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium outline-none focus:border-amber-500 font-mono"
+                    value={mappingConfig.categoryIdx ?? -1}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const updated = { ...mappingConfig, categoryIdx: val };
+                      setMappingConfig(updated);
+                      applyCustomColumnMapping(updated);
+                    }}
+                  >
+                    <option value={-1}>Auto-Detect (Smart)</option>
+                    {availableColumns.map((col, idx) => (
+                      <option key={idx} value={idx}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Club / Team Column */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    🏢 Club / Team / Dojo <span className="text-rose-600">*</span>:
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium outline-none focus:border-amber-500 font-mono"
+                    value={mappingConfig.clubIdx ?? -1}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const updated = { ...mappingConfig, clubIdx: val };
+                      setMappingConfig(updated);
+                      applyCustomColumnMapping(updated);
+                    }}
+                  >
+                    <option value={-1}>Auto-Detect (Smart)</option>
+                    {availableColumns.map((col, idx) => (
+                      <option key={idx} value={idx}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 5. School Column */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    🏫 School / State Affiliation:
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium outline-none focus:border-amber-500 font-mono"
+                    value={mappingConfig.schoolIdx ?? -1}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const updated = { ...mappingConfig, schoolIdx: val };
+                      setMappingConfig(updated);
+                      applyCustomColumnMapping(updated);
+                    }}
+                  >
+                    <option value={-1}>Auto-Detect (Smart)</option>
+                    {availableColumns.map((col, idx) => (
+                      <option key={idx} value={idx}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 6. Gender Column */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    ⚧ Gender Column:
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium outline-none focus:border-amber-500 font-mono"
+                    value={mappingConfig.genderIdx ?? -1}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const updated = { ...mappingConfig, genderIdx: val };
+                      setMappingConfig(updated);
+                      applyCustomColumnMapping(updated);
+                    }}
+                  >
+                    <option value={-1}>Auto-Detect (Smart)</option>
+                    {availableColumns.map((col, idx) => (
+                      <option key={idx} value={idx}>{col}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STRUCTURE PREVIEW TABLE */}
+          <div className="bg-white border border-amber-200/80 rounded-xl p-3.5 space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Structure Preview ({participants.length} total athletes mapped)
+              </span>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Showing first {Math.min(6, participants.length)} rows
+              </span>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-100 rounded-lg">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-slate-50 border-b border-slate-200 text-[11px] text-slate-500 uppercase tracking-wider font-sans">
+                  <tr>
+                    <th className="p-2.5 font-bold">Name</th>
+                    <th className="p-2.5 font-bold">Category / Event</th>
+                    <th className="p-2.5 font-bold">Club / Team</th>
+                    <th className="p-2.5 font-bold">School / State</th>
+                    <th className="p-2.5 font-bold">Gender</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {participants.slice(0, 6).map((p, idx) => (
+                    <tr key={p.id || idx} className="hover:bg-amber-50/30">
+                      <td className="p-2.5 font-black text-slate-900">{p.name}</td>
+                      <td className="p-2.5 text-amber-800 font-bold">{p.category}</td>
+                      <td className="p-2.5 text-slate-700">{p.club}</td>
+                      <td className="p-2.5 text-slate-500">{p.school || '—'}</td>
+                      <td className="p-2.5 text-slate-500">{p.gender || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CONTROLS, VIEW SELECTOR & EXPORT TOOLBAR */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         
         {/* Left: View Switching and Filter */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Admin Choose System Type Button */}
+          <button
+            type="button"
+            onClick={() => setIsSystemTypeModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs border border-amber-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 no-print"
+            title="Click to choose competition system format for current table"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            <span>System Format:</span>
+            <span className="bg-slate-950 text-amber-400 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold">
+              {currentTableSystemType === 'four-group' && '4-in-a-Group Pools'}
+              {currentTableSystemType === 'single-elimination' && 'Single Elimination'}
+              {currentTableSystemType === 'double-elimination' && 'Double Elimination'}
+              {currentTableSystemType === 'round-robin' && 'Round Robin League'}
+              {currentTableSystemType === 'poomsae-cutoff' && 'Cut-off Scores'}
+            </span>
+          </button>
+
           {/* View Mode Buttons */}
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
@@ -1564,6 +1909,16 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
                       <div>
                         <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                           <span>{catResult.category}</span>
+                          <span className="text-[10px] bg-slate-900 text-amber-400 font-mono font-extrabold px-2 py-0.5 rounded-md border border-slate-800 flex items-center gap-1 shrink-0">
+                            <span>⚙️</span>
+                            <span>
+                              {currentTableSystemType === 'four-group' && '4-in-a-Group Pools'}
+                              {currentTableSystemType === 'single-elimination' && 'Single Elimination'}
+                              {currentTableSystemType === 'double-elimination' && 'Double Elimination'}
+                              {currentTableSystemType === 'round-robin' && 'Round Robin League'}
+                              {currentTableSystemType === 'poomsae-cutoff' && 'Cut-off Scores'}
+                            </span>
+                          </span>
                         </h3>
                         <p className="text-xs text-slate-500 font-mono">
                           {catResult.totalParticipants} athlete{catResult.totalParticipants === 1 ? '' : 's'} • {catResult.totalGroups} group{catResult.totalGroups === 1 ? '' : 's'} (max 4 pax/group)
@@ -2186,6 +2541,121 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
                   Add &amp; Retain
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SYSTEM TYPE CHOOSE MODAL FOR CURRENT TABLE */}
+      {isSystemTypeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200 no-print">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl space-y-6 text-slate-900 relative">
+            <button
+              type="button"
+              onClick={() => setIsSystemTypeModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3.5 pb-3 border-b border-slate-150">
+              <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-2xl text-amber-600 shrink-0">
+                <Settings2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black tracking-tight text-slate-900">
+                  Choose System Type for Current Table
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                  Select the competition structure for processing current table data
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                {
+                  id: 'four-group',
+                  name: '4-in-a-Group Pools (Round Robin)',
+                  badge: 'Standard 4-Pax Pool',
+                  desc: 'Divides athletes into max 4-person groups. Everyone fights or 2 matches per pool with club separation.',
+                  icon: '👥'
+                },
+                {
+                  id: 'single-elimination',
+                  name: 'Single Elimination Knockout',
+                  badge: 'Direct Bracket Draw',
+                  desc: 'Standard tournament elimination bracket (2, 4, 8, 16, 32, 64 seeds). Loser is eliminated.',
+                  icon: '🥋'
+                },
+                {
+                  id: 'double-elimination',
+                  name: 'Double Elimination / Repechage',
+                  badge: 'Losers Bracket Repechage',
+                  desc: 'Main bracket with secondary losers bracket for 3rd place / bronze medal matches.',
+                  icon: '🔄'
+                },
+                {
+                  id: 'round-robin',
+                  name: 'Full Round Robin League',
+                  badge: 'All-vs-All Standings',
+                  desc: 'Single group where every competitor fights every other competitor in the table.',
+                  icon: '🏆'
+                },
+                {
+                  id: 'poomsae-cutoff',
+                  name: 'Cut-off Score Points System (Judged)',
+                  badge: 'Technical Scores',
+                  desc: 'Judged technical accuracy & presentation scores ranked by total points without fight brackets.',
+                  icon: '📋'
+                }
+              ].map((sys) => {
+                const isSelected = currentTableSystemType === sys.id;
+                return (
+                  <button
+                    key={sys.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentTableSystemType(sys.id as any);
+                      setIsSystemTypeModalOpen(false);
+                      setStatusFeedback({
+                        text: `Switched table competition system format to "${sys.name}".`,
+                        type: 'ok'
+                      });
+                    }}
+                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                      isSelected
+                        ? 'border-amber-500 bg-amber-50/60 shadow-sm'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-2xl shrink-0 mt-0.5">{sys.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-sm text-slate-900">{sys.name}</span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold shrink-0 ${
+                          isSelected ? 'bg-amber-500 text-slate-950' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {sys.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed">
+                        {sys.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsSystemTypeModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
