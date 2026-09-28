@@ -4632,9 +4632,6 @@ export default function App() {
                     {showAdminPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
-                  Default passcode: <code className="bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded font-mono font-bold">admin123</code>
-                </p>
               </div>
 
               {adminPasscodeError && (
