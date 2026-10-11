@@ -35,10 +35,11 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   publishStatus = 'idle',
 }) => {
   return (
-    <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print space-y-4">
+      {/* Top Row: Brand & Action Controls */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Brand */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="bg-red-600 p-2.5 rounded-xl shadow-sm shadow-red-600/20">
             <Trophy className="w-6 h-6 text-white" />
           </div>
@@ -52,21 +53,8 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
           </div>
         </div>
 
-        {/* Live Input Field */}
-        <div className="flex-1 max-w-sm md:mx-6 flex items-center gap-4">
-          <input
-            id="tournamentName"
-            type="text"
-            className="w-full bg-slate-800/80 border border-slate-700 focus:border-amber-500 text-white placeholder-slate-500 rounded-xl px-4 py-2.5 text-sm transition-all outline-none focus:ring-1 focus:ring-amber-500/50 shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
-            placeholder="Type tournament name..."
-            value={tournamentName}
-            onChange={(e) => setTournamentName(e.target.value)}
-            disabled={!currentUser || isPublicView}
-          />
-        </div>
-
         {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-2.5">
           {isPublicView && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-extrabold font-mono tracking-wider">
               <span>🌎 PUBLIC REPORT VIEW</span>
@@ -84,7 +72,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
           )}
           {currentUser && (
             <>
-              <div className="hidden lg:flex items-center gap-2 px-3 mr-1">
+              <div className="hidden lg:flex items-center gap-2 px-2 mr-1">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                 <span className="text-xs font-bold text-slate-300">
                   {currentUser}
@@ -104,7 +92,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
 
               <button
                 onClick={onLogout}
-                className="text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors ml-2 px-2 py-1.5"
+                className="text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors px-2 py-1.5 cursor-pointer"
                 title="Sign out of current session"
               >
                 Sign Out
@@ -180,6 +168,27 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Bottom Row: Tournament Title Bar (Positioned below the action buttons) */}
+      <div className="pt-3.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center gap-3">
+        <label
+          htmlFor="tournamentName"
+          className="text-xs font-black text-amber-400/90 uppercase tracking-wider font-mono shrink-0 flex items-center gap-1.5"
+        >
+          <span>🏆 Event Title:</span>
+        </label>
+        <div className="flex-1 relative">
+          <input
+            id="tournamentName"
+            type="text"
+            className="w-full bg-slate-800/90 border border-slate-700 hover:border-slate-600 focus:border-amber-500 text-white placeholder-slate-500 rounded-xl px-4 py-2.5 text-sm md:text-base font-bold transition-all outline-none focus:ring-1 focus:ring-amber-500/50 shadow-inner disabled:opacity-60 disabled:cursor-not-allowed"
+            placeholder="Type championship / tournament title (e.g., STT CUP 2026)..."
+            value={tournamentName}
+            onChange={(e) => setTournamentName(e.target.value)}
+            disabled={!currentUser || isPublicView}
+          />
         </div>
       </div>
     </header>
