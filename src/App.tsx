@@ -823,23 +823,32 @@ export default function App() {
         safeLocalStorage.setItem(STORAGE_KEY, currentPayloadStr);
         
         if (!getQuotaExceeded() && lastWrittenPayloadRef.current !== currentPayloadStr) {
-          if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+          try {
+            // Always publish to the global active state for public viewers without an ID
+            const publicActiveRef = doc(db, 'reports', 'active_state');
+            await setDoc(publicActiveRef, {
+              payload: currentPayloadStr,
+              id: 'active_state',
+              tournamentName: tournamentName || 'Tournament',
+              activePublicView: activePublicView,
+              timestamp: Date.now(),
+            });
+            lastWrittenPayloadRef.current = currentPayloadStr;
+          } catch (err: any) {
+            if (isQuotaError(err)) {
+              setQuotaExceeded(true);
+              console.warn('Firestore write quota limit reached. Application running in Local Offline Mode.');
+            } else {
+              console.warn('Failed to publish active_state to Firestore', err);
+            }
+          }
+
+          if (currentUser) {
             try {
               const currentRef = doc(db, `users/${currentUser}/current/state`);
               await setDoc(currentRef, { payload: currentPayloadStr });
-              
-              // Also publish to the global active state for public viewers without an ID
-              const publicActiveRef = doc(db, 'reports', 'active_state');
-              await setDoc(publicActiveRef, { payload: currentPayloadStr });
-              
-              lastWrittenPayloadRef.current = currentPayloadStr;
             } catch (err: any) {
-              if (isQuotaError(err)) {
-                setQuotaExceeded(true);
-                console.warn('Firestore write quota limit reached. Application running in Local Offline Mode.');
-              } else {
-                console.error('Failed to write state to Firestore', err);
-              }
+              console.warn('Failed to write user current state', err);
             }
           }
         }
