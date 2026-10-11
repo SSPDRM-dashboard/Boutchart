@@ -33,6 +33,8 @@ interface ClubReportPanelProps {
   isPublicView?: boolean;
   hideShareControl?: boolean;
   onUpdateStandings?: (catKey: string, nextStandings: string[]) => void;
+  onPublishToPublic?: () => void;
+  publishStatus?: 'idle' | 'publishing' | 'published';
 }
 
 interface PlayerFightInfo {
@@ -64,6 +66,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   isPublicView = false,
   hideShareControl = false,
   onUpdateStandings,
+  onPublishToPublic,
+  publishStatus = 'idle',
 }) => {
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const effectivePublicView = isPublicView || isPublicAppMode;
@@ -1202,6 +1206,21 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         {/* Action controls */}
         {!effectivePublicView && (
           <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {onPublishToPublic && (
+              <button
+                type="button"
+                onClick={onPublishToPublic}
+                disabled={publishStatus === 'publishing'}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+                title="Publish current tournament brackets and matrix live to my-publicboutchart.vercel.app"
+              >
+                <Globe className={`w-4 h-4 text-emerald-100 ${publishStatus === 'publishing' ? 'animate-spin' : ''}`} />
+                <span>
+                  {publishStatus === 'publishing' ? 'Publishing...' : publishStatus === 'published' ? 'Live Published!' : 'Publish to Public Site'}
+                </span>
+              </button>
+            )}
+
             {!(hideShareControl || isPublicAppMode) && (
               <button
                 type="button"

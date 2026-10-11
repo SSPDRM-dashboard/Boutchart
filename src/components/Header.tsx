@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Trash2, Cloud, Archive } from 'lucide-react';
+import { Trophy, Trash2, Cloud, Archive, Globe, Check } from 'lucide-react';
 
 interface HeaderProps {
   tournamentName: string;
@@ -13,6 +13,8 @@ interface HeaderProps {
   savedEventsCount: number;
   isPublicView?: boolean;
   onLoginClick?: () => void;
+  onPublishToPublic?: () => void;
+  publishStatus?: 'idle' | 'publishing' | 'published';
 }
 
 export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser: string | null }> = ({
@@ -29,6 +31,8 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   currentUser,
   isPublicView = false,
   onLoginClick,
+  onPublishToPublic,
+  publishStatus = 'idle',
 }) => {
   return (
     <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
@@ -122,14 +126,34 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               </button>
 
               {hasData && (
-                <button
-                  onClick={onSaveEvent}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-600/50 hover:border-amber-500 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
-                  title="Save current championship data"
-                >
-                  <Cloud className="w-4 h-4" />
-                  <span className="hidden sm:inline">Save</span>
-                </button>
+                <>
+                  <button
+                    onClick={onSaveEvent}
+                    className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-600/50 hover:border-amber-500 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+                    title="Save current championship data to archives and library"
+                  >
+                    <Cloud className="w-4 h-4" />
+                    <span className="hidden sm:inline">Save</span>
+                  </button>
+
+                  {onPublishToPublic && (
+                    <button
+                      onClick={onPublishToPublic}
+                      disabled={publishStatus === 'publishing'}
+                      className="flex items-center gap-2 px-3.5 py-2 text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500 hover:border-indigo-400 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+                      title="Publish and sync all generated brackets, categories and boutcharts live to public viewers at my-publicboutchart.vercel.app"
+                    >
+                      {publishStatus === 'published' ? (
+                        <Check className="w-4 h-4 text-emerald-300" />
+                      ) : (
+                        <Globe className={`w-4 h-4 ${publishStatus === 'publishing' ? 'animate-spin text-sky-200' : 'text-sky-200'}`} />
+                      )}
+                      <span className="hidden sm:inline">
+                        {publishStatus === 'publishing' ? 'Publishing...' : publishStatus === 'published' ? 'Live Published!' : 'Publish to Public'}
+                      </span>
+                    </button>
+                  )}
+                </>
               )}
 
               <button

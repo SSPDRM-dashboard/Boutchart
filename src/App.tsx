@@ -115,6 +115,7 @@ export default function App() {
   const [ringSequenceOrders, setRingSequenceOrders] = useState<Record<number, 'sequential' | 'stages'>>({});
   const [ringGenderSequence, setRingGenderSequence] = useState<'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only'>('all');
   const [shuffleSeed, setShuffleSeed] = useState(true);
+  const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published'>('idle');
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates' | 'four-group'>(() => {
     try {
@@ -661,6 +662,74 @@ export default function App() {
     }
   }, [isPublicReportOnly]);
 
+  // 1.1 Real-time Auto Polling in Public View when waiting for organizer to publish brackets
+  useEffect(() => {
+    if (!isPublicReportOnly || Object.keys(brackets).length > 0) return;
+
+    const interval = setInterval(() => {
+      fetch('/api/reports/active_state')
+        .then(res => {
+          if (!res.ok) throw new Error('Not ready');
+          return res.json();
+        })
+        .then(parsed => {
+          if (parsed) {
+            const bracks = parsed.brackets || parsed.b;
+            if (bracks && Object.keys(bracks).length > 0) {
+              const tName = parsed.tournamentName || parsed.t;
+              const rost = parsed.roster || parsed.r;
+              const cats = parsed.categories || parsed.c;
+              const rlFormat = parsed.ringLabelFormat || parsed.rl;
+
+              if (tName) setTournamentName(tName);
+              if (rost) setRoster(rost);
+              if (cats) setCategories(cats);
+              setBrackets(bracks);
+              if (rlFormat) setRingLabelFormat(rlFormat);
+              if (parsed.ringCount) setRingCount(parsed.ringCount);
+              if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
+              setStatusMessage({
+                text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
+                type: 'ok',
+              });
+            }
+          }
+        })
+        .catch(() => {
+          // Check Firestore as well
+          const docRef = doc(db, 'reports', 'active_state');
+          getDoc(docRef).then(snap => {
+            if (snap.exists()) {
+              let parsed = snap.data();
+              if (parsed && parsed.payload) {
+                try {
+                  parsed = JSON.parse(parsed.payload);
+                } catch (e) {
+                  // ignore
+                }
+              }
+              const bracks = parsed?.brackets || parsed?.b;
+              if (bracks && Object.keys(bracks).length > 0) {
+                const tName = parsed.tournamentName || parsed.t;
+                const rost = parsed.roster || parsed.r;
+                const cats = parsed.categories || parsed.c;
+                if (tName) setTournamentName(tName);
+                if (rost) setRoster(rost);
+                if (cats) setCategories(cats);
+                setBrackets(bracks);
+                setStatusMessage({
+                  text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
+                  type: 'ok',
+                });
+              }
+            }
+          }).catch(() => {});
+        });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isPublicReportOnly, brackets]);
+
   // 2. Automatic State Persistence Debouncer
   useEffect(() => {
     if (isPublicReportOnly) return; // Skip saving in public view to avoid overwriting local admin state
@@ -695,25 +764,48 @@ export default function App() {
         const currentPayloadStr = JSON.stringify(snapshot);
         safeLocalStorage.setItem(STORAGE_KEY, currentPayloadStr);
         
-        if (!getQuotaExceeded() && lastWrittenPayloadRef.current !== currentPayloadStr) {
-          if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+        if (lastWrittenPayloadRef.current !== currentPayloadStr) {
+          lastWrittenPayloadRef.current = currentPayloadStr;
+          
+          if (currentUser && auth.currentUser && auth.currentUser.email === currentUser && !getQuotaExceeded()) {
             try {
               const currentRef = doc(db, `users/${currentUser}/current/state`);
               await setDoc(currentRef, { payload: currentPayloadStr });
-              
-              // Also publish to the global active state for public viewers without an ID
-              const publicActiveRef = doc(db, 'reports', 'active_state');
-              await setDoc(publicActiveRef, { payload: currentPayloadStr });
-              
-              lastWrittenPayloadRef.current = currentPayloadStr;
             } catch (err: any) {
               if (isQuotaError(err)) {
                 setQuotaExceeded(true);
                 console.warn('Firestore write quota limit reached. Application running in Local Offline Mode.');
-              } else {
-                console.error('Failed to write state to Firestore', err);
               }
             }
+          }
+
+          // Always sync the public active_state to Firestore for public viewers
+          try {
+            const publicActiveRef = doc(db, 'reports', 'active_state');
+            await setDoc(publicActiveRef, {
+              payload: currentPayloadStr,
+              id: 'active_state',
+              tournamentName,
+              timestamp: Date.now()
+            });
+          } catch (fbErr: any) {
+            // ignore
+          }
+
+          // Also sync to serverless backend API /api/reports
+          try {
+            await fetch('/api/reports', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...snapshot,
+                t: tournamentName,
+                id: 'active_state',
+                _reportId: 'active_state'
+              })
+            });
+          } catch (apiErr: any) {
+            // ignore
           }
         }
 
@@ -1485,6 +1577,9 @@ export default function App() {
     setBrackets(nextBrackets);
     setBracketSortMode('ring');
 
+    // Automatically sync live public view immediately when draws are generated
+    handlePublishToPublicView(nextBrackets, currentCategories);
+
     const targetLabel = targetRing
       ? `Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing)}`
       : 'all rings';
@@ -1634,6 +1729,93 @@ export default function App() {
     safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
   };
 
+  const handlePublishToPublicView = async (targetBrackets?: Record<string, BracketModel>, targetCategories?: Record<string, WeightCategory>) => {
+    const finalBrackets = targetBrackets || brackets;
+    const finalCategories = targetCategories || categories;
+    try {
+      setPublishStatus('publishing');
+      const finalName = tournamentName || 'Tournament';
+      const publicPayload = {
+        tournamentName: finalName,
+        t: finalName,
+        roster,
+        r: roster,
+        categories: finalCategories,
+        c: finalCategories,
+        brackets: finalBrackets,
+        b: finalBrackets,
+        ringCount,
+        ringLabelFormat,
+        rl: ringLabelFormat,
+        boutLabelFormat,
+        boutSequenceOrder,
+        ringSequenceOrders,
+        shuffleSeed,
+        dismissedDuplicates,
+        leftLogo,
+        leftLogo2,
+        rightLogo,
+        rightLogo2,
+        id: 'active_state',
+        _reportId: 'active_state',
+        timestamp: Date.now()
+      };
+
+      const payloadStr = JSON.stringify(publicPayload);
+
+      // 1. Direct Firestore write to reports/active_state
+      try {
+        const publicRef = doc(db, 'reports', 'active_state');
+        await setDoc(publicRef, {
+          payload: payloadStr,
+          id: 'active_state',
+          tournamentName: finalName,
+          timestamp: Date.now()
+        });
+      } catch (fbErr) {
+        console.warn('Firestore active_state publish warning:', fbErr);
+      }
+
+      // 2. Direct Backend API save to /api/reports (persists to server disk and backend Firestore)
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(publicPayload)
+        });
+      } catch (apiErr) {
+        console.warn('Backend API active_state publish warning:', apiErr);
+      }
+
+      // 3. If there is a current event ID, also save under that ID for direct links
+      if (currentEventId) {
+        try {
+          const eventReportRef = doc(db, 'reports', currentEventId);
+          await setDoc(eventReportRef, {
+            payload: payloadStr,
+            id: currentEventId,
+            tournamentName: finalName,
+            timestamp: Date.now()
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      setPublishStatus('published');
+      setTimeout(() => setPublishStatus('idle'), 4000);
+
+      const drawCount = Object.keys(finalBrackets).length;
+      setStatusMessage({
+        text: `Published live to public viewers (${drawCount} draws, ${roster.length} fighters)! Live at my-publicboutchart.vercel.app`,
+        type: 'ok',
+      });
+    } catch (err: any) {
+      console.error('Failed to publish public view', err);
+      setPublishStatus('idle');
+    }
+  };
+
   const handleSaveCurrentEvent = async (customName?: string, forceNewEvent: boolean = false) => {
     const finalName = customName || tournamentName || 'Untitled Event';
     const newId = (forceNewEvent || !currentEventId)
@@ -1704,8 +1886,11 @@ export default function App() {
       }
     }
 
+    // Auto-sync live public view with latest brackets and matches
+    handlePublishToPublicView(newEvent.brackets, newEvent.categories);
+
     setStatusMessage({
-      text: `Successfully saved event "${finalName}" to library.`,
+      text: `Successfully saved event "${finalName}" to library and published live!`,
       type: 'ok',
     });
   };
@@ -1740,6 +1925,9 @@ export default function App() {
 
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
         saveEventListToStorage(updatedList.sort((a, b) => b.timestamp - a.timestamp));
+
+        // Auto-sync live public view with overwritten layout
+        handlePublishToPublicView(updatedEvent.brackets, updatedEvent.categories);
         
         if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           try {
@@ -1788,15 +1976,29 @@ export default function App() {
     if (!target) return;
 
     const performLoad = () => {
+      const loadedRoster = target.roster || [];
+      let loadedCats = target.categories || {};
+      const loadedBracks = target.brackets || {};
+
+      // If categories were empty or missing, reconstruct them automatically from roster
+      if (Object.keys(loadedCats).length === 0 && loadedRoster.length > 0) {
+        loadedCats = groupRoster(loadedRoster, target.ringCount || 13);
+      }
+
+      // If brackets exist, reassign bout numbers to ensure proper ring ordering
+      if (Object.keys(loadedBracks).length > 0) {
+        assignAllBoutNumbers(loadedCats, loadedBracks, target.ringSequenceOrders, target.boutSequenceOrder || 'sequential');
+      }
+
       // Set state
       setTournamentName(target.tournamentName || '');
       setLeftLogo(target.leftLogo || '');
       setLeftLogo2(target.leftLogo2 || '');
       setRightLogo(target.rightLogo || '');
       setRightLogo2(target.rightLogo2 || '');
-      setRoster(target.roster || []);
-      setCategories(target.categories || {});
-      setBrackets(target.brackets || {});
+      setRoster(loadedRoster);
+      setCategories(loadedCats);
+      setBrackets(loadedBracks);
       setRingCount(target.ringCount || 13);
       setRingLabelFormat(target.ringLabelFormat || 'letter');
       setBoutLabelFormat(target.boutLabelFormat || 'alpha-2');
@@ -1810,35 +2012,45 @@ export default function App() {
       // Sync immediate item
       const snapshot = {
         tournamentName: target.tournamentName,
-        roster: target.roster,
-        categories: target.categories,
-        brackets: target.brackets,
-        ringCount: target.ringCount,
-        ringLabelFormat: target.ringLabelFormat,
+        roster: loadedRoster,
+        categories: loadedCats,
+        brackets: loadedBracks,
+        ringCount: target.ringCount || 13,
+        ringLabelFormat: target.ringLabelFormat || 'letter',
         boutLabelFormat: target.boutLabelFormat || 'alpha-2',
         boutSequenceOrder: target.boutSequenceOrder || 'sequential',
         ringSequenceOrders: target.ringSequenceOrders || {},
-        shuffleSeed: target.shuffleSeed,
-        dismissedDuplicates: target.dismissedDuplicates,
+        shuffleSeed: target.shuffleSeed !== undefined ? target.shuffleSeed : true,
+        dismissedDuplicates: target.dismissedDuplicates || [],
+        currentEventId: target.id,
       };
       safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 
       setIsEventsModalOpen(false);
+      setIsPublicReportOnly(false);
+      setActiveTab('brackets');
+
       setStatusMessage({
-        text: `Loaded event "${target.tournamentName}" (${target.roster?.length || 0} athletes, ${Object.keys(target.brackets || {}).length} brackets).`,
+        text: `Restored event "${target.tournamentName}" (${loadedRoster.length} athletes, ${Object.keys(loadedBracks).length} brackets).`,
         type: 'ok',
       });
+
+      // Also publish live if brackets exist
+      if (Object.keys(loadedBracks).length > 0) {
+        handlePublishToPublicView(loadedBracks, loadedCats);
+      }
     };
 
-    if (roster.length > 0) {
+    // If restoring the active event or current workspace is blank, load immediately without prompt
+    if (target.id === currentEventId || roster.length === 0) {
+      performLoad();
+    } else {
       askConfirmation({
         title: 'Load Saved Event',
         message: `Are you sure you want to load "${target.tournamentName}"? Unsaved changes in your current screen layout will be replaced by this archive layout.`,
         confirmText: 'Load Archive',
         onConfirm: performLoad,
       });
-    } else {
-      performLoad();
     }
   };
 
@@ -3172,6 +3384,8 @@ export default function App() {
           currentUser={currentUser}
           isPublicView={isPublicReportOnly}
           onLoginClick={handleAttemptAdminLogin}
+          onPublishToPublic={() => handlePublishToPublicView()}
+          publishStatus={publishStatus}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
@@ -3610,8 +3824,17 @@ export default function App() {
                     {statusMessage.text || 'Report Loaded Successfully'}
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    The report has been loaded, but the organizer has not published any brackets yet. Check back later!
+                    The report has been loaded, but the organizer has not published any brackets yet. Check back later or tap check below:
                   </p>
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.location.reload()}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                    >
+                      <span>🔄 Check for Published Brackets</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="max-w-md mx-auto bg-white border border-slate-200/80 rounded-2xl p-8 shadow-md text-center space-y-4 animate-pulse">
@@ -3853,8 +4076,10 @@ export default function App() {
                   leftLogo2={leftLogo2}
                   rightLogo={rightLogo}
                   rightLogo2={rightLogo2}
-                  isPublicView={true} // Force public view for previewing
-                  hideShareControl={isPublicReportOnly}
+                  isPublicView={isPublicReportOnly}
+                  hideShareControl={false}
+                  onPublishToPublic={() => handlePublishToPublicView()}
+                  publishStatus={publishStatus}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];
