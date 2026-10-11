@@ -162,8 +162,8 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
           </div>
         </div>
 
-        {/* Second Row: Tournament Title Input Field (Placed below New Event / action buttons) */}
-        {currentUser && !isPublicView && (
+        {/* Tournament Title / Event Name Display (Admin Input vs Public Badge) */}
+        {(currentUser && !isPublicView) ? (
           <div className="flex items-center gap-3 pt-3 border-t border-slate-800">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono shrink-0">
               Tournament Title:
@@ -177,7 +177,16 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               onChange={(e) => setTournamentName(e.target.value)}
             />
           </div>
-        )}
+        ) : tournamentName ? (
+          <div className="flex items-center gap-3 pt-3 border-t border-slate-800">
+            <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider font-mono shrink-0">
+              Event / Tournament:
+            </span>
+            <div className="w-full bg-slate-800/90 border border-slate-700 text-amber-300 font-extrabold rounded-xl px-4 py-2.5 text-sm tracking-wide shadow-inner">
+              {tournamentName}
+            </div>
+          </div>
+        ) : null}
       </div>
     </header>
   );
