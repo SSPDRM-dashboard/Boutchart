@@ -1,0 +1,29 @@
+{
+  "tournamentName": "ST TERESA CUP 2026",
+  "roster": [
+    {
+      "id": "1",
+      "name": "Fighter 1",
+      "club": "Club A",
+      "weightClass": "-58kg"
+    }
+  ],
+  "categories": {
+    "cat1": {
+      "name": "Senior Male -58kg",
+      "count": 1,
+      "athletes": [
+        "Fighter 1"
+      ]
+    }
+  },
+  "brackets": {
+    "cat1": {
+      "id": "cat1",
+      "name": "Senior Male -58kg",
+      "nodes": []
+    }
+  },
+  "id": "active_state",
+  "_reportId": "active_state"
+}

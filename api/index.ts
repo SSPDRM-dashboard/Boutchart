@@ -120,6 +120,9 @@ app.post("/api/reports", async (req, res) => {
     
     // 2. Also write to local file as backup (in case offline or local dev is without Firestore)
     try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
       const filePath = path.join(DATA_DIR, `${id}.json`);
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
     } catch (diskErr) {

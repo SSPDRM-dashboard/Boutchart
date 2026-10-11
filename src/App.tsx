@@ -99,6 +99,8 @@ Emma Watson,Iron Academy,-52kg,SMU,Female,Silver Medalist
 Jane Doe,Tiger Gym,-57kg,NUS,Female,Seed 1 / Inter-Club Champion
 Clara Oswald,Phoenix Club,-57kg,SIT,Female,Varsity Contender`;
 
+export type PublicReportViewStyle = 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
+
 export default function App() {
   const [tournamentName, setTournamentName] = useState('');
   const [leftLogo, setLeftLogo] = useState<string>('');
@@ -115,6 +117,29 @@ export default function App() {
   const [ringSequenceOrders, setRingSequenceOrders] = useState<Record<number, 'sequential' | 'stages'>>({});
   const [ringGenderSequence, setRingGenderSequence] = useState<'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only'>('all');
   const [shuffleSeed, setShuffleSeed] = useState(true);
+  const [activePublicView, setActivePublicView] = useState<PublicReportViewStyle>(() => {
+    try {
+      const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const styleParam = urlParams.get('style');
+      if (styleParam === 'photo-matrix' || styleParam === 'classic-cards' || styleParam === 'medal-standings' || styleParam === 'individual-lookup' || styleParam === 'boutchart') {
+        return styleParam as PublicReportViewStyle;
+      }
+    } catch (e) {}
+    try {
+      const saved = safeLocalStorage.getItem('bracket_builder_active_public_view');
+      if (saved === 'photo-matrix' || saved === 'classic-cards' || saved === 'medal-standings' || saved === 'individual-lookup' || saved === 'boutchart') {
+        return saved as PublicReportViewStyle;
+      }
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        if (snap && snap.activePublicView) {
+          return snap.activePublicView;
+        }
+      }
+    } catch (e) {}
+    return 'boutchart';
+  });
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const [activeTab, setActiveTab] = useState<'brackets' | 'club-report' | 'club-report-admin' | 'statistics' | 'account' | 'pdf-bracket' | 'certificates' | 'four-group'>(() => {
     try {
@@ -218,6 +243,87 @@ export default function App() {
       setPasscodeSuccessMsg('Passcode reset to default ("admin123")');
       setTimeout(() => setPasscodeSuccessMsg(''), 4000);
     }
+  };
+
+  const handleActivePublicViewChange = async (newView: PublicReportViewStyle) => {
+    setActivePublicView(newView);
+    safeLocalStorage.setItem('bracket_builder_active_public_view', newView);
+
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        snap.activePublicView = newView;
+        safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+      }
+    } catch (e) {}
+
+    if (currentEventId) {
+      setSavedEvents((prev) =>
+        prev.map((ev) => (ev.id === currentEventId ? { ...ev, activePublicView: newView } : ev))
+      );
+    }
+
+    // Immediately push to Firestore reports/active_state so public viewers immediately see the active view
+    if (!getQuotaExceeded()) {
+      try {
+        const publicActiveRef = doc(db, 'reports', 'active_state');
+        const snap = await getDoc(publicActiveRef).catch(() => null);
+        let currentPayload: any = {};
+        if (snap && snap.exists()) {
+          const d = snap.data();
+          if (d.payload) {
+            try { currentPayload = JSON.parse(d.payload); } catch (e) {}
+          }
+        }
+        const updatedPayload = {
+          ...currentPayload,
+          tournamentName: tournamentName || currentPayload.tournamentName || 'Tournament',
+          roster: roster.length > 0 ? roster : (currentPayload.roster || []),
+          categories: Object.keys(categories).length > 0 ? categories : (currentPayload.categories || {}),
+          brackets: Object.keys(brackets).length > 0 ? brackets : (currentPayload.brackets || {}),
+          ringCount: ringCount || currentPayload.ringCount || 13,
+          ringLabelFormat: ringLabelFormat || currentPayload.ringLabelFormat || 'letter',
+          boutLabelFormat: boutLabelFormat || currentPayload.boutLabelFormat || 'alpha-2',
+          activePublicView: newView,
+          reportStyle: newView,
+          timestamp: Date.now()
+        };
+        const updatedStr = JSON.stringify(updatedPayload);
+        await setDoc(publicActiveRef, {
+          payload: updatedStr,
+          id: 'active_state',
+          activePublicView: newView,
+          tournamentName: updatedPayload.tournamentName,
+          timestamp: Date.now()
+        });
+      } catch (err: any) {
+        if (isQuotaError(err)) {
+          setQuotaExceeded(true);
+        }
+        console.warn('Could not sync activePublicView to Firestore:', err);
+      }
+    }
+
+    // Also push to local /api/reports backup
+    try {
+      fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          _reportId: 'active_state',
+          tournamentName,
+          roster,
+          categories,
+          brackets,
+          ringCount,
+          ringLabelFormat,
+          boutLabelFormat,
+          activePublicView: newView,
+          reportStyle: newView,
+        })
+      }).catch(() => {});
+    } catch (e) {}
   };
   const [isPublicReportOnly, setIsPublicReportOnly] = useState(() => {
     try {
@@ -441,6 +547,12 @@ export default function App() {
                 if (bracks) setBrackets(bracks);
                 if (rlFormat) setRingLabelFormat(rlFormat);
                 
+                const activeViewFromData = parsed.activePublicView || parsed.active_public_view || parsed.reportStyle || parsed.apv;
+                if (activeViewFromData) {
+                  setActivePublicView(activeViewFromData);
+                  safeLocalStorage.setItem('bracket_builder_active_public_view', activeViewFromData);
+                }
+                
                 setStatusMessage({
                   text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
                   type: 'ok',
@@ -492,6 +604,12 @@ export default function App() {
             if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
             if (parsed.dismissedDuplicates !== undefined) setDismissedDuplicates(parsed.dismissedDuplicates);
             
+            const activeViewFromData = parsed.activePublicView || parsed.active_public_view || parsed.reportStyle || parsed.apv;
+            if (activeViewFromData) {
+              setActivePublicView(activeViewFromData);
+              safeLocalStorage.setItem('bracket_builder_active_public_view', activeViewFromData);
+            }
+
             setStatusMessage({
               text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
               type: 'ok',
@@ -519,6 +637,10 @@ export default function App() {
                   if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
                   if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
                   if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+                  if (snap.activePublicView) {
+                    setActivePublicView(snap.activePublicView);
+                    safeLocalStorage.setItem('bracket_builder_active_public_view', snap.activePublicView);
+                  }
                   
                   setStatusMessage({
                     text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
@@ -649,6 +771,10 @@ export default function App() {
           if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
           if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
           if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+          if (snap.activePublicView) {
+            setActivePublicView(snap.activePublicView);
+            safeLocalStorage.setItem('bracket_builder_active_public_view', snap.activePublicView);
+          }
           
           setStatusMessage({
             text: `Restored previous session (${snap.roster?.length || 0} athletes loaded)`,
@@ -691,6 +817,7 @@ export default function App() {
           shuffleSeed,
           dismissedDuplicates,
           currentEventId,
+          activePublicView,
         };
         const currentPayloadStr = JSON.stringify(snapshot);
         safeLocalStorage.setItem(STORAGE_KEY, currentPayloadStr);
@@ -732,7 +859,7 @@ export default function App() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, ringSequenceOrders, shuffleSeed, dismissedDuplicates, isPublicReportOnly]);
+  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, ringSequenceOrders, shuffleSeed, dismissedDuplicates, activePublicView, isPublicReportOnly]);
 
   // 3. Import Core Roster Handler
   const handleLoadRoster = (text: string, source: string, adminNotes?: string) => {
@@ -1661,6 +1788,7 @@ export default function App() {
       ringSequenceOrders,
       shuffleSeed,
       dismissedDuplicates,
+      activePublicView,
     };
 
     let updatedList: SavedEvent[] = [];
@@ -1736,6 +1864,7 @@ export default function App() {
           ringSequenceOrders,
           shuffleSeed,
           dismissedDuplicates,
+          activePublicView,
         };
 
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
@@ -1804,6 +1933,10 @@ export default function App() {
       setRingSequenceOrders(target.ringSequenceOrders || {});
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
+      if (target.activePublicView) {
+        setActivePublicView(target.activePublicView);
+        safeLocalStorage.setItem('bracket_builder_active_public_view', target.activePublicView);
+      }
       setCurrentEventId(target.id);
       safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, target.id);
 
@@ -1820,6 +1953,7 @@ export default function App() {
         ringSequenceOrders: target.ringSequenceOrders || {},
         shuffleSeed: target.shuffleSeed,
         dismissedDuplicates: target.dismissedDuplicates,
+        activePublicView: target.activePublicView || activePublicView,
       };
       safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 
@@ -3223,7 +3357,12 @@ export default function App() {
                     title={bracketKeys.length === 0 ? "Generate brackets to unlock club reports" : "View fight schedules grouped by club"}
                   >
                     <span className="text-base">📋</span>
-                    <span className="text-left flex-1 font-extrabold text-sm">Public view</span>
+                    <span className="text-left flex-1 font-extrabold text-sm flex items-center gap-1.5 flex-wrap">
+                      <span>Public view</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 uppercase font-black">
+                        {activePublicView === 'boutchart' ? 'Boutchart' : activePublicView === 'photo-matrix' ? 'Matrix' : activePublicView === 'individual-lookup' ? 'Player Sched' : 'Cards'}
+                      </span>
+                    </span>
                     {bracketKeys.length > 0 ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${
                         activeTab === 'club-report' ? 'bg-slate-800 text-amber-400' : 'bg-slate-200 text-slate-600'
@@ -3855,6 +3994,8 @@ export default function App() {
                   rightLogo2={rightLogo2}
                   isPublicView={true} // Force public view for previewing
                   hideShareControl={isPublicReportOnly}
+                  activePublicView={activePublicView}
+                  onActivePublicViewChange={handleActivePublicViewChange}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];
@@ -3887,6 +4028,8 @@ export default function App() {
                   rightLogo={rightLogo}
                   rightLogo2={rightLogo2}
                   isPublicView={false} // Force admin view
+                  activePublicView={activePublicView}
+                  onActivePublicViewChange={handleActivePublicViewChange}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];

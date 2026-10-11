@@ -60,6 +60,7 @@ export interface AppState {
   ringCount: number;
   shuffleSeed: boolean;
   categoryConfig: Record<string, { ring: number }>;
+  activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
 }
 
 export interface DuplicateGroup {
@@ -92,5 +93,6 @@ export interface SavedEvent {
   ringSequenceOrders?: Record<number, 'sequential' | 'stages'>;
   shuffleSeed: boolean;
   dismissedDuplicates: string[];
+  activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
 }
 

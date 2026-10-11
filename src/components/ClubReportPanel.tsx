@@ -33,6 +33,8 @@ interface ClubReportPanelProps {
   isPublicView?: boolean;
   hideShareControl?: boolean;
   onUpdateStandings?: (catKey: string, nextStandings: string[]) => void;
+  activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
+  onActivePublicViewChange?: (view: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart') => void;
 }
 
 interface PlayerFightInfo {
@@ -50,6 +52,17 @@ interface PlayerFightInfo {
   }>;
 }
 
+export const getReportStyleLabel = (style: string): string => {
+  switch (style) {
+    case 'boutchart': return 'Boutchart';
+    case 'individual-lookup': return 'Find Player Schedule';
+    case 'classic-cards': return 'Classic Card Deck';
+    case 'photo-matrix': return 'Taekwondo Matrix Grid';
+    case 'medal-standings': return 'Club Medal Standings';
+    default: return style;
+  }
+};
+
 export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   categories,
   brackets,
@@ -64,6 +77,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   isPublicView = false,
   hideShareControl = false,
   onUpdateStandings,
+  activePublicView,
+  onActivePublicViewChange,
 }) => {
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const effectivePublicView = isPublicView || isPublicAppMode;
@@ -72,9 +87,63 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   const [showOnlyScheduled, setShowOnlyScheduled] = useState<boolean>(true);
   const [certificateData, setCertificateData] = useState<{ athleteName: string; club: string; category: string } | null>(null);
   
-  // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', or 'individual-lookup'
-  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart'>('photo-matrix');
+  // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', 'individual-lookup', or 'boutchart'
+  // Guaranteed to prioritize: URL style parameter -> activePublicView from app state/Firestore -> local cache -> default
+  const [reportStyle, setReportStyle] = useState<'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart'>(() => {
+    try {
+      const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const styleParam = urlParams.get('style');
+      if (styleParam === 'photo-matrix' || styleParam === 'classic-cards' || styleParam === 'medal-standings' || styleParam === 'individual-lookup' || styleParam === 'boutchart') {
+        return styleParam;
+      }
+    } catch (e) {}
+
+    if (activePublicView) {
+      return activePublicView;
+    }
+
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('bracket_builder_active_public_view') : null;
+      if (saved === 'photo-matrix' || saved === 'classic-cards' || saved === 'medal-standings' || saved === 'individual-lookup' || saved === 'boutchart') {
+        return saved;
+      }
+    } catch (e) {}
+
+    if (typeof window !== 'undefined' && window.location.hostname.includes('boutchart')) {
+      return 'boutchart';
+    }
+
+    return 'boutchart';
+  });
   const activeReportStyle = reportStyle;
+
+  // React to asynchronous updates from Firestore/App state when activePublicView finishes loading
+  React.useEffect(() => {
+    if (!activePublicView) return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const styleParam = urlParams.get('style');
+      // If user hasn't explicitly set ?style=... in the URL, automatically sync to the app's active public view
+      if (!styleParam && reportStyle !== activePublicView) {
+        console.log('[ClubReportPanel] Synchronizing reportStyle to activePublicView:', activePublicView);
+        setReportStyle(activePublicView);
+      }
+    } catch (e) {
+      if (reportStyle !== activePublicView) {
+        setReportStyle(activePublicView);
+      }
+    }
+  }, [activePublicView]);
+
+  const handleSelectReportStyle = (style: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart') => {
+    setReportStyle(style);
+    try {
+      localStorage.setItem('bracket_builder_active_public_view', style);
+    } catch (e) {}
+    if (onActivePublicViewChange) {
+      onActivePublicViewChange(style);
+    }
+  };
   const [expandedClub, setExpandedClub] = useState<string | null>(null);
   const [copiedPlayerMap, setCopiedPlayerMap] = useState<Record<string, boolean>>({});
   const [loadingPlayerMap, setLoadingPlayerMap] = useState<Record<string, boolean>>({});
@@ -437,7 +506,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         c: categories,
         b: brackets,
         rl: ringLabelFormat,
-        leftLogo, leftLogo2, rightLogo, rightLogo2
+        leftLogo, leftLogo2, rightLogo, rightLogo2,
+        activePublicView: activeReportStyle,
+        reportStyle: activeReportStyle,
       };
       
       const saveToLocalApi = () => {
@@ -1184,18 +1255,22 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       {/* Header elements - Hidden when printing since the report is self-contained */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-5 border-b border-slate-100 no-print">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center justify-center w-7 h-7 rounded-xl bg-slate-900 text-amber-400 text-xs font-black shadow-sm">
               📋
             </span>
             <h2 className="text-lg font-black text-slate-900 tracking-tight font-sans">
               {selectedClub === 'all' ? 'Public view' : `Club Report — ${selectedClub}`}
             </h2>
-            {isPublicAppMode && (
+            {effectivePublicView && (
               <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md tracking-wider border border-emerald-200">
                 Public view
               </span>
             )}
+            <span className="bg-sky-50 text-sky-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-md tracking-wide border border-sky-200/80 flex items-center gap-1 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>
+              <span>Active View: {getReportStyleLabel(activePublicView || reportStyle)}</span>
+            </span>
           </div>
         </div>
 
@@ -1427,12 +1502,14 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               
               {/* layout switcher segmented control */}
               {true && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
-                  <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Report Layout Style:</span>
+                  </div>
+                  <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 flex-wrap items-center">
                     <button
                       type="button"
-                      onClick={() => setReportStyle('individual-lookup')}
+                      onClick={() => handleSelectReportStyle('individual-lookup')}
                       className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         reportStyle === 'individual-lookup'
                           ? 'bg-slate-900 text-white shadow-sm'
@@ -1441,11 +1518,16 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     >
                       <Search className="w-3.5 h-3.5 text-amber-500" />
                       <span>Find Player Schedule (Public View)</span>
+                      {activePublicView === 'individual-lookup' && (
+                        <span className="ml-1 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black tracking-tight uppercase shadow-xs">
+                          Active
+                        </span>
+                      )}
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setReportStyle('photo-matrix')}
+                      onClick={() => handleSelectReportStyle('photo-matrix')}
                       className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         reportStyle === 'photo-matrix'
                           ? 'bg-slate-900 text-white shadow-sm'
@@ -1454,11 +1536,16 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     >
                       <Grid className="w-3.5 h-3.5" />
                       <span>Taekwondo Matrix Grid (Reference Photo)</span>
+                      {activePublicView === 'photo-matrix' && (
+                        <span className="ml-1 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black tracking-tight uppercase shadow-xs">
+                          Active
+                        </span>
+                      )}
                     </button>
                     
                     <button
                       type="button"
-                      onClick={() => setReportStyle('classic-cards')}
+                      onClick={() => handleSelectReportStyle('classic-cards')}
                       className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         reportStyle === 'classic-cards'
                           ? 'bg-slate-900 text-white shadow-sm'
@@ -1467,12 +1554,17 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     >
                       <AlignJustify className="w-3.5 h-3.5" />
                       <span>Classic Card Deck (Matchups Style)</span>
+                      {activePublicView === 'classic-cards' && (
+                        <span className="ml-1 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black tracking-tight uppercase shadow-xs">
+                          Active
+                        </span>
+                      )}
                     </button>
 
                     {!effectivePublicView && (
                       <button
                         type="button"
-                        onClick={() => setReportStyle('medal-standings')}
+                        onClick={() => handleSelectReportStyle('medal-standings')}
                         className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           reportStyle === 'medal-standings'
                             ? 'bg-slate-900 text-white shadow-sm'
@@ -1486,7 +1578,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => setReportStyle('boutchart')}
+                      onClick={() => handleSelectReportStyle('boutchart')}
                       className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         reportStyle === 'boutchart'
                           ? 'bg-slate-900 text-white shadow-sm'
@@ -1495,8 +1587,25 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     >
                       <AlignJustify className="w-3.5 h-3.5 text-amber-500" />
                       <span>Boutchart</span>
+                      {activePublicView === 'boutchart' && (
+                        <span className="ml-1 text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black tracking-tight uppercase shadow-xs">
+                          Active
+                        </span>
+                      )}
                     </button>
                   </div>
+
+                  {onActivePublicViewChange && reportStyle !== activePublicView && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectReportStyle(reportStyle)}
+                      className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-all cursor-pointer active:scale-95 border border-amber-400"
+                      title="Set current report view as the active default public view when visitors load this tournament"
+                    >
+                      <span>★</span>
+                      <span>Set as Active Public View</span>
+                    </button>
+                  )}
                 </div>
               )}
 
