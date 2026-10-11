@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Trash2, Cloud, Archive, Globe, Check, Eye } from 'lucide-react';
+import { Trophy, Trash2, Cloud, Archive } from 'lucide-react';
 
 interface HeaderProps {
   tournamentName: string;
@@ -13,10 +13,6 @@ interface HeaderProps {
   savedEventsCount: number;
   isPublicView?: boolean;
   onLoginClick?: () => void;
-  onPublishToPublic?: () => void;
-  publishStatus?: 'idle' | 'publishing' | 'published';
-  onViewPublic?: () => void;
-  activeTab?: string;
 }
 
 export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser: string | null }> = ({
@@ -33,17 +29,12 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   currentUser,
   isPublicView = false,
   onLoginClick,
-  onPublishToPublic,
-  publishStatus = 'idle',
-  onViewPublic,
-  activeTab,
 }) => {
   return (
-    <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print space-y-4">
-      {/* Top Row: Brand & Action Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Brand */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3">
           <div className="bg-red-600 p-2.5 rounded-xl shadow-sm shadow-red-600/20">
             <Trophy className="w-6 h-6 text-white" />
           </div>
@@ -57,8 +48,21 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
           </div>
         </div>
 
+        {/* Live Input Field */}
+        <div className="flex-1 max-w-sm md:mx-6 flex items-center gap-4">
+          <input
+            id="tournamentName"
+            type="text"
+            className="w-full bg-slate-800/80 border border-slate-700 focus:border-amber-500 text-white placeholder-slate-500 rounded-xl px-4 py-2.5 text-sm transition-all outline-none focus:ring-1 focus:ring-amber-500/50 shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
+            placeholder="Type tournament name..."
+            value={tournamentName}
+            onChange={(e) => setTournamentName(e.target.value)}
+            disabled={!currentUser || isPublicView}
+          />
+        </div>
+
         {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           {isPublicView && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-extrabold font-mono tracking-wider">
               <span>🌎 PUBLIC REPORT VIEW</span>
@@ -76,7 +80,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
           )}
           {currentUser && (
             <>
-              <div className="hidden lg:flex items-center gap-2 px-2 mr-1">
+              <div className="hidden lg:flex items-center gap-2 px-3 mr-1">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                 <span className="text-xs font-bold text-slate-300">
                   {currentUser}
@@ -96,7 +100,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
 
               <button
                 onClick={onLogout}
-                className="text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors px-2 py-1.5 cursor-pointer"
+                className="text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors ml-2 px-2 py-1.5"
                 title="Sign out of current session"
               >
                 Sign Out
@@ -118,52 +122,14 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               </button>
 
               {hasData && (
-                <>
-                  {onViewPublic && (
-                    <button
-                      type="button"
-                      onClick={onViewPublic}
-                      className={`flex items-center gap-2 px-3.5 py-2 text-sm font-bold border rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm ${
-                        activeTab === 'club-report'
-                          ? 'bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/50 shadow-amber-400/20'
-                          : 'bg-sky-600 hover:bg-sky-500 text-white border-sky-500 hover:border-sky-400'
-                      }`}
-                      title={activeTab === 'club-report' ? "Return to Draws & Matches" : "Open Public View (fight schedules & bout charts)"}
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span>
-                        {activeTab === 'club-report' ? 'Exit Public View' : 'Public View'}
-                      </span>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={onSaveEvent}
-                    className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-600/50 hover:border-amber-500 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
-                    title="Save current championship data to archives and library"
-                  >
-                    <Cloud className="w-4 h-4" />
-                    <span className="hidden sm:inline">Save</span>
-                  </button>
-
-                  {onPublishToPublic && (
-                    <button
-                      onClick={onPublishToPublic}
-                      disabled={publishStatus === 'publishing'}
-                      className="flex items-center gap-2 px-3.5 py-2 text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500 hover:border-indigo-400 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
-                      title="Publish and sync all generated brackets, categories and boutcharts live to public viewers at my-publicboutchart.vercel.app"
-                    >
-                      {publishStatus === 'published' ? (
-                        <Check className="w-4 h-4 text-emerald-300" />
-                      ) : (
-                        <Globe className={`w-4 h-4 ${publishStatus === 'publishing' ? 'animate-spin text-sky-200' : 'text-sky-200'}`} />
-                      )}
-                      <span>
-                        {publishStatus === 'publishing' ? 'Publishing...' : publishStatus === 'published' ? 'Live Published!' : 'Publish to Public'}
-                      </span>
-                    </button>
-                  )}
-                </>
+                <button
+                  onClick={onSaveEvent}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-600/50 hover:border-amber-500 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+                  title="Save current championship data"
+                >
+                  <Cloud className="w-4 h-4" />
+                  <span className="hidden sm:inline">Save</span>
+                </button>
               )}
 
               <button
@@ -190,27 +156,6 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
               </button>
             </>
           )}
-        </div>
-      </div>
-
-      {/* Bottom Row: Tournament Title Bar (Positioned below the action buttons) */}
-      <div className="pt-3.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center gap-3">
-        <label
-          htmlFor="tournamentName"
-          className="text-xs font-black text-amber-400/90 uppercase tracking-wider font-mono shrink-0 flex items-center gap-1.5"
-        >
-          <span>🏆 Event Title:</span>
-        </label>
-        <div className="flex-1 relative">
-          <input
-            id="tournamentName"
-            type="text"
-            className="w-full bg-slate-800/90 border border-slate-700 hover:border-slate-600 focus:border-amber-500 text-white placeholder-slate-500 rounded-xl px-4 py-2.5 text-sm md:text-base font-bold transition-all outline-none focus:ring-1 focus:ring-amber-500/50 shadow-inner disabled:opacity-60 disabled:cursor-not-allowed"
-            placeholder="Type championship / tournament title (e.g., STT CUP 2026)..."
-            value={tournamentName}
-            onChange={(e) => setTournamentName(e.target.value)}
-            disabled={!currentUser || isPublicView}
-          />
         </div>
       </div>
     </header>

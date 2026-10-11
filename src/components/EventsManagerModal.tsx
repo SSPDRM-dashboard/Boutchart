@@ -236,37 +236,30 @@ export const EventsManagerModal: React.FC<EventsManagerModalProps> = ({
 
                           {/* Quick buttons */}
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {/* Load / Restore Button */}
-                            <button
-                              type="button"
-                              onClick={() => onLoadEvent(item.id)}
-                              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-bold rounded-lg text-xs transition-all cursor-pointer active:scale-95 shadow-xs ${
-                                isActive
-                                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-white'
-                              }`}
-                              title={isActive ? 'Restore/reload this saved snapshot into your workspace' : 'Load and switch to this tournament'}
-                            >
-                              <FolderOpen className="w-3.5 h-3.5" />
-                              <span>{isActive ? 'Restore Event' : 'Load Event'}</span>
-                            </button>
-
-                            {/* Overwrite Button if active and workspace has live data */}
-                            {isActive && hasData && (
+                            {/* Load Button */}
+                            {!isActive ? (
                               <button
-                                type="button"
-                                onClick={() => onOverwriteEvent(item.id)}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer active:scale-95 border border-slate-200"
-                                title="Overwrite saved slot with current live data"
+                                onClick={() => onLoadEvent(item.id)}
+                                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-900 font-extrabold hover:bg-slate-800 text-white rounded-lg text-xs transition-colors cursor-pointer active:scale-95"
                               >
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Update</span>
+                                <FolderOpen className="w-3.5 h-3.5" />
+                                <span>Load</span>
                               </button>
+                            ) : (
+                              hasData && (
+                                <button
+                                  onClick={() => onOverwriteEvent(item.id)}
+                                  className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-amber-500 font-extrabold hover:bg-amber-400 text-slate-950 rounded-lg text-xs transition-colors cursor-pointer active:scale-95"
+                                  title="Overwrite saved slot with current live data"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span>Overwrite</span>
+                                </button>
+                              )
                             )}
 
                             {/* Delete Button */}
                             <button
-                              type="button"
                               onClick={() => onDeleteEvent(item.id)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                               title="Delete this event record from history"
