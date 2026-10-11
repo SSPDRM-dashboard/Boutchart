@@ -245,6 +245,37 @@ export default function App() {
     }
   };
 
+  const handleClearFirestoreData = () => {
+    askConfirmation({
+      title: 'Clear Old Data in Firestore',
+      message: 'Are you sure you want to clear old tournament data and active reports from Firestore? This will reset cloud sync and remove server-side reports.',
+      confirmText: 'Clear Firestore Data',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          if (!getQuotaExceeded()) {
+            const publicRef = doc(db, 'reports', 'active_state');
+            await setDoc(publicRef, {
+              payload: '{}',
+              id: 'active_state',
+              tournamentName: '',
+              timestamp: Date.now()
+            });
+
+            if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+              const currentRef = doc(db, `users/${currentUser}/current/state`);
+              await setDoc(currentRef, { payload: '{}' });
+            }
+          }
+          setStatusMessage({ text: 'Successfully cleared and reset Firestore cloud data records.', type: 'ok' });
+        } catch (err: any) {
+          console.error('Failed to clear Firestore data', err);
+          setStatusMessage({ text: 'Failed to clear Firestore data: ' + (err.message || String(err)), type: 'err' });
+        }
+      }
+    });
+  };
+
   const handleActivePublicViewChange = async (newView: PublicReportViewStyle) => {
     setActivePublicView(newView);
     safeLocalStorage.setItem('bracket_builder_active_public_view', newView);
@@ -3712,6 +3743,36 @@ export default function App() {
                             </button>
                           </div>
                         </form>
+                      </div>
+                    </div>
+
+                    {/* CLEAR FIRESTORE DATA CARD */}
+                    <div className="bg-white border border-rose-200/80 rounded-2xl p-6 shadow-sm no-print mb-6 space-y-4">
+                      <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                        <div className="p-2.5 bg-rose-500/10 text-rose-600 rounded-xl border border-rose-500/20">
+                          <Trash2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-black text-slate-800 tracking-tight">
+                            Clear Old Data in Firestore
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium">
+                            Reset cloud active reports and clear server-side state in Firestore.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+                        <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                          Removes active published state and user session caches from Firebase cloud database.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleClearFirestoreData}
+                          className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black shadow transition-all cursor-pointer border border-rose-500 flex items-center justify-center gap-2 active:scale-95 shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Clear Firestore Data</span>
+                        </button>
                       </div>
                     </div>
 
