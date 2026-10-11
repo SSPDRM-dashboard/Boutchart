@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Trash2, Cloud, Archive, Globe, Check } from 'lucide-react';
+import { Trophy, Trash2, Cloud, Archive, Globe, Check, Eye } from 'lucide-react';
 
 interface HeaderProps {
   tournamentName: string;
@@ -15,6 +15,8 @@ interface HeaderProps {
   onLoginClick?: () => void;
   onPublishToPublic?: () => void;
   publishStatus?: 'idle' | 'publishing' | 'published';
+  onViewPublic?: () => void;
+  activeTab?: string;
 }
 
 export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser: string | null }> = ({
@@ -33,6 +35,8 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   onLoginClick,
   onPublishToPublic,
   publishStatus = 'idle',
+  onViewPublic,
+  activeTab,
 }) => {
   return (
     <header className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 mb-6 shadow-xl border border-slate-800 no-print space-y-4">
@@ -115,6 +119,24 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
 
               {hasData && (
                 <>
+                  {onViewPublic && (
+                    <button
+                      type="button"
+                      onClick={onViewPublic}
+                      className={`flex items-center gap-2 px-3.5 py-2 text-sm font-bold border rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm ${
+                        activeTab === 'club-report'
+                          ? 'bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/50 shadow-amber-400/20'
+                          : 'bg-sky-600 hover:bg-sky-500 text-white border-sky-500 hover:border-sky-400'
+                      }`}
+                      title={activeTab === 'club-report' ? "Return to Draws & Matches" : "Open Public View (fight schedules & bout charts)"}
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>
+                        {activeTab === 'club-report' ? 'Exit Public View' : 'Public View'}
+                      </span>
+                    </button>
+                  )}
+
                   <button
                     onClick={onSaveEvent}
                     className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-600/50 hover:border-amber-500 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
@@ -136,7 +158,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
                       ) : (
                         <Globe className={`w-4 h-4 ${publishStatus === 'publishing' ? 'animate-spin text-sky-200' : 'text-sky-200'}`} />
                       )}
-                      <span className="hidden sm:inline">
+                      <span>
                         {publishStatus === 'publishing' ? 'Publishing...' : publishStatus === 'published' ? 'Live Published!' : 'Publish to Public'}
                       </span>
                     </button>

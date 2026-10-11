@@ -330,6 +330,14 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!currentEventId && tournamentName.trim()) {
+      const generatedId = Math.random().toString(36).substring(2, 9) + '-' + Date.now();
+      setCurrentEventId(generatedId);
+      safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, generatedId);
+    }
+  }, [tournamentName, currentEventId]);
+
   const handleLogout = async () => {
     await import('./lib/firebase').then(m => m.signOut(auth));
     setIsPublicReportOnly(true);
@@ -502,27 +510,34 @@ export default function App() {
           const useLocalCacheFallback = () => {
             if (resolved) return;
             resolved = true;
-            const stored = safeLocalStorage.getItem(STORAGE_KEY);
+            const publicStored = safeLocalStorage.getItem('bracket_builder_public_report');
+            const stored = publicStored || safeLocalStorage.getItem(STORAGE_KEY);
             if (stored) {
               try {
                 const snap = JSON.parse(stored);
                 if (snap) {
-                  if (snap.tournamentName) setTournamentName(snap.tournamentName);
-             if (snap.leftLogo) setLeftLogo(snap.leftLogo);
-             if (snap.leftLogo2) setLeftLogo2(snap.leftLogo2);
-             if (snap.rightLogo) setRightLogo(snap.rightLogo);
-             if (snap.rightLogo2) setRightLogo2(snap.rightLogo2);
-                  if (snap.roster) setRoster(snap.roster);
-                  if (snap.categories) setCategories(snap.categories);
-                  if (snap.brackets) setBrackets(snap.brackets);
+                  const tName = snap.tournamentName || snap.t;
+                  const rost = snap.roster || snap.r;
+                  const cats = snap.categories || snap.c;
+                  const bracks = snap.brackets || snap.b;
+                  const rlFormat = snap.ringLabelFormat || snap.rl;
+
+                  if (tName) setTournamentName(tName);
+                  if (snap.leftLogo) setLeftLogo(snap.leftLogo);
+                  if (snap.leftLogo2) setLeftLogo2(snap.leftLogo2);
+                  if (snap.rightLogo) setRightLogo(snap.rightLogo);
+                  if (snap.rightLogo2) setRightLogo2(snap.rightLogo2);
+                  if (rost) setRoster(rost);
+                  if (cats) setCategories(cats);
+                  if (bracks) setBrackets(bracks);
                   if (snap.ringCount) setRingCount(snap.ringCount);
-                  if (snap.ringLabelFormat) setRingLabelFormat(snap.ringLabelFormat);
+                  if (rlFormat) setRingLabelFormat(rlFormat);
                   if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
                   if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
                   if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
                   
                   setStatusMessage({
-                    text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
+                    text: `Loaded tournament report from local cache (${rost?.length || 0} athletes, ${Object.keys(bracks || {}).length} brackets)`,
                     type: 'ok',
                   });
                   return;
@@ -562,7 +577,8 @@ export default function App() {
                   return res.json();
                 })
                 .then(parsed => {
-                  if (parsed) {
+                  const bCount = Object.keys(parsed?.brackets || parsed?.b || {}).length;
+                  if (parsed && (bCount > 0 || parsed.tournamentName)) {
                     handleReportData(parsed);
                   } else {
                     useLocalCacheFallback();
@@ -597,7 +613,13 @@ export default function App() {
                     console.error('Failed to parse report payload', e);
                   }
                 }
-                handleReportData(parsed);
+                const bCount = Object.keys(parsed?.brackets || parsed?.b || {}).length;
+                if (bCount > 0 || activeId !== 'active_state') {
+                  handleReportData(parsed);
+                } else {
+                  // Firestore had active_state but brackets were empty; check API/local cache
+                  handleFallback();
+                }
               } else {
                 handleFallback();
               }
@@ -1729,39 +1751,86 @@ export default function App() {
     safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
   };
 
+  // Helper to ensure base64 image data URLs never exceed Firestore's 1MB document limit
+  const optimizeLogoForPayload = async (dataUrl?: string, maxDim: number = 200, quality: number = 0.7): Promise<string> => {
+    if (!dataUrl || !dataUrl.startsWith('data:image')) return dataUrl || '';
+    if (dataUrl.length < 35000) return dataUrl;
+    return new Promise((resolve) => {
+      try {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            canvas.width = Math.max(1, width);
+            canvas.height = Math.max(1, height);
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const optimized = canvas.toDataURL('image/jpeg', quality);
+              resolve(optimized);
+              return;
+            }
+          } catch {
+            // fallback
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      } catch {
+        resolve(dataUrl);
+      }
+    });
+  };
+
   const handlePublishToPublicView = async (targetBrackets?: Record<string, BracketModel>, targetCategories?: Record<string, WeightCategory>) => {
     const finalBrackets = targetBrackets || brackets;
     const finalCategories = targetCategories || categories;
     try {
       setPublishStatus('publishing');
       const finalName = tournamentName || 'Tournament';
+
+      const optLeftLogo = await optimizeLogoForPayload(leftLogo);
+      const optLeftLogo2 = await optimizeLogoForPayload(leftLogo2);
+      const optRightLogo = await optimizeLogoForPayload(rightLogo);
+      const optRightLogo2 = await optimizeLogoForPayload(rightLogo2);
+
       const publicPayload = {
         tournamentName: finalName,
         t: finalName,
         roster,
-        r: roster,
         categories: finalCategories,
-        c: finalCategories,
         brackets: finalBrackets,
-        b: finalBrackets,
         ringCount,
         ringLabelFormat,
-        rl: ringLabelFormat,
         boutLabelFormat,
         boutSequenceOrder,
         ringSequenceOrders,
         shuffleSeed,
         dismissedDuplicates,
-        leftLogo,
-        leftLogo2,
-        rightLogo,
-        rightLogo2,
+        leftLogo: optLeftLogo,
+        leftLogo2: optLeftLogo2,
+        rightLogo: optRightLogo,
+        rightLogo2: optRightLogo2,
         id: 'active_state',
         _reportId: 'active_state',
         timestamp: Date.now()
       };
 
       const payloadStr = JSON.stringify(publicPayload);
+
+      // Cache locally immediately so public view on this machine sees it without latency
+      safeLocalStorage.setItem('bracket_builder_public_report', payloadStr);
 
       // 1. Direct Firestore write to reports/active_state
       try {
@@ -1781,7 +1850,7 @@ export default function App() {
         await fetch('/api/reports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(publicPayload)
+          body: payloadStr
         });
       } catch (apiErr) {
         console.warn('Backend API active_state publish warning:', apiErr);
@@ -3386,6 +3455,14 @@ export default function App() {
           onLoginClick={handleAttemptAdminLogin}
           onPublishToPublic={() => handlePublishToPublicView()}
           publishStatus={publishStatus}
+          onViewPublic={() => {
+            if (activeTab === 'club-report') {
+              setActiveTab('brackets');
+            } else {
+              setActiveTab('club-report');
+            }
+          }}
+          activeTab={activeTab}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
@@ -3849,7 +3926,7 @@ export default function App() {
                   </p>
                 </div>
               )
-            ) : (!tournamentName || !currentEventId) && !isPublicReportOnly && activeTab !== 'four-group' && activeTab !== 'pdf-bracket' ? (
+            ) : (!tournamentName.trim() && roster.length === 0 && bracketKeys.length === 0) && !isPublicReportOnly && activeTab === 'brackets' ? (
               <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
                 <div className="text-center space-y-3">
                   <div className="inline-flex bg-amber-500/10 p-5 rounded-full border border-amber-500/20 text-amber-500 mb-2">
@@ -4094,6 +4171,28 @@ export default function App() {
                     });
                   }}
                 />
+              </div>
+            )}
+
+            {activeTab === 'club-report' && bracketKeys.length === 0 && (
+              <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-md text-center space-y-4">
+                <div className="inline-flex bg-amber-50 text-amber-600 p-4 rounded-full border border-amber-200">
+                  <Trophy className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className="font-black text-slate-800 text-lg">
+                  No Brackets Generated Yet
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                  Match fight schedules and club matrix bout charts will appear here as soon as brackets are generated. Switch to <strong>Draws &amp; Matches</strong> to generate bracket cards.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => setActiveTab('brackets')}
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-black shadow transition-all cursor-pointer active:scale-95"
+                  >
+                    Go to Draws &amp; Matches
+                  </button>
+                </div>
               </div>
             )}
 
