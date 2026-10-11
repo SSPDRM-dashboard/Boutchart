@@ -1878,6 +1878,65 @@ export default function App() {
     });
   };
 
+  const handlePublishToPublic = async () => {
+    try {
+      const snapshot = {
+        tournamentName,
+        leftLogo,
+        leftLogo2,
+        rightLogo,
+        rightLogo2,
+        roster,
+        categories,
+        brackets,
+        ringCount,
+        ringLabelFormat,
+        boutLabelFormat,
+        boutSequenceOrder,
+        ringSequenceOrders,
+        shuffleSeed,
+        dismissedDuplicates,
+        currentEventId,
+        activePublicView,
+      };
+      const currentPayloadStr = JSON.stringify(snapshot);
+      safeLocalStorage.setItem(STORAGE_KEY, currentPayloadStr);
+
+      if (!getQuotaExceeded()) {
+        const publicActiveRef = doc(db, 'reports', 'active_state');
+        await setDoc(publicActiveRef, {
+          payload: currentPayloadStr,
+          id: 'active_state',
+          tournamentName: tournamentName || 'Tournament',
+          activePublicView: activePublicView,
+          timestamp: Date.now(),
+        });
+      }
+
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            _reportId: 'active_state',
+            ...snapshot
+          })
+        });
+      } catch (e) {}
+
+      setStatusMessage({
+        text: `Successfully synced tournament "${tournamentName || 'Tournament'}" to public website immediately!`,
+        type: 'ok',
+      });
+    } catch (err: any) {
+      console.error('Failed to sync public web', err);
+      setStatusMessage({
+        text: `Failed to sync public web: ${err.message || String(err)}`,
+        type: 'err',
+      });
+    }
+  };
+
   const handleOverwriteSavedEvent = (id: string) => {
     const existing = savedEvents.find(e => e.id === id);
     if (!existing) return;
@@ -3340,6 +3399,7 @@ export default function App() {
           saveStatus={saveStatus}
           onOpenEventsModal={() => setIsEventsModalOpen(true)}
           onSaveEvent={() => handleSaveCurrentEvent()}
+          onPublishToPublic={handlePublishToPublic}
           onNewEvent={handleCreateNewBlankEvent}
           savedEventsCount={savedEvents.length}
           onLogout={handleLogout}

@@ -881,7 +881,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       const formattedBout = getFormattedBout(ring, boutNum, boutLabelFormat);
 
                       return (
-                        <tr key={scoreKey} className="hover:bg-slate-50/50 transition-all text-slate-700">
+                        <tr key={`${scoreKey}||${idx}`} className="hover:bg-slate-50/50 transition-all text-slate-700">
                           <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-400 font-bold">{displayNo}</td>
                           <td className="py-3 px-3 text-center bg-amber-50/10 border-x border-amber-200/40">
                             <span className="inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-mono font-black bg-amber-500 text-slate-950 shadow-2xs border border-amber-600/30">

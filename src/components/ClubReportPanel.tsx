@@ -1708,14 +1708,14 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#cbd5e1]">
-                    {sortedAthletes.map(ath => {
+                    {sortedAthletes.map((ath, idx) => {
                       const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
                       const fightInfo = playersMap[athKey];
                       const athleteBouts = fightInfo?.bouts || [];
 
                       return (
                         <tr 
-                          key={athKey} 
+                          key={`${athKey}||${idx}`} 
                           className="hover:bg-slate-50/50 transition-colors bg-white print:hover:bg-transparent duration-150"
                         >
                           {/* Ring and Division */}
@@ -1903,7 +1903,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {filteredAthletesForLookup.map(ath => {
+                    {filteredAthletesForLookup.map((ath, idx) => {
                       const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
                       const fightInfo = playersMap[athKey];
                       const athleteBouts = fightInfo?.bouts || [];
@@ -1999,7 +1999,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
                       return (
                         <div 
-                          key={athKey} 
+                          key={`${athKey}||${idx}`} 
                           className="bg-white border-2 border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
                         >
                           {/* Fighter pass header block */}
@@ -2253,13 +2253,13 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
                       {/* Athlete Matchup Cards Grid */}
                       <div className="p-4 md:p-5 divide-y divide-slate-200/80 bg-white print:px-1 print:py-2">
-                        {clubAthletes.map(ath => {
+                        {clubAthletes.map((ath, idx) => {
                           const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
                           const fightInfo = playersMap[athKey];
                           const athleteBouts = fightInfo?.bouts || [];
 
                           return (
-                            <div key={athKey} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
+                            <div key={`${athKey}||${idx}`} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
                               {/* Left column: Competitor Info */}
                               <div className="min-w-[200px]">
                                 <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 font-sans print:text-black">
