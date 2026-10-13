@@ -559,7 +559,8 @@ export function assignAllBoutNumbers(
   categories: Record<string, WeightCategory>, 
   brackets: Record<string, BracketModel>, 
   sequenceOrder: 'sequential' | 'stages' | Record<number, 'sequential' | 'stages'> = 'sequential',
-  defaultOrder: 'sequential' | 'stages' = 'sequential'
+  defaultOrder: 'sequential' | 'stages' = 'sequential',
+  continuousAcrossRings: boolean = false
 ): void {
   const eligibleKeys = Object.keys(categories).filter(k => brackets[k]);
   const ringGroups: Record<string, string[]> = {};
@@ -569,6 +570,8 @@ export function assignAllBoutNumbers(
     if (!ringGroups[ring]) ringGroups[ring] = [];
     ringGroups[ring].push(key);
   });
+
+  let runningCounter = 1;
 
   Object.keys(ringGroups)
     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
@@ -592,10 +595,12 @@ export function assignAllBoutNumbers(
       orderForRing = sequenceOrder[ringNum] || defaultOrder;
     }
 
+    const startForRing = continuousAcrossRings ? runningCounter : 1;
+
     if (orderForRing === 'sequential') {
-      assignBoutNumbersForRing(brackets, sortedKeys, 1);
+      runningCounter = assignBoutNumbersForRing(brackets, sortedKeys, startForRing);
     } else {
-      assignBoutNumbersByStagesForRing(brackets, sortedKeys, 1);
+      runningCounter = assignBoutNumbersByStagesForRing(brackets, sortedKeys, startForRing);
     }
   });
 

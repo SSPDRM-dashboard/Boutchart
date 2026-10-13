@@ -8,6 +8,7 @@ interface CategoriesPanelProps {
   ringCount: number;
   setRingCount: (count: number) => void;
   onAutoAssignRings: () => void;
+  onAutoAssignRingsSequential?: () => void;
   onUpdateCategoryRing: (categoryKey: string, ring: number) => void;
   onBulkUpdateRing?: (keys: string[], ring: number) => void;
   onUpdateCategorySystemType?: (categoryKey: string, systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => void;
@@ -16,7 +17,7 @@ interface CategoriesPanelProps {
   onUpdateRingGenderSequence?: (mode: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only') => void;
   shuffleSeed: boolean;
   setShuffleSeed: (shuffle: boolean) => void;
-  onGenerateBrackets: (targetRing?: number) => void;
+  onGenerateBrackets: (targetRing?: number, forceSequentialRingDistribute?: boolean) => void;
   ringLabelFormat: 'number' | 'letter';
   setRingLabelFormat: (format: 'number' | 'letter') => void;
   boutLabelFormat: 'alpha-2' | 'thousands-3';
@@ -25,6 +26,8 @@ interface CategoriesPanelProps {
   setBoutSequenceOrder: (order: 'sequential' | 'stages') => void;
   ringSequenceOrders?: Record<number, 'sequential' | 'stages'>;
   onUpdateRingSequenceOrder?: (ring: number, order: 'sequential' | 'stages') => void;
+  continuousBouts?: boolean;
+  onToggleContinuousBouts?: (enabled: boolean) => void;
   onExportPdf: () => void;
   onDownloadSearchablePdf?: (ringFilter: 'all' | number) => void;
   hasBrackets: boolean;
@@ -39,6 +42,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   ringCount,
   setRingCount,
   onAutoAssignRings,
+  onAutoAssignRingsSequential,
   onUpdateCategoryRing,
   onBulkUpdateRing,
   onUpdateCategorySystemType,
@@ -56,6 +60,8 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setBoutSequenceOrder,
   ringSequenceOrders,
   onUpdateRingSequenceOrder,
+  continuousBouts = false,
+  onToggleContinuousBouts,
   onExportPdf,
   onDownloadSearchablePdf,
   hasBrackets,
@@ -236,14 +242,61 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
           <div className="h-6 w-[1px] bg-slate-200"></div>
 
-          <button
-            onClick={onAutoAssignRings}
-            className="flex items-center gap-1.5 bg-slate-200/80 hover:bg-slate-200 text-slate-800 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer animate-pulse"
-            title="Auto assign rings round-robin"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Auto Split</span>
-          </button>
+          {/* Continuous Bouts Toggle across rings */}
+          {onToggleContinuousBouts && (
+            <div className="flex bg-white rounded-md border border-slate-200 p-0.5" title="Bout numbering counter: Reset per ring (A01, B01) vs Continuous (accumulates across rings: Ring A finishes 1st, then Ring B continues...)">
+              <button
+                type="button"
+                onClick={() => onToggleContinuousBouts(false)}
+                className={`px-2 py-1 rounded text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                  !continuousBouts
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+                title="Bouts reset starting from 1 in each ring (e.g. A01, B01 or 1001, 2001)"
+              >
+                Reset Per Ring
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleContinuousBouts(true)}
+                className={`px-2 py-1 rounded text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                  continuousBouts
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+                title="Continuous bout numbering across all rings (Ring A: 1..25, Ring B: 26..50, Ring C: 51..75...)"
+              >
+                Continuous (1...N)
+              </button>
+            </div>
+          )}
+
+          <div className="h-6 w-[1px] bg-slate-200"></div>
+
+          {/* Allocation Actions: Sequential by Ring vs Round Robin */}
+          <div className="flex items-center gap-1.5">
+            {onAutoAssignRingsSequential && (
+              <button
+                type="button"
+                onClick={onAutoAssignRingsSequential}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer shadow-xs active:scale-95"
+                title="Fill Ring A completely first, then Ring B, then Ring C, D, E, F, G sequentially"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                <span>Fill Ring A 1st → B → C...</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onAutoAssignRings}
+              className="flex items-center gap-1.5 bg-slate-200/80 hover:bg-slate-200 text-slate-800 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              title="Auto split categories round-robin across rings"
+            >
+              <span>Auto Split</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -879,6 +932,17 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
             {/* Build buttons */}
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+              <button
+                type="button"
+                onClick={() => onGenerateBrackets(undefined, true)}
+                disabled={eligibleKeys.length === 0}
+                className="px-5 py-3 text-sm font-black text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-45 rounded-xl shadow-lg shadow-amber-500/10 border border-amber-500 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                title="Generate all brackets by ring: Ring A finishes 1st, then Ring B, then Ring C, D, E, F, G"
+              >
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>Generate by Ring (A → B → C...)</span>
+              </button>
+
               <div className="flex items-center bg-amber-500 rounded-xl shadow-lg shadow-amber-500/10 border border-amber-600/20 overflow-hidden w-full sm:w-auto">
                 <button
                   type="button"
@@ -899,7 +963,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   className="bg-amber-500 text-slate-950 font-extrabold text-xs px-2.5 py-3 h-full outline-none cursor-pointer hover:bg-amber-400 transition-colors border-none min-h-[44px]"
                   title="Target generating and scheduling brackets to all rings or a specific ring"
                 >
-                  <option value="all">All Rings</option>
+                  <option value="all">All Rings (A → B → C...)</option>
                   {Array.from({ length: ringCount }, (_, idx) => {
                     const rVal = idx + 1;
                     const rLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + rVal) : String(rVal);

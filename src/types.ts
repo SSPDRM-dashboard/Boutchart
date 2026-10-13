@@ -94,5 +94,6 @@ export interface SavedEvent {
   shuffleSeed: boolean;
   dismissedDuplicates: string[];
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
+  continuousBouts?: boolean;
 }
 

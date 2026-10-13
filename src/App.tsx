@@ -10,7 +10,7 @@ import { EventsManagerModal } from './components/EventsManagerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { ScoreboardSyncPanel } from './components/ScoreboardSyncPanel';
 import { FourInAGroupPanel } from './components/FourInAGroupPanel';
-import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged } from './lib/firebase';
+import { db, auth, collection, doc, setDoc, getDocs, deleteDoc, getDoc, onAuthStateChanged, onSnapshot } from './lib/firebase';
 import { PdfBracketParserPanel } from './components/PdfBracketParserPanel';
 import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent, CutoffScore } from './types';
 import * as htmlToImage from 'html-to-image';
@@ -146,8 +146,10 @@ export default function App() {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
       const viewType = urlParams.get('view');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+      const isPublicDomain = hostname.includes('vercel.app') || hostname.includes('ais-pre-') || hostname.includes('github.io');
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath || isPublicAppMode) {
+      if (viewType === 'club-report' || isReportPath || isPublicAppMode || isPublicDomain) {
         return 'club-report';
       }
       return 'brackets';
@@ -156,6 +158,7 @@ export default function App() {
     }
   });
   const [dismissedDuplicates, setDismissedDuplicates] = useState<string[]>([]);
+  const [continuousBouts, setContinuousBouts] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
@@ -363,8 +366,10 @@ export default function App() {
       const dataParam = urlParams.get('data');
       const idParam = urlParams.get('id');
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+      const isPublicDomain = hostname.includes('vercel.app') || hostname.includes('ais-pre-') || hostname.includes('github.io');
       const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
-      if (viewType === 'club-report' || isReportPath || dataParam || idParam || isPublicAppMode) {
+      if (viewType === 'club-report' || isReportPath || dataParam || idParam || isPublicAppMode || isPublicDomain) {
         return true;
       }
       return false;
@@ -438,6 +443,7 @@ export default function App() {
                if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
                if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
                if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
+               if (snap.continuousBouts !== undefined) setContinuousBouts(snap.continuousBouts);
                if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
             }
           }
@@ -847,6 +853,7 @@ export default function App() {
           ringSequenceOrders,
           shuffleSeed,
           dismissedDuplicates,
+          continuousBouts,
           currentEventId,
           activePublicView,
         };
@@ -1438,8 +1445,67 @@ export default function App() {
         }
       });
       mockCategories = autoArrangeRingsByAge(mockCategories);
-      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder, continuousBouts);
       return next;
+    });
+  };
+
+  // Allocate categories into rings sequentially: Ring A (1) finishes first, then Ring B (2), then Ring C (3)...
+  const handleAutoAssignRingsSequential = () => {
+    const keys = Object.keys(categories)
+      .filter((k) => categories[k].count >= 1)
+      .sort((a, b) => compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]));
+    if (keys.length === 0) return;
+
+    const effectiveRings = Math.max(1, ringCount);
+    const perRing = Math.ceil(keys.length / effectiveRings);
+
+    setCategories((prev) => {
+      const next = { ...prev };
+      keys.forEach((key, idx) => {
+        const ringNumber = Math.min(Math.floor(idx / perRing) + 1, effectiveRings);
+        next[key] = { ...next[key], ring: ringNumber };
+      });
+      return autoArrangeRingsByAge(next);
+    });
+
+    // Cascade update to bouts if brackets are already drawn
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      let mockCategories = { ...categories };
+      keys.forEach((key, idx) => {
+        if (mockCategories[key]) {
+          const ringNumber = Math.min(Math.floor(idx / perRing) + 1, effectiveRings);
+          mockCategories[key].ring = ringNumber;
+        }
+      });
+      mockCategories = autoArrangeRingsByAge(mockCategories);
+      assignAllBoutNumbers(mockCategories, next, ringSequenceOrders, boutSequenceOrder, continuousBouts);
+      return next;
+    });
+
+    const ringLabelA = ringLabelFormat === 'letter' ? 'Ring A' : 'Ring 1';
+    const ringLabelEnd = ringLabelFormat === 'letter' ? `Ring ${String.fromCharCode(64 + effectiveRings)}` : `Ring ${effectiveRings}`;
+    setStatusMessage({
+      text: `Allocated categories sequentially by ring: ${ringLabelA} finishes 1st, then subsequent rings up to ${ringLabelEnd}!`,
+      type: 'ok',
+    });
+  };
+
+  const handleToggleContinuousBouts = (enabled: boolean) => {
+    setContinuousBouts(enabled);
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder, enabled);
+      return next;
+    });
+    setStatusMessage({
+      text: enabled 
+        ? 'Switched to Continuous Bout Numbering across rings (Ring A 1st, then Ring B continues...)!' 
+        : 'Switched to Per-Ring Bout Numbering (each ring resets to bout 1)!',
+      type: 'ok',
     });
   };
 
@@ -1546,7 +1612,7 @@ export default function App() {
   };
 
   // 5. Build/Draw Bracket Assemblies
-  const handleGenerateBrackets = (targetRing?: number) => {
+  const handleGenerateBrackets = (targetRing?: number, forceSequentialRingDistribute: boolean = false) => {
     const keysAll = Object.keys(categories).sort((a, b) => {
       const orderA = categories[a]?.order ?? 99999;
       const orderB = categories[b]?.order ?? 99999;
@@ -1554,28 +1620,53 @@ export default function App() {
       return a.localeCompare(b);
     });
 
-    let eligibleKeys = keysAll.filter((k) => {
-      const matchesRing = !targetRing 
-        ? (categories[k].ring !== undefined && categories[k].ring > 0)
-        : categories[k].ring === targetRing;
-      return categories[k].count >= 1 && matchesRing;
-    });
-
     let currentCategories = categories;
 
-    // If user clicks "Generate All Brackets" but categories have not been allocated to a ring yet,
-    // automatically assign active categories to Ring 1 in their exact CSV sequence so brackets can be drawn immediately
-    if (eligibleKeys.length === 0 && !targetRing) {
-      const unassignedActive = keysAll.filter(k => categories[k].count >= 1);
-      if (unassignedActive.length > 0) {
-        const autoAllocated = { ...categories };
-        unassignedActive.forEach(k => {
-          autoAllocated[k] = { ...autoAllocated[k], ring: 1 };
-        });
-        setCategories(autoAllocated);
-        currentCategories = autoAllocated;
-        eligibleKeys = unassignedActive;
-      }
+    // Check active unassigned categories
+    const unassignedActive = keysAll
+      .filter((k) => categories[k].count >= 1)
+      .sort((a, b) => compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]));
+
+    // If user explicitly chose "Generate by Ring" or if no categories are allocated to rings yet when generating all rings:
+    // Sequentially allocate active categories so Ring A (1) finishes 1st, then Ring B (2), then Ring C (3), D, E, F, G
+    const shouldSequentiallyDistribute = !targetRing && (
+      forceSequentialRingDistribute || 
+      (Object.values(categories) as WeightCategory[]).filter(c => c.count >= 1).every(c => !c.ring || c.ring === 0)
+    );
+
+    if (shouldSequentiallyDistribute && unassignedActive.length > 0) {
+      const autoAllocated = { ...categories };
+      const effectiveRings = Math.max(1, ringCount);
+      const perRing = Math.ceil(unassignedActive.length / effectiveRings);
+      unassignedActive.forEach((k, idx) => {
+        const ringNum = Math.min(Math.floor(idx / perRing) + 1, effectiveRings);
+        autoAllocated[k] = { ...autoAllocated[k], ring: ringNum };
+      });
+      const arranged = autoArrangeRingsByAge(autoAllocated);
+      setCategories(arranged);
+      currentCategories = arranged;
+    }
+
+    let eligibleKeys = keysAll.filter((k) => {
+      const matchesRing = !targetRing 
+        ? (currentCategories[k].ring !== undefined && currentCategories[k].ring > 0)
+        : currentCategories[k].ring === targetRing;
+      return currentCategories[k].count >= 1 && matchesRing;
+    });
+
+    // Fallback: If still no eligible keys and generating all, allocate sequentially across rings
+    if (eligibleKeys.length === 0 && !targetRing && unassignedActive.length > 0) {
+      const autoAllocated = { ...categories };
+      const effectiveRings = Math.max(1, ringCount);
+      const perRing = Math.ceil(unassignedActive.length / effectiveRings);
+      unassignedActive.forEach((k, idx) => {
+        const ringNum = Math.min(Math.floor(idx / perRing) + 1, effectiveRings);
+        autoAllocated[k] = { ...autoAllocated[k], ring: ringNum };
+      });
+      const arranged = autoArrangeRingsByAge(autoAllocated);
+      setCategories(arranged);
+      currentCategories = arranged;
+      eligibleKeys = unassignedActive;
     }
 
     if (eligibleKeys.length === 0 && targetRing) {
@@ -1592,7 +1683,7 @@ export default function App() {
               delete next[k];
             }
           });
-          assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
+          assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder, continuousBouts);
           setBrackets(next);
           setStatusMessage({
             text: `Cleared existing bracket draws for Ring ${ringLabel}.`,
@@ -1611,6 +1702,17 @@ export default function App() {
       return;
     }
 
+    // Strict Ring-by-Ring Ordering: Ring 1 (Ring A) finishes 1st, then Ring 2 (Ring B), then Ring 3 (Ring C), Ring 4 (Ring D), etc.
+    eligibleKeys.sort((a, b) => {
+      const ringA = currentCategories[a]?.ring || 9999;
+      const ringB = currentCategories[b]?.ring || 9999;
+      if (ringA !== ringB) return ringA - ringB;
+      const orderA = currentCategories[a]?.order ?? 99999;
+      const orderB = currentCategories[b]?.order ?? 99999;
+      if (orderA !== orderB) return orderA - orderB;
+      return compareCategoriesByAgeAndWeight(a, b, currentCategories[a], currentCategories[b]);
+    });
+
     // Keep other rings' brackets when generating/regenerating specific ring only
     const nextBrackets: Record<string, BracketModel> = targetRing ? { ...brackets } : {};
 
@@ -1624,7 +1726,7 @@ export default function App() {
     }
 
     eligibleKeys.forEach((key) => {
-      const c = categories[key];
+      const c = currentCategories[key];
       let entrants = c.entrants.slice(0, 64);
       if (shuffleSeed) {
         entrants = shuffle(entrants);
@@ -1648,19 +1750,21 @@ export default function App() {
       nextBrackets[key] = model;
     });
 
-    assignAllBoutNumbers(currentCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder);
+    assignAllBoutNumbers(currentCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder, continuousBouts);
     setBrackets(nextBrackets);
     setBracketSortMode('ring');
 
+    const ringLabelA = ringLabelFormat === 'letter' ? 'Ring A' : 'Ring 1';
+    const ringLabelEnd = ringLabelFormat === 'letter' ? `Ring ${String.fromCharCode(64 + Math.min(ringCount, 7))}` : `Ring ${Math.min(ringCount, 7)}`;
     const targetLabel = targetRing
       ? `Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing)}`
-      : 'all rings';
+      : `all rings by sequence (${ringLabelA} finishes 1st, then Ring B, then Ring C, and D, E, F, G)`;
     setStatusMessage({
-      text: `Successfully generated bracket draws and schedules for ${targetLabel}!`,
+      text: `Successfully generated tournament brackets by ring: ${targetLabel}!`,
       type: 'ok',
     });
 
-    // Auto-scroll layout window smoothly tobrackets viewport
+    // Auto-scroll layout window smoothly to brackets viewport
     setTimeout(() => {
       const el = document.getElementById('bracketsSectionTitle');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -4079,6 +4183,7 @@ export default function App() {
                     ringCount={ringCount}
                     setRingCount={setRingCount}
                     onAutoAssignRings={handleAutoAssignRings}
+                    onAutoAssignRingsSequential={handleAutoAssignRingsSequential}
                     onUpdateCategoryRing={handleUpdateCategoryRing}
                     onBulkUpdateRing={handleBulkUpdateCategoryRing}
                     onUpdateCategorySystemType={handleUpdateCategorySystemType}
@@ -4096,6 +4201,8 @@ export default function App() {
                     setBoutSequenceOrder={handleBoutSequenceOrderChange}
                     ringSequenceOrders={ringSequenceOrders}
                     onUpdateRingSequenceOrder={handleUpdateRingSequenceOrder}
+                    continuousBouts={continuousBouts}
+                    onToggleContinuousBouts={handleToggleContinuousBouts}
                     onExportPdf={() => setShowExportModal(true)}
                     onDownloadSearchablePdf={handleDownloadSearchablePdf}
                     hasBrackets={bracketKeys.length > 0}

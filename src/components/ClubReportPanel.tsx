@@ -1429,26 +1429,50 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           )}
 
           {shareDomainMode === 'custom' && (
-            <div className="bg-white border border-slate-200 p-2.5 rounded-xl flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-medium shrink-0">Custom Base URL:</span>
-              <input
-                type="text"
-                placeholder="https://my-tournament.vercel.app"
-                value={customDomain}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCustomDomain(val);
-                  try {
-                    localStorage.setItem('tournament_custom_domain', val);
-                  } catch {}
-                  const path = shareRelativePath || (shareUrl ? new URL(shareUrl).search : '');
-                  if (path) {
-                    const u = `${val.trim().replace(/\/+$/, '')}${path}`;
-                    setShareUrl(u);
-                  }
-                }}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 w-full outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-              />
+            <div className="bg-white border border-slate-200 p-3 rounded-xl flex flex-col gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium shrink-0">Custom Base URL:</span>
+                <input
+                  type="text"
+                  placeholder="https://my-tournament.vercel.app"
+                  value={customDomain}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCustomDomain(val);
+                    try {
+                      localStorage.setItem('tournament_custom_domain', val);
+                    } catch {}
+                    const path = shareRelativePath || (shareUrl ? new URL(shareUrl).search : '');
+                    if (path) {
+                      const u = `${val.trim().replace(/\/+$/, '')}${path}`;
+                      setShareUrl(u);
+                    }
+                  }}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 w-full outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = 'https://my-publicboutchart.vercel.app';
+                    setCustomDomain(val);
+                    try {
+                      localStorage.setItem('tournament_custom_domain', val);
+                    } catch {}
+                    const path = shareRelativePath || (shareUrl ? new URL(shareUrl).search : '');
+                    if (path) {
+                      const u = `${val}${path}`;
+                      setShareUrl(u);
+                    } else {
+                      setShareUrl(`${val}/?view=club-report&id=active_state`);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded text-[11px] font-bold border border-emerald-200 transition-colors cursor-pointer"
+                >
+                  🔗 Set to my-publicboutchart.vercel.app
+                </button>
+              </div>
             </div>
           )}
 
