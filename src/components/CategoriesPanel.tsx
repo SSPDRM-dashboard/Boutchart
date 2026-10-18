@@ -275,13 +275,37 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
               type="button"
               onClick={() => onUpdateEventSequenceOrder?.(['kyorugi-pk', 'poomsae-pk', 'poomsae-cutoff'])}
               className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
-                (eventSequenceOrder[0] || '').includes('kyorugi') || (eventSequenceOrder[0] || '').includes('sparring')
+                (eventSequenceOrder[0] || '').includes('kyorugi')
                   ? 'bg-slate-900 text-amber-400 shadow-xs'
                   : 'bg-white/80 text-slate-700 hover:bg-white border border-amber-200'
               }`}
               title="Run Sparring first, then Poomsae in each ring"
             >
               🥊 Sparring 1st → 🥋 Poomsae
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateEventSequenceOrder?.(['poomsae-pk', 'poomsae-cutoff', 'kyorugi-pk'])}
+              className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                eventSequenceOrder[0] === 'poomsae-pk'
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'bg-white/80 text-slate-700 hover:bg-white border border-amber-200'
+              }`}
+              title="Run Poomsae PK first, then Cut-off, then Sparring"
+            >
+              🥋 PK 1st → Cut-off → Sparring
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateEventSequenceOrder?.(['kyorugi-pk', 'poomsae-cutoff', 'poomsae-pk'])}
+              className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                eventSequenceOrder[0] === 'kyorugi-pk' && eventSequenceOrder[1] === 'poomsae-cutoff'
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'bg-white/80 text-slate-700 hover:bg-white border border-amber-200'
+              }`}
+              title="Run Sparring first, then Cut-off, then Poomsae PK"
+            >
+              🥊 Sparring → Cut-off → PK
             </button>
             <div className="flex items-center gap-0.5 pl-1 border-l border-amber-300/80">
               {eventSequenceOrder.map((evId, idx) => {

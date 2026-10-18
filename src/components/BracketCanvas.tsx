@@ -93,11 +93,6 @@ function getFormattedBout(
   const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
   const pad = String(boutNumber).padStart(padLength, '0');
 
-  if (isPoomsae) {
-    const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
-    return `${prefix}${pad}`;
-  }
-
   return `${ringPrefix}${pad}`;
 }
 
@@ -618,7 +613,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
         <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-4">
           {/* Left Logos */}
           <div className="flex flex-shrink-0 gap-2">
-            <div className="w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center relative group">
+            <div className="w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center relative group border border-slate-200 rounded-xl bg-white">
               {leftLogo ? (
                 <>
                   <img src={leftLogo} alt="Left Logo 1" className="max-w-full max-h-full object-contain" />
@@ -636,7 +631,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
               ) : null}
             </div>
             {(leftLogo || !isPublicView) && (
-              <div className="w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center relative group">
+              <div className="w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center relative group border border-slate-200 rounded-xl bg-white">
                 {leftLogo2 ? (
                   <>
                     <img src={leftLogo2} alt="Left Logo 2" className="max-w-full max-h-full object-contain" />

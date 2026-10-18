@@ -475,12 +475,14 @@ export interface EventCategoryInfo {
   badgeText: string;
 }
 
-export const DEFAULT_EVENT_SEQUENCE: string[] = ['poomsae-cutoff', 'poomsae-pk', 'kyorugi-pk'];
+export const DEFAULT_EVENT_SEQUENCE: string[] = ['kyorugi-pk', 'poomsae-cutoff', 'poomsae-pk'];
 
 export const ALL_STANDARD_EVENTS: { id: string; label: string; icon: string; shortLabel: string }[] = [
   { id: 'poomsae-cutoff', label: 'Poomsae (Cut-off Score)', icon: '🥋', shortLabel: 'Cut-off' },
   { id: 'poomsae-pk', label: 'Poomsae (PK Elimination)', icon: '🥋', shortLabel: 'Poomsae PK' },
   { id: 'kyorugi-pk', label: 'Sparring (Kyorugi PK)', icon: '🥊', shortLabel: 'Sparring' },
+  { id: 'virtual-taekwondo', label: 'Virtual Taekwondo', icon: '🎮', shortLabel: 'Virtual' },
+  { id: 'virtual-taekwondo-kyorugi-pk', label: 'Virtual Taekwondo (Kyorugi PK)', icon: '🎮', shortLabel: 'Virtual PK' },
 ];
 
 export function getCategoryEventInfo(
@@ -497,6 +499,9 @@ export function getCategoryEventInfo(
     }
     if (l.includes('poomsae') || l.includes('form') || l.includes('pattern')) {
       return { id: 'poomsae-pk', label: clean, shortLabel: clean, icon: '🥋', badgeBg: 'bg-cyan-50', badgeBorder: 'border-cyan-250', badgeText: 'text-cyan-800' };
+    }
+    if (l.includes('virtual')) {
+      return { id: 'virtual-taekwondo', label: clean, shortLabel: clean, icon: '🎮', badgeBg: 'bg-indigo-50', badgeBorder: 'border-indigo-250', badgeText: 'text-indigo-800' };
     }
     return { id: clean, label: clean, shortLabel: clean, icon: '🥊', badgeBg: 'bg-rose-50', badgeBorder: 'border-rose-250', badgeText: 'text-rose-800' };
   }
@@ -522,6 +527,28 @@ export function getCategoryEventInfo(
       badgeBg: 'bg-cyan-50',
       badgeBorder: 'border-cyan-250',
       badgeText: 'text-cyan-800',
+    };
+  }
+  if (sys === 'virtual-taekwondo') {
+    return {
+      id: 'virtual-taekwondo',
+      label: 'Virtual Taekwondo',
+      shortLabel: 'Virtual',
+      icon: '🎮',
+      badgeBg: 'bg-indigo-50',
+      badgeBorder: 'border-indigo-250',
+      badgeText: 'text-indigo-800',
+    };
+  }
+  if (sys === 'virtual-taekwondo-kyorugi-pk') {
+    return {
+      id: 'virtual-taekwondo-kyorugi-pk',
+      label: 'Virtual Taekwondo (Kyorugi PK)',
+      shortLabel: 'Virtual PK',
+      icon: '🎮',
+      badgeBg: 'bg-violet-50',
+      badgeBorder: 'border-violet-250',
+      badgeText: 'text-violet-800',
     };
   }
   if (sys === 'kyorugi-pk') {
@@ -639,11 +666,6 @@ export function formatBoutLabel(
 
   const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
   const pad = String(boutNumber).padStart(padLength, '0');
-
-  if (isPoomsae) {
-    const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
-    return `${prefix}${pad}`;
-  }
 
   return `${ringPrefix}${pad}`;
 }

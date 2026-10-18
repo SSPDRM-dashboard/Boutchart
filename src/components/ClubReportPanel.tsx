@@ -738,11 +738,6 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
     const pad = String(boutNumber).padStart(padLength, '0');
 
-    if (isPoomsae) {
-      const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
-      return `${prefix}${pad}`;
-    }
-
     return `${ringPrefix}${pad}`;
   };
 

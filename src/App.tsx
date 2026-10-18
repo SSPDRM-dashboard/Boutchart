@@ -16,7 +16,7 @@ import { Athlete, WeightCategory, BracketModel, DuplicateGroup, SavedEvent, Cuto
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { replaceOklchInString } from './utils/colorUtils';
-import { decompressFromGzipBase64 } from './utils/compression';
+import { compressToGzipBase64, decompressFromGzipBase64 } from './utils/compression';
 import {
   buildRosterFromText,
   groupRoster,
@@ -995,7 +995,13 @@ export default function App() {
         const savedSnap = await getDoc(savedIndexRef).catch(() => null);
         if (savedSnap && savedSnap.exists()) {
           const sData = savedSnap.data();
-          const list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
+          let list: any[] = [];
+          if (sData.compressed) {
+            const decompressed = await decompressFromGzipBase64(sData.payload);
+            list = JSON.parse(decompressed);
+          } else {
+            list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
+          }
           if (Array.isArray(list) && list.length > 0) {
             setSavedEvents(list);
             safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
@@ -1021,10 +1027,16 @@ export default function App() {
   useEffect(() => {
     if (getQuotaExceeded()) return;
     const savedIndexRef = doc(db, 'reports', 'saved_events_index');
-    const unsub = onSnapshot(savedIndexRef, (snap) => {
+    const unsub = onSnapshot(savedIndexRef, async (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        const list = d.payload ? JSON.parse(d.payload) : (Array.isArray(d.events) ? d.events : []);
+        let list: any[] = [];
+        if (d.compressed) {
+          const decompressed = await decompressFromGzipBase64(d.payload);
+          list = JSON.parse(decompressed);
+        } else {
+          list = d.payload ? JSON.parse(d.payload) : (Array.isArray(d.events) ? d.events : []);
+        }
         if (Array.isArray(list) && list.length > 0) {
           setSavedEvents(list);
           safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
@@ -1860,7 +1872,9 @@ export default function App() {
         const nextRoster = roster.filter((a) => (a.weight || 'Unspecified') !== categoryKey);
         setRoster(nextRoster);
 
-        const grouped = groupRoster(nextRoster, categories);
+        const nextCategories = { ...categories };
+        delete nextCategories[categoryKey];
+        const grouped = groupRoster(nextRoster, nextCategories);
         setCategories(grouped);
 
         setBrackets((prev) => {
@@ -2187,8 +2201,10 @@ export default function App() {
 
         // 2. Save to global saved events index in Firestore so the website has all saved events
         const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+        const compressedPayload = await compressToGzipBase64(JSON.stringify(updatedList));
         await setDoc(savedIndexRef, {
-          payload: JSON.stringify(updatedList),
+          payload: compressedPayload,
+          compressed: true,
           timestamp: Date.now()
         });
 
@@ -2966,11 +2982,6 @@ export default function App() {
 
         const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
         const pad = String(boutNumber).padStart(padLength, '0');
-
-        if (isPoomsae) {
-          const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
-          return `${prefix}${pad}`;
-        }
 
         return `${ringPrefix}${pad}`;
       };
@@ -5608,8 +5619,22 @@ export default function App() {
           />
 
           {/* Centered card */}
-          <div className="flex min-h-full items-center justify-center p-4 text-center animate-fade-in">
-            <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full max-w-sm border border-slate-100 p-6 space-y-5">
+          <div 
+            className="flex min-h-full items-center justify-center p-4 text-center animate-fade-in"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                confirmConfig.onConfirm();
+                setConfirmConfig(null);
+              } else if (e.key === 'Escape') {
+                setConfirmConfig(null);
+              }
+            }}
+          >
+            <div 
+              className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full max-w-sm border border-slate-100 p-6 space-y-5"
+              tabIndex={-1}
+              ref={(el) => el && el.focus()}
+            >
               <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-xl shrink-0 ${confirmConfig.isDanger ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                   {confirmConfig.isDanger ? <ShieldAlert className="w-5 h-5 animate-pulse" /> : <AlertCircle className="w-5 h-5" />}
