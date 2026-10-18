@@ -165,13 +165,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Grouped results stored in state to support interactive drag-and-drop moves and swaps
-  const [groupedResults, setGroupedResults] = useState<Record<string, CategoryGroupResult>>(() => {
-    return generateFourGroupsForAllCategories(DEMO_EXACT_SPEC_DATA, {
-      maxPax: 4,
-      balanceGroups: true,
-      allowExtraGroupsForClubs: false
-    });
-  });
+  const [groupedResults, setGroupedResults] = useState<Record<string, CategoryGroupResult>>({});
 
   // Drag and drop tracking
   const [draggedItem, setDraggedItem] = useState<{
@@ -190,9 +184,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
   const [hasManualChanges, setHasManualChanges] = useState(false);
 
   // Category names retained so that clearing/deleting competitors keeps category names intact
-  const [retainedCategories, setRetainedCategories] = useState<string[]>(() => {
-    return Array.from(new Set(DEMO_EXACT_SPEC_DATA.map(p => p.category)));
-  });
+  const [retainedCategories, setRetainedCategories] = useState<string[]>([]);
 
   const [clearJobModalOpen, setClearJobModalOpen] = useState(false);
   const [newCategoryModalOpen, setNewCategoryModalOpen] = useState(false);
@@ -248,8 +240,9 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
 
     Object.values(groupedResults).forEach((res: CategoryGroupResult) => {
       totalAthletes += res.totalParticipants;
-      totalGroups += res.totalGroups;
-      res.groups.forEach(g => {
+      const activeGroups = res.groups.filter(g => g.participants.length > 0);
+      totalGroups += activeGroups.length;
+      activeGroups.forEach(g => {
         if (g.hasClubConflict) totalConflicts++;
         g.participants.forEach(p => {
           if (p.club && !isIndependentClub(p.club)) allClubs.add(p.club.trim());
@@ -257,7 +250,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
       });
     });
 
-    const categoryCount = Object.keys(groupedResults).length;
+    const categoryCount = (Object.values(groupedResults) as CategoryGroupResult[]).filter(res => res.totalParticipants > 0 || res.groups.some(g => g.participants.length > 0)).length;
     const goldNeeded = totalGroups;
     const silverNeeded = totalGroups;
     const bronzeNeeded = totalGroups * 2;
