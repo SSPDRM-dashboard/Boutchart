@@ -23,6 +23,7 @@ interface ClubReportPanelProps {
   categories: Record<string, WeightCategory>;
   brackets: Record<string, BracketModel>;
   roster: Athlete[];
+  ringCount?: number;
   ringLabelFormat: 'number' | 'letter';
   boutLabelFormat?: 'alpha-2' | 'thousands-3';
   tournamentName?: string;
@@ -36,6 +37,34 @@ interface ClubReportPanelProps {
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
   onActivePublicViewChange?: (view: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart') => void;
 }
+
+export const getRingSortOrder = (ringVal: number | string | undefined): number => {
+  if (ringVal === undefined || ringVal === null || ringVal === 0 || ringVal === '0') return 99999;
+  if (typeof ringVal === 'number') {
+    return ringVal > 0 ? ringVal : 99999;
+  }
+  const str = String(ringVal).trim().toUpperCase();
+  if (str === 'UNASSIGNED') return 99999;
+  const letterMatch = str.match(/(?:RING|MAT)?\s*([A-Z])/i);
+  if (letterMatch && letterMatch[1]) {
+    return letterMatch[1].toUpperCase().charCodeAt(0) - 64; // A=1, B=2, C=3, D=4, E=5...
+  }
+  const numMatch = str.match(/\d+/);
+  if (numMatch) {
+    return parseInt(numMatch[0], 10);
+  }
+  return 9999;
+};
+
+export const getRingColorClasses = (ringLabel: string) => {
+  const norm = ringLabel.toUpperCase();
+  if (norm === 'A' || norm.includes('RING A')) return { bg: 'bg-amber-100 text-amber-900 border-amber-300', tag: 'bg-amber-400 text-slate-950' };
+  if (norm === 'B' || norm.includes('RING B')) return { bg: 'bg-sky-100 text-sky-900 border-sky-300', tag: 'bg-sky-500 text-white' };
+  if (norm === 'C' || norm.includes('RING C')) return { bg: 'bg-emerald-100 text-emerald-900 border-emerald-300', tag: 'bg-emerald-500 text-white' };
+  if (norm === 'D' || norm.includes('RING D')) return { bg: 'bg-purple-100 text-purple-900 border-purple-300', tag: 'bg-purple-500 text-white' };
+  if (norm === 'E' || norm.includes('RING E')) return { bg: 'bg-rose-100 text-rose-900 border-rose-300', tag: 'bg-rose-500 text-white' };
+  return { bg: 'bg-slate-100 text-slate-800 border-slate-300', tag: 'bg-slate-700 text-white' };
+};
 
 interface PlayerFightInfo {
   athleteName: string;
@@ -67,6 +96,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   categories,
   brackets,
   roster,
+  ringCount = 13,
   ringLabelFormat,
   boutLabelFormat = 'alpha-2',
   tournamentName = '',
@@ -83,9 +113,21 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const effectivePublicView = isPublicView || isPublicAppMode;
   const [selectedClub, setSelectedClub] = useState<string>('all');
+  const [selectedRing, setSelectedRing] = useState<string>('all');
+  const [cardsGroupMode, setCardsGroupMode] = useState<'ring' | 'club'>('ring');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showOnlyScheduled, setShowOnlyScheduled] = useState<boolean>(true);
   const [certificateData, setCertificateData] = useState<{ athleteName: string; club: string; category: string } | null>(null);
+
+  // Label formatting helper for rings (available throughout entire component)
+  const getRingLabel = (ringNum: number | string) => {
+    if (ringLabelFormat === 'letter') {
+      const num = typeof ringNum === 'string' ? parseInt(ringNum, 10) : ringNum;
+      if (isNaN(num) || num < 1) return String(ringNum);
+      return String.fromCharCode(64 + num);
+    }
+    return String(ringNum);
+  };
   
   // Choose between 'photo-matrix', 'classic-cards', 'medal-standings', 'individual-lookup', or 'boutchart'
   // Guaranteed to prioritize: URL style parameter -> activePublicView from app state/Firestore -> local cache -> default
@@ -339,7 +381,16 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
   const downloadSingleClubMatrixPDF = (clubName: string) => {
     const clubAthletes = athleteList.filter(a => a.club === clubName);
-    clubAthletes.sort((a, b) => a.name.localeCompare(b.name));
+    clubAthletes.sort((a, b) => {
+      const catA = categories[a.weight];
+      const catB = categories[b.weight];
+      const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+      const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+      if (ringA !== ringB) return ringA - ringB;
+      const catCompare = (a.weight || '').localeCompare(b.weight || '');
+      if (catCompare !== 0) return catCompare;
+      return a.name.localeCompare(b.name);
+    });
 
     if (clubAthletes.length === 0) {
       alert(`No athletes found for club "${clubName}".`);
@@ -358,7 +409,16 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
       for (const club of clubList) {
         const clubAthletes = athleteList.filter(a => a.club === club);
-        clubAthletes.sort((a, b) => a.name.localeCompare(b.name));
+        clubAthletes.sort((a, b) => {
+          const catA = categories[a.weight];
+          const catB = categories[b.weight];
+          const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+          const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+          if (ringA !== ringB) return ringA - ringB;
+          const catCompare = (a.weight || '').localeCompare(b.weight || '');
+          if (catCompare !== 0) return catCompare;
+          return a.name.localeCompare(b.name);
+        });
         if (clubAthletes.length === 0) continue;
 
         const pdf = generateClubMatrixPDF(club, clubAthletes);
@@ -606,15 +666,6 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     }
   };
 
-  // 1. Label formatting helper for rings
-  const getRingLabel = (ringNum: number | string) => {
-    if (ringLabelFormat === 'letter') {
-      const num = typeof ringNum === 'string' ? parseInt(ringNum, 10) : ringNum;
-      if (isNaN(num) || num < 1) return String(ringNum);
-      return String.fromCharCode(64 + num);
-    }
-    return String(ringNum);
-  };
 
   // 2. Bout ID format helper (e.g. A02 / 1001 / PA01)
   const getFormattedBout = (
@@ -987,9 +1038,18 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       "Fight 7"
     ];
 
-    // Determine target athletes array based on club filter
+    // Determine target athletes array based on club filter (always sorted starting from Ring A, then Ring B, C, D, E...)
     const targetAthletes = clubName
-      ? athleteList.filter(a => a.club === clubName)
+      ? athleteList.filter(a => a.club === clubName).sort((a, b) => {
+          const catA = categories[a.weight];
+          const catB = categories[b.weight];
+          const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+          const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+          if (ringA !== ringB) return ringA - ringB;
+          const catCompare = (a.weight || '').localeCompare(b.weight || '');
+          if (catCompare !== 0) return catCompare;
+          return a.name.localeCompare(b.name);
+        })
       : sortedAthletes;
 
     const rows = targetAthletes.map(ath => {
@@ -1248,27 +1308,80 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     document.body.removeChild(link);
   };
 
+  // Distinct rings available across all categories, sorted strictly starting from Ring A, then Ring B, C, D, E...
+  const ringList = React.useMemo(() => {
+    const rings = new Set<string>();
+    Object.values(categories).forEach((cat: WeightCategory) => {
+      if (cat.ring && cat.ring > 0) {
+        rings.add(getRingLabel(cat.ring));
+      }
+    });
+
+    if (rings.size === 0) {
+      ['A', 'B', 'C', 'D', 'E'].forEach(r => rings.add(r));
+    }
+
+    return Array.from(rings).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
+  }, [categories, ringCount, ringLabelFormat]);
+
   // Filter and compute matches
   const filteredAthletes = athleteList.filter(ath => {
     const matchesClub = selectedClub === 'all' || 
       ath.club.trim().toLowerCase() === selectedClub.trim().toLowerCase();
+    
+    const cat = categories[ath.weight];
+    const ringLabel = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+    const matchesRing = selectedRing === 'all' || ringLabel.toUpperCase() === selectedRing.toUpperCase();
+
     const matchesSearch = 
       ath.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       ath.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ath.weight.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesScheduled = !showOnlyScheduled || !!brackets[ath.weight];
-    return matchesClub && matchesSearch && matchesScheduled;
+    return matchesClub && matchesRing && matchesSearch && matchesScheduled;
   });
 
-  // Group sorted athletes
+  // Group sorted athletes - SHOW BY RING, START FROM RING A, THEN RING B, C, D, E...
   const sortedAthletes = [...filteredAthletes].sort((a, b) => {
-    const clubCompare = a.club.localeCompare(b.club);
+    const catA = categories[a.weight];
+    const catB = categories[b.weight];
+    const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+    const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+
+    // 1. Primary sort: Start from Ring A, then Ring B, C, D, E...
+    if (ringA !== ringB) return ringA - ringB;
+
+    // 2. Secondary sort: Division / category
+    const catCompare = (a.weight || '').localeCompare(b.weight || '');
+    if (catCompare !== 0) return catCompare;
+
+    // 3. Tertiary sort: Club
+    const clubCompare = (a.club || '').localeCompare(b.club || '');
     if (clubCompare !== 0) return clubCompare;
-    return a.name.localeCompare(b.name);
+
+    // 4. Competitor Name
+    return (a.name || '').localeCompare(b.name || '');
   });
 
-  // Grouped results map for classic card layout style
+  // Group athletes by ring strictly in sequence: Ring A, Ring B, Ring C, Ring D, Ring E...
+  const athletesGroupedByRing = React.useMemo(() => {
+    const map: Record<string, typeof sortedAthletes> = {};
+    sortedAthletes.forEach(ath => {
+      const cat = categories[ath.weight];
+      const ring = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+      if (!map[ring]) map[ring] = [];
+      map[ring].push(ath);
+    });
+
+    const sortedRingKeys = Object.keys(map).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
+    return sortedRingKeys.map(ringKey => ({
+      ring: ringKey,
+      athletes: map[ringKey]
+    }));
+  }, [sortedAthletes, categories, ringLabelFormat]);
+
+  // Grouped results map for classic card layout style (with internal athletes sorted by Ring A, B, C, D, E...)
   const groupedResults: Record<string, typeof athleteList> = {};
   filteredAthletes.forEach(ath => {
     if (!groupedResults[ath.club]) {
@@ -1276,6 +1389,39 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     }
     groupedResults[ath.club].push(ath);
   });
+  Object.keys(groupedResults).forEach(club => {
+    groupedResults[club].sort((a, b) => {
+      const catA = categories[a.weight];
+      const catB = categories[b.weight];
+      const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+      const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+      if (ringA !== ringB) return ringA - ringB;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  });
+
+  // Grouped by Ring for Classic Cards when viewing by ring
+  const ringGroupedCards = React.useMemo(() => {
+    const map: Record<string, typeof athleteList> = {};
+    filteredAthletes.forEach(ath => {
+      const cat = categories[ath.weight];
+      const ring = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+      if (!map[ring]) map[ring] = [];
+      map[ring].push(ath);
+    });
+    const sortedRingKeys = Object.keys(map).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
+    return sortedRingKeys.map(ringKey => ({
+      ringName: ringKey === 'Unassigned' ? 'Unassigned Ring' : `Ring ${ringKey}`,
+      ringKey,
+      athletes: map[ringKey].sort((a, b) => {
+        const catCompare = (a.weight || '').localeCompare(b.weight || '');
+        if (catCompare !== 0) return catCompare;
+        const clubCompare = (a.club || '').localeCompare(b.club || '');
+        if (clubCompare !== 0) return clubCompare;
+        return a.name.localeCompare(b.name);
+      })
+    }));
+  }, [filteredAthletes, categories, ringLabelFormat]);
 
   const visibleClubsForCards = Object.keys(groupedResults).sort((a, b) => a.localeCompare(b));
   const medalStandings = computeMedalStandings();
@@ -1677,6 +1823,43 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   />
                 </div>
 
+                {/* Ring Filter Pills (Start from Ring A, then Ring B, C, D, E...) */}
+                {activeReportStyle !== 'medal-standings' && ringList.length > 0 && (
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs overflow-x-auto max-w-full">
+                    <span className="text-[10px] font-black uppercase text-slate-500 px-1.5 flex items-center gap-1 shrink-0">
+                      <span>🥋</span>
+                      <span>Ring:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRing('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer shrink-0 ${
+                        selectedRing === 'all'
+                          ? 'bg-slate-900 text-amber-400 shadow-xs'
+                          : 'text-slate-650 hover:text-slate-900 hover:bg-white/70'
+                      }`}
+                      title="Show all rings in sequence: Ring A, then Ring B, C, D, E..."
+                    >
+                      All (A → E)
+                    </button>
+                    {ringList.map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setSelectedRing(r)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer shrink-0 ${
+                          selectedRing === r
+                            ? 'bg-slate-900 text-amber-400 shadow-xs'
+                            : 'text-slate-650 hover:text-slate-900 hover:bg-white/70'
+                        }`}
+                        title={`Filter specifically to Ring ${r}`}
+                      >
+                        Ring {r}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Club Dropdown Filter */}
                 <select
                   value={selectedClub}
@@ -1762,23 +1945,46 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#cbd5e1]">
-                    {sortedAthletes.map((ath, idx) => {
-                      const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
-                      const fightInfo = playersMap[athKey];
-                      const athleteBouts = fightInfo?.bouts || [];
-
+                    {athletesGroupedByRing.map(group => {
+                      const ringColors = getRingColorClasses(group.ring);
                       return (
-                        <tr 
-                          key={`${athKey}||${idx}`} 
-                          className="hover:bg-slate-50/50 transition-colors bg-white print:hover:bg-transparent duration-150"
-                        >
-                          {/* Ring and Division */}
-                          <td className="px-4 py-3 border border-[#cbd5e1] align-middle bg-slate-50/20 print:bg-transparent">
-                            <span className={`font-extrabold text-[11px] block uppercase tracking-wide ${
-                              fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400 font-bold' : 'text-[#0c2e5c]'
-                            }`}>
-                              {fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`}
-                            </span>
+                        <React.Fragment key={`ring-group-${group.ring}`}>
+                          {/* Distinct Ring Header Banner */}
+                          <tr className="bg-[#081d3a] text-white print:bg-slate-200 print:text-black">
+                            <td colSpan={10} className="px-4 py-2.5 border border-[#cbd5e1] font-black uppercase tracking-wider text-xs">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                  <span className={`px-2.5 py-0.5 rounded-md font-black text-xs font-mono shadow-xs ${ringColors.tag}`}>
+                                    {group.ring === 'Unassigned' ? 'NO RING' : `RING ${group.ring}`}
+                                  </span>
+                                  <span className="text-white font-black print:text-black text-xs tracking-wide">
+                                    {group.ring === 'Unassigned' ? 'Unassigned Ring Categories' : `Competition Mat / Ring ${group.ring}`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3 text-[11px] font-mono text-slate-300 print:text-slate-700 font-bold">
+                                  <span>{group.athletes.length} Competitor{group.athletes.length === 1 ? '' : 's'}</span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {group.athletes.map((ath, idx) => {
+                            const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+                            const fightInfo = playersMap[athKey];
+                            const athleteBouts = fightInfo?.bouts || [];
+
+                            return (
+                              <tr 
+                                key={`${athKey}||${idx}`} 
+                                className="hover:bg-slate-50/50 transition-colors bg-white print:hover:bg-transparent duration-150"
+                              >
+                                {/* Ring and Division */}
+                                <td className="px-4 py-3 border border-[#cbd5e1] align-middle bg-slate-50/20 print:bg-transparent">
+                                  <span className={`font-extrabold text-[11px] block uppercase tracking-wide ${
+                                    fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400 font-bold' : 'text-[#0c2e5c]'
+                                  }`}>
+                                    {fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`}
+                                  </span>
                             <span className="text-slate-500 text-[10px] block mt-0.5 font-bold leading-tight uppercase font-sans">
                               {ath.weight}
                             </span>
@@ -1840,8 +2046,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                             );
                           })}
                         </tr>
-                      );
-                    })}
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -1850,18 +2059,28 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
           {/* STYLE 4: INDIVIDUAL LOOKUP LAYOUT */}
           {activeReportStyle === 'individual-lookup' && (() => {
-            // Filter athlete list based on searchQuery and selectedClub
+            // Filter athlete list based on searchQuery, selectedClub, and selectedRing
             const filteredAthletesForLookup = athleteList.filter(ath => {
               const matchesSearch = searchQuery.trim() === '' || 
                 ath.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 ath.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 ath.weight.toLowerCase().includes(searchQuery.toLowerCase());
               const matchesClub = selectedClub === 'all' || ath.club === selectedClub;
-              return matchesSearch && matchesClub;
+              const cat = categories[ath.weight];
+              const ringLabel = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+              const matchesRing = selectedRing === 'all' || ringLabel.toUpperCase() === selectedRing.toUpperCase();
+              return matchesSearch && matchesClub && matchesRing;
             });
 
-            // Sort them by name
-            filteredAthletesForLookup.sort((a, b) => a.name.localeCompare(b.name));
+            // Sort them starting from Ring A, then Ring B, C, D, E... then competitor name
+            filteredAthletesForLookup.sort((a, b) => {
+              const catA = categories[a.weight];
+              const catB = categories[b.weight];
+              const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+              const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+              if (ringA !== ringB) return ringA - ringB;
+              return a.name.localeCompare(b.name);
+            });
 
             return (
               <div className="space-y-6">
@@ -2251,86 +2470,293 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
           {/* STYLE 2: CLASSIC CARD DECK LAYOUT */}
           {activeReportStyle === 'classic-cards' && (
-            visibleClubsForCards.length === 0 ? (
-              <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 font-medium text-sm no-print">
-                No matches found matching filter credentials.
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {visibleClubsForCards.map(clubName => {
-                  const clubAthletes = groupedResults[clubName] || [];
-                  const stats = clubStatsMap[clubName] || { athleteCount: 0, boutsCount: 0 };
+            <div className="space-y-6">
+              {/* Card Grouping Switcher */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200/80 p-2.5 rounded-2xl no-print">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <span>📋 View Mode:</span>
+                  </span>
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setCardsGroupMode('ring')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                        cardsGroupMode === 'ring'
+                          ? 'bg-slate-900 text-amber-400 shadow-xs'
+                          : 'text-slate-650 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      🥋 Show by Ring (Ring A, then B, C, D, E)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCardsGroupMode('club')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                        cardsGroupMode === 'club'
+                          ? 'bg-slate-900 text-amber-400 shadow-xs'
+                          : 'text-slate-650 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      🏢 Show by Club
+                    </button>
+                  </div>
+                </div>
 
-                  return (
-                    <div key={clubName} className="bg-slate-50/60 rounded-2xl border border-slate-200 overflow-hidden shadow-xs print:border-0 print:shadow-none print:bg-white print:p-0 page-break-inside-avoid print:mt-4 print:mb-8">
-                      {/* Club Header Row */}
-                      <div className="bg-slate-900 px-5 py-3.5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:bg-slate-150 print:text-black print:border-b-2 print:border-slate-900 print:px-2 print:py-2">
-                        <div className="flex items-center gap-2.5">
-                          <Users className="w-5 h-5 text-amber-400 shrink-0 print:hidden" />
-                          <div>
-                            <h3 className="font-extrabold text-base tracking-tight text-white print:text-slate-950 font-sans print:font-black flex flex-wrap items-center gap-2">
-                              <span>{clubName}</span>
-                              {(() => {
-                                const stats = medalStandings.find(s => s.clubName === clubName);
-                                if (!stats || stats.points === 0) return null;
-                                return (
-                                  <span className="bg-amber-450/15 text-amber-300 border border-amber-400/30 text-[10px] uppercase font-black px-1.5 py-0.5 rounded shadow-2xs leading-none">
-                                    🏆 {stats.points} pts
-                                  </span>
-                                );
-                              })()}
-                            </h3>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 print:text-slate-600">
-                              Battle Card Deck &amp; Fighter Roster
-                            </p>
+                <span className="text-[11px] font-mono text-slate-500 font-bold">
+                  {cardsGroupMode === 'ring' ? `${ringGroupedCards.length} Rings Active` : `${visibleClubsForCards.length} Clubs`}
+                </span>
+              </div>
+
+              {cardsGroupMode === 'ring' ? (
+                /* CARDS GROUPED BY RING (Start from Ring A, then Ring B, C, D, E...) */
+                ringGroupedCards.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 font-medium text-sm no-print">
+                    No matches found for selected ring and filter criteria.
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {ringGroupedCards.map(ringCard => {
+                      const ringColors = getRingColorClasses(ringCard.ringKey);
+                      let boutsCount = 0;
+                      ringCard.athletes.forEach(a => {
+                        const athKey = `${a.name}||${a.club}||${a.weight}`;
+                        boutsCount += playersMap[athKey]?.bouts.length || 0;
+                      });
+
+                      return (
+                        <div key={`ring-card-${ringCard.ringKey}`} className="bg-slate-50/60 rounded-2xl border border-slate-200 overflow-hidden shadow-xs print:border-0 print:shadow-none print:bg-white print:p-0 page-break-inside-avoid print:mt-4 print:mb-8">
+                          {/* Ring Header Row */}
+                          <div className="bg-slate-900 px-5 py-3.5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:bg-slate-150 print:text-black print:border-b-2 print:border-slate-900 print:px-2 print:py-2">
+                            <div className="flex items-center gap-3">
+                              <span className={`w-8 h-8 rounded-xl font-black text-sm flex items-center justify-center font-mono shadow-xs ${ringColors.tag}`}>
+                                {ringCard.ringKey === 'Unassigned' ? '?' : ringCard.ringKey}
+                              </span>
+                              <div>
+                                <h3 className="font-extrabold text-base tracking-tight text-white print:text-slate-950 font-sans print:font-black flex flex-wrap items-center gap-2">
+                                  <span>{ringCard.ringName}</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 print:text-slate-600">
+                                  Competition Mat Card Deck &amp; Fighter Progression
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs font-mono shrink-0">
+                              <span className="bg-slate-800 text-slate-200 px-2.5 rounded-md py-1 font-bold print:border print:border-slate-400 print:text-black print:bg-white">
+                                {ringCard.athletes.length} Athlete{ringCard.athletes.length === 1 ? '' : 's'}
+                              </span>
+                              <span className="bg-amber-400 text-slate-950 font-black px-2.5 rounded-md py-1 uppercase tracking-wide print:border print:border-slate-800">
+                                {boutsCount} Scheduled Bout{boutsCount === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Athlete Matchup Cards Grid */}
+                          <div className="p-4 md:p-5 divide-y divide-slate-200/80 bg-white print:px-1 print:py-2">
+                            {ringCard.athletes.map((ath, idx) => {
+                              const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+                              const fightInfo = playersMap[athKey];
+                              const athleteBouts = fightInfo?.bouts || [];
+
+                              return (
+                                <div key={`${athKey}||${idx}`} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
+                                  {/* Left column: Competitor Info */}
+                                  <div className="min-w-[220px]">
+                                    <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 font-sans print:text-black">
+                                      <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0 print:hidden" />
+                                      {ath.name}
+                                    </p>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <span className="bg-slate-105 hover:bg-slate-200/80 text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wide border border-slate-200/60 print:bg-white print:border print:border-slate-300">
+                                        {ath.weight}
+                                      </span>
+                                      <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                        {ath.club}
+                                      </span>
+                                      <span className={`text-[10px] font-black font-mono px-2 py-0.5 rounded-md border ${
+                                        ringCard.ringKey === 'Unassigned' ? 'text-slate-400 bg-slate-100 border-slate-200' : ringColors.bg
+                                      }`}>
+                                        {ringCard.ringKey === 'Unassigned' ? 'No Mat Assigned' : `Mat / Ring: ${ringCard.ringKey}`}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Right column: Bouts list cards */}
+                                  <div className="flex-1">
+                                    {athleteBouts.length === 0 ? (
+                                      (() => {
+                                        const hasBracket = !!brackets[ath.weight];
+                                        if (!hasBracket) {
+                                          return (
+                                            <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
+                                              <ShieldAlert className="w-4.5 h-4.5 text-slate-400 shrink-0" />
+                                              <div>
+                                                <p className="text-[11px] font-bold text-slate-500 leading-snug">
+                                                  No Bracket Drawn Yet
+                                                </p>
+                                                <p className="text-[9px] text-slate-400 mt-0.5">
+                                                  This category has not been drawn or assigned a competition ring to generate combat matching.
+                                                </p>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        return (
+                                          <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
+                                            {isPublicView ? (
+                                              <Check className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                            ) : (
+                                              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                            )}
+                                            <div>
+                                              <p className="text-[11px] font-bold text-slate-800 leading-snug">
+                                                Waiting / Bye Allocation
+                                              </p>
+                                              <p className="text-[9px] text-slate-500 mt-0.5">
+                                                This competitor starts the bracket tree with an initial Bye slot.
+                                              </p>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()
+                                    ) : (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {athleteBouts.map(bout => {
+                                          const isRed = bout.corner === 'H';
+                                          return (
+                                            <div
+                                              key={bout.formattedId}
+                                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs hover:border-amber-500 transition-colors flex flex-col justify-between print:border print:border-slate-300"
+                                            >
+                                              <div>
+                                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span className="bg-slate-900 text-amber-400 text-[10px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                                      Bout {bout.formattedId}
+                                                    </span>
+                                                    <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
+                                                      {bout.roundName}
+                                                    </span>
+                                                  </div>
+                                                  
+                                                  <span className={`px-2 py-0.5 rounded font-black text-[9px] text-white flex items-center gap-1 uppercase ${
+                                                    isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
+                                                  }`}>
+                                                    {bout.corner === 'G' ? 'TURN' : `Corner: ${bout.corner}`}
+                                                  </span>
+                                                </div>
+
+                                                <p className="text-xs font-extrabold text-slate-800 mt-2.5 flex items-center gap-1 print:text-black">
+                                                  <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wide">Vs</span>{' '}
+                                                  {bout.opponentName}
+                                                </p>
+
+                                                {bout.opponentClub && !bout.opponentName.startsWith('Winner of') && (
+                                                  <p className="text-[10px] text-slate-500 font-bold italic mt-1 flex items-center gap-1 pl-4">
+                                                    <span>🏠</span>
+                                                    <span>{bout.opponentClub}</span>
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                /* CARDS GROUPED BY CLUB */
+                visibleClubsForCards.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 font-medium text-sm no-print">
+                    No matches found matching filter credentials.
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {visibleClubsForCards.map(clubName => {
+                      const clubAthletes = groupedResults[clubName] || [];
+                      const stats = clubStatsMap[clubName] || { athleteCount: 0, boutsCount: 0 };
 
-                        <div className="flex items-center gap-2 text-xs font-mono shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => downloadClubReportCSV(clubName)}
-                            className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase transition-all flex items-center gap-1.5 active:scale-95 print:hidden cursor-pointer"
-                            title={`Download schedules specifically for ${clubName}`}
-                          >
-                            <Download className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Download CSV</span>
-                          </button>
-                          <span className="bg-slate-800 text-slate-200 px-2 rounded-md py-0.5 font-bold print:border print:border-slate-400 print:text-black print:bg-white">
-                            {stats.athleteCount} Athlete{stats.athleteCount === 1 ? '' : 's'}
-                          </span>
-                          <span className="bg-amber-400 text-slate-950 font-black px-2.5 rounded-md py-0.5 uppercase tracking-wide print:border print:border-slate-800">
-                            {stats.boutsCount} Scheduled Bout{stats.boutsCount === 1 ? '' : 's'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Athlete Matchup Cards Grid */}
-                      <div className="p-4 md:p-5 divide-y divide-slate-200/80 bg-white print:px-1 print:py-2">
-                        {clubAthletes.map((ath, idx) => {
-                          const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
-                          const fightInfo = playersMap[athKey];
-                          const athleteBouts = fightInfo?.bouts || [];
-
-                          return (
-                            <div key={`${athKey}||${idx}`} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
-                              {/* Left column: Competitor Info */}
-                              <div className="min-w-[200px]">
-                                <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 font-sans print:text-black">
-                                  <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0 print:hidden" />
-                                  {ath.name}
+                      return (
+                        <div key={clubName} className="bg-slate-50/60 rounded-2xl border border-slate-200 overflow-hidden shadow-xs print:border-0 print:shadow-none print:bg-white print:p-0 page-break-inside-avoid print:mt-4 print:mb-8">
+                          {/* Club Header Row */}
+                          <div className="bg-slate-900 px-5 py-3.5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:bg-slate-150 print:text-black print:border-b-2 print:border-slate-900 print:px-2 print:py-2">
+                            <div className="flex items-center gap-2.5">
+                              <Users className="w-5 h-5 text-amber-400 shrink-0 print:hidden" />
+                              <div>
+                                <h3 className="font-extrabold text-base tracking-tight text-white print:text-slate-950 font-sans print:font-black flex flex-wrap items-center gap-2">
+                                  <span>{clubName}</span>
+                                  {(() => {
+                                    const stats = medalStandings.find(s => s.clubName === clubName);
+                                    if (!stats || stats.points === 0) return null;
+                                    return (
+                                      <span className="bg-amber-450/15 text-amber-300 border border-amber-400/30 text-[10px] uppercase font-black px-1.5 py-0.5 rounded shadow-2xs leading-none">
+                                        🏆 {stats.points} pts
+                                      </span>
+                                    );
+                                  })()}
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 print:text-slate-600">
+                                  Battle Card Deck &amp; Fighter Roster (Sorted by Ring A → E)
                                 </p>
-                                <div className="mt-1 flex flex-wrap items-center gap-2">
-                                  <span className="bg-slate-105 hover:bg-slate-200/80 text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wide border border-slate-200/60 print:bg-white print:border print:border-slate-300">
-                                    {ath.weight}
-                                  </span>
-                                  <span className={`text-[11px] font-bold font-mono ${
-                                    fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400' : 'text-slate-500'
-                                  }`}>
-                                    {fightInfo?.ringLabel === 'Unassigned' ? 'No Allocation' : `Mat / Ring: ${fightInfo?.ringLabel || 'A'}`}
-                                  </span>
-                                </div>
                               </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs font-mono shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => downloadClubReportCSV(clubName)}
+                                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase transition-all flex items-center gap-1.5 active:scale-95 print:hidden cursor-pointer"
+                                title={`Download schedules specifically for ${clubName}`}
+                              >
+                                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Download CSV</span>
+                              </button>
+                              <span className="bg-slate-800 text-slate-200 px-2 rounded-md py-0.5 font-bold print:border print:border-slate-400 print:text-black print:bg-white">
+                                {stats.athleteCount} Athlete{stats.athleteCount === 1 ? '' : 's'}
+                              </span>
+                              <span className="bg-amber-400 text-slate-950 font-black px-2.5 rounded-md py-0.5 uppercase tracking-wide print:border print:border-slate-800">
+                                {stats.boutsCount} Scheduled Bout{stats.boutsCount === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Athlete Matchup Cards Grid */}
+                          <div className="p-4 md:p-5 divide-y divide-slate-200/80 bg-white print:px-1 print:py-2">
+                            {clubAthletes.map((ath, idx) => {
+                              const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+                              const fightInfo = playersMap[athKey];
+                              const athleteBouts = fightInfo?.bouts || [];
+                              const athRingColors = getRingColorClasses(fightInfo?.ringLabel || 'A');
+
+                              return (
+                                <div key={`${athKey}||${idx}`} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
+                                  {/* Left column: Competitor Info */}
+                                  <div className="min-w-[200px]">
+                                    <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 font-sans print:text-black">
+                                      <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0 print:hidden" />
+                                      {ath.name}
+                                    </p>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <span className="bg-slate-105 hover:bg-slate-200/80 text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wide border border-slate-200/60 print:bg-white print:border print:border-slate-300">
+                                        {ath.weight}
+                                      </span>
+                                      <span className={`text-[10px] font-black font-mono px-2 py-0.5 rounded-md border ${
+                                        fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400 bg-slate-100 border-slate-200' : athRingColors.bg
+                                      }`}>
+                                        {fightInfo?.ringLabel === 'Unassigned' ? 'No Allocation' : `Mat / Ring: ${fightInfo?.ringLabel || 'A'}`}
+                                      </span>
+                                    </div>
+                                  </div>
 
                               {/* Right column: Bouts list cards */}
                               <div className="flex-1">
@@ -2427,6 +2853,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               </div>
             )
           )}
+        </div>
+      )}
 
           {/* STYLE 3: CLUB MEDAL STANDINGS LAYOUT */}
           {activeReportStyle === 'medal-standings' && (() => {
@@ -2702,13 +3130,6 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
           {/* STYLE 5: BOUTCHART (BRACKETS) LAYOUT */}
           {activeReportStyle === 'boutchart' && (() => {
-            const getRingLabel = (idx: string | number) => {
-              if (ringLabelFormat === 'letter') {
-                return String.fromCharCode(64 + parseInt(String(idx)));
-              }
-              return String(idx);
-            };
-
             const bracketsToRenderKeys = Object.keys(brackets).filter(key => {
               const model = brackets[key];
               if (!model || !model.nodes || Object.keys(model.nodes).length === 0) return false;
@@ -2716,15 +3137,24 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                 // Check if any node in the bracket belongs to the selected club
                 return model.nodes.some(round => round && round.some(n => n && n.club === selectedClub));
               }
+              if (selectedRing !== 'all') {
+                const cat = categories[key];
+                const catRing = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+                return catRing.toUpperCase() === selectedRing.toUpperCase();
+              }
               return true;
             }).sort((a, b) => {
               const catA = categories[a];
               const catB = categories[b];
+              const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
+              const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
+              
+              // PRIMARY SORT: Start from Ring A, then Ring B, C, D, E...
+              if (ringA !== ringB) return ringA - ringB;
               return compareCategoriesByAgeAndWeight(a, b, catA, catB);
             });
 
             // Ensure sequential bout numbering for Poomsae Cut-Off boutcharts:
-            // 1, 2, 3, 4, 5, 6, 7... continuously from the 1st boutchart until the last boutchart
             let poomsaeSequenceCounter = 1;
             bracketsToRenderKeys.forEach(key => {
               const model = brackets[key];
@@ -2750,31 +3180,74 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             if (bracketsToRenderKeys.length === 0) {
               return (
                 <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 font-medium text-sm no-print">
-                  No boutcharts found for the selected club.
+                  No boutcharts found for the selected {selectedRing !== 'all' ? `Ring ${selectedRing}` : 'criteria'}.
                 </div>
               );
             }
 
+            // Group brackets by ring strictly in sequence: Ring A, then Ring B, C, D, E...
+            const ringBracketsMap: Record<string, string[]> = {};
+            bracketsToRenderKeys.forEach(key => {
+              const cat = categories[key];
+              const ring = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+              if (!ringBracketsMap[ring]) ringBracketsMap[ring] = [];
+              ringBracketsMap[ring].push(key);
+            });
+
+            const sortedRingKeys = Object.keys(ringBracketsMap).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
+
             return (
-              <div className="space-y-6 print:space-y-0 pb-10">
-                {bracketsToRenderKeys.map(key => {
-                  const model = brackets[key];
-                  const cat = categories[key];
+              <div className="space-y-10 print:space-y-6 pb-10">
+                {sortedRingKeys.map(rKey => {
+                  const keysInRing = ringBracketsMap[rKey];
+                  const ringColors = getRingColorClasses(rKey);
+
                   return (
-                    <BracketCanvas
-                      key={`boutchart-${key}`}
-                      bracket={model}
-                      ring={getRingLabel(cat?.ring || 1)}
-                      entrantCount={cat?.count || 0}
-                      layout="classic"
-                      tournamentName={tournamentName}
-                      boutLabelFormat={boutLabelFormat}
-                      isPublicView={true}
-                      onReshuffle={() => {}}
-                      onCheckboxToggle={() => {}}
-                      onTextChange={() => {}}
-                      onUpdateCutoffScores={() => {}}
-                    />
+                    <div key={`ring-section-${rKey}`} className="space-y-6">
+                      {/* Ring Header Banner */}
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl px-5 py-3.5 flex items-center justify-between text-white shadow-md print:bg-slate-100 print:text-black print:border-slate-800">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-8 h-8 rounded-xl font-black text-sm flex items-center justify-center font-mono shadow-xs ${ringColors.tag}`}>
+                            {rKey === 'Unassigned' ? '?' : rKey}
+                          </span>
+                          <div>
+                            <h3 className="font-black text-base text-amber-400 print:text-black">
+                              {rKey === 'Unassigned' ? 'Unassigned Ring Categories' : `Ring ${rKey} — Boutcharts`}
+                            </h3>
+                            <p className="text-[11px] text-slate-400 print:text-slate-600 font-medium">
+                              {keysInRing.length} Division Bracket{keysInRing.length === 1 ? '' : 's'} assigned to Mat {rKey}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-slate-300 print:text-slate-800 hidden sm:inline-block">
+                          {selectedClub !== 'all' ? `Filtered by ${selectedClub}` : 'All Participating Clubs'}
+                        </span>
+                      </div>
+
+                      {/* Brackets in this Ring */}
+                      <div className="space-y-6">
+                        {keysInRing.map(key => {
+                          const model = brackets[key];
+                          const cat = categories[key];
+                          return (
+                            <BracketCanvas
+                              key={`boutchart-${key}`}
+                              bracket={model}
+                              ring={getRingLabel(cat?.ring || 1)}
+                              entrantCount={cat?.count || 0}
+                              layout="classic"
+                              tournamentName={tournamentName}
+                              boutLabelFormat={boutLabelFormat}
+                              isPublicView={true}
+                              onReshuffle={() => {}}
+                              onCheckboxToggle={() => {}}
+                              onTextChange={() => {}}
+                              onUpdateCutoffScores={() => {}}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

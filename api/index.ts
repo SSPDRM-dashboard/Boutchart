@@ -194,6 +194,64 @@ app.post("/api/reports/active_state", async (req, res) => {
   }
 });
 
+// Get saved events list for Google Studio & web sync
+app.get("/api/saved-events", async (req, res) => {
+  try {
+    if (db) {
+      try {
+        const docRef = doc(db, "reports", "saved_events_index");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const docData = docSnap.data();
+          if (docData) {
+            const list = docData.payload ? JSON.parse(docData.payload) : (docData.events || []);
+            return res.json(list);
+          }
+        }
+      } catch (fbErr) {
+        console.error("Failed to load saved_events_index from Firestore", fbErr);
+      }
+    }
+    const filePath = path.join(DATA_DIR, "saved_events_index.json");
+    if (fs.existsSync(filePath)) {
+      return res.json(JSON.parse(fs.readFileSync(filePath, "utf-8")));
+    }
+    return res.json([]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to get saved events" });
+  }
+});
+
+// Post saved events list for Google Studio & web sync
+app.post("/api/saved-events", async (req, res) => {
+  try {
+    const events = req.body;
+    if (!Array.isArray(events)) return res.status(400).json({ error: "Expected array of events" });
+
+    if (db) {
+      try {
+        const docRef = doc(db, "reports", "saved_events_index");
+        await setDoc(docRef, { payload: JSON.stringify(events), timestamp: Date.now() });
+      } catch (fbErr) {
+        console.error("Failed to save saved_events_index to Firestore", fbErr);
+      }
+    }
+
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(path.join(DATA_DIR, "saved_events_index.json"), JSON.stringify(events, null, 2), "utf-8");
+    } catch (diskErr) {
+      console.warn("Could not write saved_events_index to disk", diskErr);
+    }
+
+    res.json({ status: "ok", count: events.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to save events list" });
+  }
+});
+
 // Fetch a stored tournament report by key
 app.get("/api/reports/:id", async (req, res) => {
   try {

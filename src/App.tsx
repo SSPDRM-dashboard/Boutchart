@@ -466,7 +466,12 @@ export default function App() {
         }
       } else {
         setCurrentUser(null);
-        setSavedEvents([]);
+        try {
+          const storedEvents = safeLocalStorage.getItem(EVENTS_STORAGE_KEY);
+          if (storedEvents) {
+            setSavedEvents(JSON.parse(storedEvents));
+          }
+        } catch (e) {}
 
         const pathname = window.location.pathname;
         const isReportPath = pathname.startsWith('/report') || pathname.startsWith('/club-report');
@@ -975,11 +980,52 @@ export default function App() {
             }
           }
         }
+
+        // Also sync saved events archive index from Firestore
+        const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+        const savedSnap = await getDoc(savedIndexRef).catch(() => null);
+        if (savedSnap && savedSnap.exists()) {
+          const sData = savedSnap.data();
+          const list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
+          if (Array.isArray(list) && list.length > 0) {
+            setSavedEvents(list);
+            safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+          }
+        } else {
+          const sRes = await fetch('/api/saved-events').catch(() => null);
+          if (sRes && sRes.ok) {
+            const sEvents = await sRes.json().catch(() => null);
+            if (Array.isArray(sEvents) && sEvents.length > 0) {
+              setSavedEvents(sEvents);
+              safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(sEvents));
+            }
+          }
+        }
       } catch (e) {
         console.warn('Initial active_state sync check warning:', e);
       }
     };
     fetchActiveState();
+  }, []);
+
+  // Real-time bidirectional Saved Events Archive sync via onSnapshot
+  useEffect(() => {
+    if (getQuotaExceeded()) return;
+    const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+    const unsub = onSnapshot(savedIndexRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        const list = d.payload ? JSON.parse(d.payload) : (Array.isArray(d.events) ? d.events : []);
+        if (Array.isArray(list) && list.length > 0) {
+          setSavedEvents(list);
+          safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+        }
+      }
+    }, (err) => {
+      console.warn('Realtime saved_events_index listener warning:', err);
+    });
+
+    return () => unsub();
   }, []);
 
   // Real-time bidirectional Google Studio / Cloud Sync via onSnapshot
@@ -1052,6 +1098,28 @@ export default function App() {
         if (snapPayload.shuffleSeed !== undefined) setShuffleSeed(snapPayload.shuffleSeed);
         if (snapPayload.continuousBouts !== undefined) setContinuousBouts(snapPayload.continuousBouts);
       }
+
+      // Also sync saved events list from cloud
+      try {
+        const savedSnap = await getDoc(doc(db, 'reports', 'saved_events_index')).catch(() => null);
+        if (savedSnap && savedSnap.exists()) {
+          const sData = savedSnap.data();
+          const list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
+          if (Array.isArray(list) && list.length > 0) {
+            setSavedEvents(list);
+            safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+          }
+        } else {
+          const sRes = await fetch('/api/saved-events').catch(() => null);
+          if (sRes && sRes.ok) {
+            const sEvents = await sRes.json().catch(() => null);
+            if (Array.isArray(sEvents)) {
+              setSavedEvents(sEvents);
+              safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(sEvents));
+            }
+          }
+        }
+      } catch (e) {}
 
       if (auth.currentUser && auth.currentUser.email && !getQuotaExceeded()) {
         const currentRef = doc(db, `users/${auth.currentUser.email}/current/state`);
@@ -2068,24 +2136,45 @@ export default function App() {
     safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
     setTournamentName(finalName);
 
-    if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+    if (!getQuotaExceeded()) {
       try {
-        const eventRef = doc(db, `users/${currentUser}/events/${newId}`);
-        await setDoc(eventRef, {
-          payload: JSON.stringify(newEvent),
+        const payloadStr = JSON.stringify(newEvent);
+
+        // 1. Save specific event report in Firestore
+        const eventReportRef = doc(db, 'reports', newId);
+        await setDoc(eventReportRef, {
+          payload: payloadStr,
           id: newId,
           timestamp: newEvent.timestamp,
           tournamentName: finalName
         });
 
-        // Also publish to public active_state report
+        // 2. Save to global saved events index in Firestore so the website has all saved events
+        const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+        await setDoc(savedIndexRef, {
+          payload: JSON.stringify(updatedList),
+          timestamp: Date.now()
+        });
+
+        // 3. Update public active_state report
         const publicRef = doc(db, 'reports', 'active_state');
         await setDoc(publicRef, {
-          payload: JSON.stringify(newEvent),
+          payload: payloadStr,
           id: 'active_state',
           timestamp: newEvent.timestamp,
           tournamentName: finalName
         });
+
+        // 4. Save to user private collection if logged in
+        if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+          const eventRef = doc(db, `users/${currentUser}/events/${newId}`);
+          await setDoc(eventRef, {
+            payload: payloadStr,
+            id: newId,
+            timestamp: newEvent.timestamp,
+            tournamentName: finalName
+          });
+        }
       } catch (err: any) {
         if (isQuotaError(err)) {
           setQuotaExceeded(true);
@@ -2095,6 +2184,21 @@ export default function App() {
         }
       }
     }
+
+    // 5. Also sync to backend server API endpoints
+    try {
+      fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _reportId: newId, ...newEvent })
+      }).catch(() => {});
+
+      fetch('/api/saved-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedList)
+      }).catch(() => {});
+    } catch (e) {}
 
     setStatusMessage({
       text: `Successfully saved event "${finalName}" to library.`,
@@ -2135,6 +2239,14 @@ export default function App() {
           activePublicView: activePublicView,
           timestamp: Date.now(),
         });
+
+        if (savedEvents.length > 0) {
+          const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+          await setDoc(savedIndexRef, {
+            payload: JSON.stringify(savedEvents),
+            timestamp: Date.now()
+          });
+        }
       }
 
       try {
@@ -2146,6 +2258,14 @@ export default function App() {
             ...snapshot
           })
         });
+
+        if (savedEvents.length > 0) {
+          await fetch('/api/saved-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(savedEvents)
+          });
+        }
       } catch (e) {}
 
       setStatusMessage({
@@ -2193,11 +2313,14 @@ export default function App() {
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
         saveEventListToStorage(updatedList.sort((a, b) => b.timestamp - a.timestamp));
         
-        if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+        if (!getQuotaExceeded()) {
           try {
-            const eventRef = doc(db, `users/${currentUser}/events/${id}`);
-            await setDoc(eventRef, {
-              payload: JSON.stringify(updatedEvent),
+            const payloadStr = JSON.stringify(updatedEvent);
+
+            // 1. Update event report in Firestore
+            const eventReportRef = doc(db, 'reports', id);
+            await setDoc(eventReportRef, {
+              payload: payloadStr,
               id: id,
               timestamp: updatedEvent.timestamp,
               tournamentName: updatedEvent.tournamentName,
@@ -2206,10 +2329,17 @@ export default function App() {
               rightLogo: updatedEvent.rightLogo
             });
 
-            // Also publish to public active_state report
+            // 2. Update global saved events index in Firestore
+            const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+            await setDoc(savedIndexRef, {
+              payload: JSON.stringify(updatedList),
+              timestamp: Date.now()
+            });
+
+            // 3. Update public active_state report
             const publicRef = doc(db, 'reports', 'active_state');
             await setDoc(publicRef, {
-              payload: JSON.stringify(updatedEvent),
+              payload: payloadStr,
               id: 'active_state',
               timestamp: updatedEvent.timestamp,
               tournamentName: updatedEvent.tournamentName,
@@ -2217,6 +2347,20 @@ export default function App() {
               leftLogo2: updatedEvent.leftLogo2,
               rightLogo: updatedEvent.rightLogo
             });
+
+            // 4. Update user private collection if logged in
+            if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+              const eventRef = doc(db, `users/${currentUser}/events/${id}`);
+              await setDoc(eventRef, {
+                payload: payloadStr,
+                id: id,
+                timestamp: updatedEvent.timestamp,
+                tournamentName: updatedEvent.tournamentName,
+                leftLogo: updatedEvent.leftLogo,
+                leftLogo2: updatedEvent.leftLogo2,
+                rightLogo: updatedEvent.rightLogo
+              });
+            }
           } catch (err: any) {
             if (isQuotaError(err)) {
               setQuotaExceeded(true);
@@ -2226,6 +2370,21 @@ export default function App() {
             }
           }
         }
+
+        // 5. Also sync to backend server API
+        try {
+          fetch('/api/reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ _reportId: id, ...updatedEvent })
+          }).catch(() => {});
+
+          fetch('/api/saved-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedList)
+          }).catch(() => {});
+        } catch (e) {}
 
         setStatusMessage({
           text: `Successfully updated (overwrote) event "${existing.tournamentName}".`,
@@ -2280,6 +2439,27 @@ export default function App() {
       };
       safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 
+      // Also publish loaded event to active_state report so the website updates immediately
+      if (!getQuotaExceeded()) {
+        try {
+          const publicRef = doc(db, 'reports', 'active_state');
+          setDoc(publicRef, {
+            payload: JSON.stringify(snapshot),
+            id: 'active_state',
+            tournamentName: target.tournamentName || 'Tournament',
+            activePublicView: target.activePublicView || activePublicView,
+            timestamp: Date.now(),
+          }).catch(() => {});
+        } catch (e) {}
+      }
+      try {
+        fetch('/api/reports/active_state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot)
+        }).catch(() => {});
+      } catch (e) {}
+
       setIsEventsModalOpen(false);
       setStatusMessage({
         text: `Loaded event "${target.tournamentName}" (${target.roster?.length || 0} athletes, ${Object.keys(target.brackets || {}).length} brackets).`,
@@ -2312,10 +2492,19 @@ export default function App() {
         const updatedList = savedEvents.filter(e => e.id !== id);
         saveEventListToStorage(updatedList);
 
-        if (!getQuotaExceeded() && currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+        if (!getQuotaExceeded()) {
           try {
-            const eventRef = doc(db, `users/${currentUser}/events/${id}`);
-            await deleteDoc(eventRef);
+            const savedIndexRef = doc(db, 'reports', 'saved_events_index');
+            await setDoc(savedIndexRef, {
+              payload: JSON.stringify(updatedList),
+              timestamp: Date.now()
+            });
+            await deleteDoc(doc(db, 'reports', id)).catch(() => {});
+
+            if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
+              const eventRef = doc(db, `users/${currentUser}/events/${id}`);
+              await deleteDoc(eventRef);
+            }
           } catch (err: any) {
             if (isQuotaError(err)) {
               setQuotaExceeded(true);
@@ -2324,6 +2513,14 @@ export default function App() {
             }
           }
         }
+
+        try {
+          fetch('/api/saved-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedList)
+          }).catch(() => {});
+        } catch (e) {}
 
         if (currentEventId === id) {
           setCurrentEventId(null);
@@ -4388,6 +4585,7 @@ export default function App() {
                   categories={categories}
                   brackets={brackets}
                   roster={roster}
+                  ringCount={ringCount}
                   ringLabelFormat={ringLabelFormat}
                   boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
@@ -4423,6 +4621,7 @@ export default function App() {
                   categories={categories}
                   brackets={brackets}
                   roster={roster}
+                  ringCount={ringCount}
                   ringLabelFormat={ringLabelFormat}
                   boutLabelFormat={boutLabelFormat}
                   tournamentName={tournamentName}
