@@ -1927,6 +1927,12 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
           }}
         />
       )}
+
+      {/* Event Name at the right bottom corner */}
+      <div className="mt-8 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider px-2">
+        <span>{bracket.categoryKey ? `Division: ${bracket.categoryKey}` : ''}</span>
+        <span className="font-black text-slate-500 tracking-widest">{tournamentName || 'Tournament Event'}</span>
+      </div>
     </div>
   );
 };

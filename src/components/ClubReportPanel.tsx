@@ -3493,8 +3493,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                       entrantCount={cat?.count || 0}
                                       layout="classic"
                                       tournamentName={tournamentName}
+                                      leftLogo={leftLogo}
+                                      leftLogo2={leftLogo2}
+                                      rightLogo={rightLogo}
+                                      rightLogo2={rightLogo2}
                                       boutLabelFormat={boutLabelFormat}
-                                      isPublicView={true}
+                                      isPublicView={effectivePublicView}
                                       onReshuffle={() => {}}
                                       onCheckboxToggle={() => {}}
                                       onTextChange={() => {}}
