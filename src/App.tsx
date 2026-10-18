@@ -835,6 +835,15 @@ export default function App() {
     }
   }, [isPublicReportOnly]);
 
+  // Ensure currentEventId is always established if tournament data is loaded or exists
+  useEffect(() => {
+    if ((tournamentName.trim() || roster.length > 0 || Object.keys(brackets).length > 0) && !currentEventId) {
+      const generatedId = 'event_' + Date.now();
+      setCurrentEventId(generatedId);
+      safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, generatedId);
+    }
+  }, [tournamentName, roster.length, brackets, currentEventId]);
+
   // 2. Automatic State Persistence Debouncer
   useEffect(() => {
     if (isPublicReportOnly) return; // Skip saving in public view to avoid overwriting local admin state
@@ -4156,7 +4165,7 @@ export default function App() {
                   </p>
                 </div>
               )
-            ) : (!tournamentName || !currentEventId) && !isPublicReportOnly && activeTab !== 'four-group' && activeTab !== 'pdf-bracket' ? (
+            ) : (!tournamentName && roster.length === 0 && bracketKeys.length === 0) && !isPublicReportOnly && activeTab !== 'four-group' && activeTab !== 'pdf-bracket' ? (
               <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-3xl p-8 md:p-10 shadow-xl space-y-8 no-print animate-fade-in">
                 <div className="text-center space-y-3">
                   <div className="inline-flex bg-amber-500/10 p-5 rounded-full border border-amber-500/20 text-amber-500 mb-2">
