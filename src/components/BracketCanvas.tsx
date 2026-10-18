@@ -49,44 +49,56 @@ interface BracketCanvasProps {
 function getFormattedBout(
   ring: string | number,
   boutNumber: number | undefined,
-  boutLabelFormat: string = 'alpha-2'
+  boutLabelFormat: string = 'alpha-2',
+  isPoomsae: boolean = false
 ): string {
-  if (boutNumber === undefined) return '';
+  if (boutNumber === undefined || boutNumber === null) return '';
 
-  let ringNum = 1;
-  let ringLetter = 'A';
+  let ringPrefix = 'A';
   if (typeof ring === 'number') {
-    ringNum = ring;
-    ringLetter = String.fromCharCode(64 + Math.max(1, ringNum));
+    ringPrefix = ring > 0 && ring <= 26 ? String.fromCharCode(64 + ring) : String(ring || 'A');
   } else {
-    const cleaned = String(ring).trim().toUpperCase();
-    if (/^[A-Z]$/.test(cleaned)) {
-      ringLetter = cleaned;
-      ringNum = cleaned.charCodeAt(0) - 64;
+    const cleaned = String(ring).trim();
+    const upper = cleaned.toUpperCase();
+    const letterMatch = upper.match(/RING\s*([A-Z])/i) || upper.match(/^([A-Z])$/);
+    if (letterMatch) {
+      ringPrefix = letterMatch[1];
     } else {
-      const numMatch = cleaned.match(/\d+$/);
-      if (numMatch) {
-        ringNum = parseInt(numMatch[0], 10);
-        ringLetter = String.fromCharCode(64 + Math.max(1, ringNum));
-      } else {
-        const letterMatch = cleaned.match(/[A-Z]$/);
-        if (letterMatch) {
-          ringLetter = letterMatch[0];
-          ringNum = letterMatch[0].charCodeAt(0) - 64;
+      const anyLetter = upper.match(/[A-Z]/);
+      const numMatch = cleaned.match(/\d+/);
+      if (anyLetter && !numMatch) {
+        ringPrefix = anyLetter[0];
+      } else if (numMatch && !anyLetter) {
+        const n = parseInt(numMatch[0], 10);
+        if (n >= 1 && n <= 26) {
+          ringPrefix = String.fromCharCode(64 + n);
+        } else {
+          ringPrefix = numMatch[0];
         }
+      } else if (anyLetter) {
+        ringPrefix = anyLetter[0];
+      } else if (numMatch) {
+        const n = parseInt(numMatch[0], 10);
+        if (n >= 1 && n <= 26) {
+          ringPrefix = String.fromCharCode(64 + n);
+        } else {
+          ringPrefix = numMatch[0];
+        }
+      } else {
+        ringPrefix = cleaned || 'A';
       }
     }
   }
 
-  if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+  const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
+  const pad = String(boutNumber).padStart(padLength, '0');
 
-  if (boutLabelFormat === 'thousands-3') {
-    const pad = String(boutNumber).padStart(3, '0');
-    return `${ringNum}${pad}`;
-  } else {
-    const pad = String(boutNumber).padStart(2, '0');
-    return `${ringLetter}${pad}`;
+  if (isPoomsae) {
+    const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
+    return `${prefix}${pad}`;
   }
+
+  return `${ringPrefix}${pad}`;
 }
 
 export const BracketCanvas: React.FC<BracketCanvasProps> = ({
@@ -119,6 +131,12 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [isAutoFit, setIsAutoFit] = useState(true);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const isCategoryPoomsae = Boolean(
+    bracket?.systemType === 'poomsae-cutoff' ||
+    bracket?.systemType === 'poomsae-pk' ||
+    (bracket?.categoryKey && bracket.categoryKey.toLowerCase().includes('poomsae'))
+  );
   const [showModal, setShowModal] = useState(false);
   const [selectedLeafIndex, setSelectedLeafIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
@@ -878,7 +896,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         n => n && !n.isBye && n.name === ath.athleteName && (n.club ? n.club === ath.athleteClub : true)
                       );
                       const boutNum = matchingNode?.bout ?? (ath as any).bout ?? (ath as any).boutNumber ?? (idx + 1);
-                      const formattedBout = getFormattedBout(ring, boutNum, boutLabelFormat);
+                      const formattedBout = getFormattedBout(ring, boutNum, boutLabelFormat, true);
 
                       return (
                         <tr key={`${scoreKey}||${idx}`} className="hover:bg-slate-50/50 transition-all text-slate-700">
@@ -1073,7 +1091,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           height: `${BOUT_BOX_H}px`,
                         }}
                       >
-                        {getFormattedBout(ring, node.bout, boutLabelFormat)}
+                        {getFormattedBout(ring, node.bout, boutLabelFormat, Boolean(node.isPoomsae || isCategoryPoomsae))}
                       </div>
                    )
                 }
@@ -1096,7 +1114,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                       height: `${BOUT_BOX_H}px`,
                     }}
                   >
-                    {getFormattedBout(ring, node.bout, boutLabelFormat)}
+                    {getFormattedBout(ring, node.bout, boutLabelFormat, Boolean(node.isPoomsae || isCategoryPoomsae))}
                   </div>
                 );
               });
@@ -1441,7 +1459,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   >
                     {hasBout ? (
                       <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">
-                        FINAL · {getFormattedBout(ring, node.bout, boutLabelFormat)}
+                        FINAL · {getFormattedBout(ring, node.bout, boutLabelFormat, Boolean(node.isPoomsae || isCategoryPoomsae))}
                       </span>
                     ) : (
                       <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">

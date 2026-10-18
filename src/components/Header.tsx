@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenEventsModal: () => void;
   onSaveEvent: () => void;
   onPublishToPublic?: () => void;
+  onSyncWithCloud?: () => void;
   onNewEvent: () => void;
   savedEventsCount: number;
   isPublicView?: boolean;
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
   onOpenEventsModal,
   onSaveEvent,
   onPublishToPublic,
+  onSyncWithCloud,
   onNewEvent,
   savedEventsCount,
   onLogout,
@@ -132,6 +134,18 @@ export const Header: React.FC<HeaderProps & { onLogout: () => void; currentUser:
                       <span>📢</span>
                       <span className="hidden sm:inline">Sync Public Web</span>
                     </button>
+
+                    {onSyncWithCloud && (
+                      <button
+                        type="button"
+                        onClick={onSyncWithCloud}
+                        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-black bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-400 rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm"
+                        title="Sync data between Google Studio / Cloud and Web App"
+                      >
+                        <span>🔄</span>
+                        <span className="hidden sm:inline">Google Studio Sync</span>
+                      </button>
+                    )}
                   </>
                 )}
 

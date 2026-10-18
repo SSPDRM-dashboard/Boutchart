@@ -17,7 +17,7 @@ interface CategoriesPanelProps {
   onUpdateRingGenderSequence?: (mode: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only') => void;
   shuffleSeed: boolean;
   setShuffleSeed: (shuffle: boolean) => void;
-  onGenerateBrackets: (targetRing?: number, forceSequentialRingDistribute?: boolean) => void;
+  onGenerateBrackets: (targetRing?: number) => void;
   ringLabelFormat: 'number' | 'letter';
   setRingLabelFormat: (format: 'number' | 'letter') => void;
   boutLabelFormat: 'alpha-2' | 'thousands-3';
@@ -182,7 +182,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
 
           <div className="h-6 w-[1px] bg-slate-200"></div>
 
-          {/* Bout format switcher: allow admin to change between A01 to 1001, B01 to 2001 */}
+          {/* Bout format switcher: allow admin to change between X01 and X001 */}
           <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-xs">
             <button
               type="button"
@@ -192,9 +192,9 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   ? 'bg-slate-900 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
-              title="Alpha-Numeric format (e.g. A01, B01)"
+              title="2-digit format starting from X01 for each ring (e.g. Ring A: A01, Ring B: B01, Ring C: C01)"
             >
-              A01 / B01
+              X01 (e.g. A01)
             </button>
             <button
               type="button"
@@ -204,10 +204,18 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                   ? 'bg-slate-900 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
-              title="Numeric Thousands format (e.g. 1001, 2001)"
+              title="3-digit format starting from X001 for each ring (e.g. Ring A: A001, Ring B: B001, Ring C: C001)"
             >
-              1001 / 2001
+              X001 (e.g. A001)
             </button>
+          </div>
+
+          <div className="h-6 w-[1px] bg-slate-200"></div>
+
+          {/* 2 Separate Bout Sequences indicator badge */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-250 px-2.5 py-1 rounded-lg text-xs font-bold" title="Kyorugi and Poomsae have 2 separate bout numbering sequences (e.g. Kyorugi A01, Poomsae PA01) so they are never mixed together">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Separate Bout Series: Kyorugi & Poomsae</span>
           </div>
 
           <div className="h-6 w-[1px] bg-slate-200"></div>
@@ -239,38 +247,6 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
               By Stages
             </button>
           </div>
-
-          <div className="h-6 w-[1px] bg-slate-200"></div>
-
-          {/* Continuous Bouts Toggle across rings */}
-          {onToggleContinuousBouts && (
-            <div className="flex bg-white rounded-md border border-slate-200 p-0.5" title="Bout numbering counter: Reset per ring (A01, B01) vs Continuous (accumulates across rings: Ring A finishes 1st, then Ring B continues...)">
-              <button
-                type="button"
-                onClick={() => onToggleContinuousBouts(false)}
-                className={`px-2 py-1 rounded text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
-                  !continuousBouts
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                }`}
-                title="Bouts reset starting from 1 in each ring (e.g. A01, B01 or 1001, 2001)"
-              >
-                Reset Per Ring
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleContinuousBouts(true)}
-                className={`px-2 py-1 rounded text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
-                  continuousBouts
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                }`}
-                title="Continuous bout numbering across all rings (Ring A: 1..25, Ring B: 26..50, Ring C: 51..75...)"
-              >
-                Continuous (1...N)
-              </button>
-            </div>
-          )}
 
           <div className="h-6 w-[1px] bg-slate-200"></div>
 
@@ -844,9 +820,13 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                   <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
                                     Poomsae Cut-off
                                   </span>
+                                ) : cat.systemType === 'poomsae-pk' ? (
+                                  <span className="bg-cyan-100 text-cyan-800 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
+                                    Poomsae PK
+                                  </span>
                                 ) : (
-                                  <span className="text-slate-400">
-                                    {`${cat.size}-draw`}
+                                  <span className="text-slate-400 font-mono text-[9px]">
+                                    {`${cat.size}-draw Sparring`}
                                   </span>
                                 )}
                               </div>
@@ -934,10 +914,10 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-4 sm:mt-0">
               <button
                 type="button"
-                onClick={() => onGenerateBrackets(undefined, true)}
+                onClick={() => onGenerateBrackets()}
                 disabled={eligibleKeys.length === 0}
                 className="px-5 py-3 text-sm font-black text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-45 rounded-xl shadow-lg shadow-amber-500/10 border border-amber-500 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2"
-                title="Generate all brackets by ring: Ring A finishes 1st, then Ring B, then Ring C, D, E, F, G"
+                title="Generate all brackets following the categories you set in Competition Ring Allocation: Ring A finishes 1st, then Ring B, then Ring C, D, E, F, G"
               >
                 <Sparkles className="w-4 h-4 text-slate-950" />
                 <span>Generate by Ring (A → B → C...)</span>

@@ -29,10 +29,12 @@ import {
   handleSwapLeafNodes,
   shuffle,
   findDuplicateAthletes,
-  compareCategoriesByAgeAndWeight
+  compareCategoriesByAgeAndWeight,
+  countRealBouts,
+  isPoomsaeCategory
 } from './utils/bracketUtils';
 import { isQuotaError, setQuotaExceeded, getQuotaExceeded } from './utils/quotaManager';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -161,6 +163,13 @@ export default function App() {
   const [continuousBouts, setContinuousBouts] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRingFilter, setSelectedRingFilter] = useState<string | number>('all');
+  const [collapsedRings, setCollapsedRings] = useState<Record<string | number, boolean>>({});
+  const toggleRingCollapse = (ringKey: string | number) => {
+    setCollapsedRings((prev) => ({
+      ...prev,
+      [ringKey]: !prev[ringKey],
+    }));
+  };
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [pdfExportLoading, setPdfExportLoading] = useState(false);
@@ -908,6 +917,134 @@ export default function App() {
     };
   }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, ringSequenceOrders, shuffleSeed, dismissedDuplicates, activePublicView, isPublicReportOnly]);
 
+  // Auto-sync with Google Studio / Cloud active_state on mount
+  useEffect(() => {
+    const fetchActiveState = async () => {
+      try {
+        if (getQuotaExceeded()) return;
+        const publicActiveRef = doc(db, 'reports', 'active_state');
+        const snap = await getDoc(publicActiveRef).catch(() => null);
+        if (snap && snap.exists()) {
+          const d = snap.data();
+          if (d.payload) {
+            const parsed = JSON.parse(d.payload);
+            if (parsed.tournamentName && !tournamentName) {
+              setTournamentName(parsed.tournamentName);
+            }
+            if (parsed.roster && parsed.roster.length > 0 && roster.length === 0) {
+              setRoster(parsed.roster);
+            }
+            if (parsed.categories && Object.keys(parsed.categories).length > 0 && Object.keys(categories).length === 0) {
+              setCategories(parsed.categories);
+            }
+            if (parsed.brackets && Object.keys(parsed.brackets).length > 0 && Object.keys(brackets).length === 0) {
+              setBrackets(parsed.brackets);
+            }
+            if (parsed.ringCount) setRingCount(parsed.ringCount);
+            if (parsed.ringLabelFormat) setRingLabelFormat(parsed.ringLabelFormat);
+            if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
+          }
+        } else {
+          const res = await fetch('/api/reports/active_state').catch(() => null);
+          if (res && res.ok) {
+            const parsed = await res.json().catch(() => null);
+            if (parsed) {
+              if (parsed.tournamentName && !tournamentName) setTournamentName(parsed.tournamentName);
+              if (parsed.roster && parsed.roster.length > 0 && roster.length === 0) setRoster(parsed.roster);
+              if (parsed.categories && Object.keys(parsed.categories).length > 0 && Object.keys(categories).length === 0) setCategories(parsed.categories);
+              if (parsed.brackets && Object.keys(parsed.brackets).length > 0 && Object.keys(brackets).length === 0) setBrackets(parsed.brackets);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Initial active_state sync check warning:', e);
+      }
+    };
+    fetchActiveState();
+  }, []);
+
+  // Real-time bidirectional Google Studio / Cloud Sync via onSnapshot
+  useEffect(() => {
+    if (getQuotaExceeded()) return;
+    const publicActiveRef = doc(db, 'reports', 'active_state');
+    const unsubscribeSnapshot = onSnapshot(publicActiveRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.payload && data.payload !== lastWrittenPayloadRef.current) {
+          try {
+            const snap = JSON.parse(data.payload);
+            if (snap.tournamentName && snap.tournamentName !== tournamentName) {
+              setTournamentName(snap.tournamentName);
+            }
+            if (snap.roster && snap.roster.length > 0 && JSON.stringify(snap.roster) !== JSON.stringify(roster)) {
+              setRoster(snap.roster);
+            }
+            if (snap.categories && Object.keys(snap.categories).length > 0 && JSON.stringify(snap.categories) !== JSON.stringify(categories)) {
+              setCategories(snap.categories);
+            }
+            if (snap.brackets && Object.keys(snap.brackets).length > 0 && JSON.stringify(snap.brackets) !== JSON.stringify(brackets)) {
+              setBrackets(snap.brackets);
+            }
+          } catch (e) {
+            console.warn('Error parsing realtime cloud snapshot payload:', e);
+          }
+        }
+      }
+    }, (error) => {
+      console.warn('Realtime cloud snapshot listener warning:', error);
+    });
+
+    return () => unsubscribeSnapshot();
+  }, [tournamentName, roster, categories, brackets]);
+
+  const handleSyncWithCloud = async () => {
+    try {
+      if (getQuotaExceeded()) {
+        safeAlert("Quota exceeded. Operating in local storage mode.");
+        return;
+      }
+      setStatusMessage({ text: 'Syncing data with Google Studio & Cloud...', type: 'ok' });
+      
+      const publicActiveRef = doc(db, 'reports', 'active_state');
+      const snap = await getDoc(publicActiveRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.payload) {
+          const snapPayload = JSON.parse(data.payload);
+          if (snapPayload.tournamentName) setTournamentName(snapPayload.tournamentName);
+          if (snapPayload.roster) setRoster(snapPayload.roster);
+          if (snapPayload.categories) setCategories(snapPayload.categories);
+          if (snapPayload.brackets) setBrackets(snapPayload.brackets);
+          if (snapPayload.ringCount) setRingCount(snapPayload.ringCount);
+          if (snapPayload.ringLabelFormat) setRingLabelFormat(snapPayload.ringLabelFormat);
+          if (snapPayload.boutLabelFormat) setBoutLabelFormat(snapPayload.boutLabelFormat);
+          if (snapPayload.boutSequenceOrder) setBoutSequenceOrder(snapPayload.boutSequenceOrder);
+          if (snapPayload.ringSequenceOrders) setRingSequenceOrders(snapPayload.ringSequenceOrders);
+          if (snapPayload.shuffleSeed !== undefined) setShuffleSeed(snapPayload.shuffleSeed);
+          if (snapPayload.continuousBouts !== undefined) setContinuousBouts(snapPayload.continuousBouts);
+        }
+      }
+
+      if (auth.currentUser && auth.currentUser.email) {
+        const currentRef = doc(db, `users/${auth.currentUser.email}/current/state`);
+        const userStateSnap = await getDoc(currentRef);
+        if (userStateSnap.exists()) {
+          const data = userStateSnap.data();
+          const snapPayload = data.payload ? JSON.parse(data.payload) : data;
+          if (snapPayload.tournamentName) setTournamentName(snapPayload.tournamentName);
+          if (snapPayload.roster) setRoster(snapPayload.roster);
+          if (snapPayload.categories) setCategories(snapPayload.categories);
+          if (snapPayload.brackets) setBrackets(snapPayload.brackets);
+        }
+      }
+
+      setStatusMessage({ text: 'Successfully synchronized web data with Google Studio & Cloud!', type: 'ok' });
+    } catch (err: any) {
+      console.error('Cloud sync error:', err);
+      setStatusMessage({ text: `Failed to sync with cloud: ${err.message || String(err)}`, type: 'err' });
+    }
+  };
+
   // 3. Import Core Roster Handler
   const handleLoadRoster = (text: string, source: string, adminNotes?: string) => {
     if (!text.trim()) {
@@ -1612,62 +1749,16 @@ export default function App() {
   };
 
   // 5. Build/Draw Bracket Assemblies
-  const handleGenerateBrackets = (targetRing?: number, forceSequentialRingDistribute: boolean = false) => {
-    const keysAll = Object.keys(categories).sort((a, b) => {
-      const orderA = categories[a]?.order ?? 99999;
-      const orderB = categories[b]?.order ?? 99999;
-      if (orderA !== orderB) return orderA - orderB;
-      return a.localeCompare(b);
-    });
+  const handleGenerateBrackets = (targetRing?: number) => {
+    // Follow the categories exactly as set by the admin in Competition Ring Allocation - do NOT mutate or re-assign them!
+    const keysAll = Object.keys(categories);
 
-    let currentCategories = categories;
-
-    // Check active unassigned categories
-    const unassignedActive = keysAll
-      .filter((k) => categories[k].count >= 1)
-      .sort((a, b) => compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]));
-
-    // If user explicitly chose "Generate by Ring" or if no categories are allocated to rings yet when generating all rings:
-    // Sequentially allocate active categories so Ring A (1) finishes 1st, then Ring B (2), then Ring C (3), D, E, F, G
-    const shouldSequentiallyDistribute = !targetRing && (
-      forceSequentialRingDistribute || 
-      (Object.values(categories) as WeightCategory[]).filter(c => c.count >= 1).every(c => !c.ring || c.ring === 0)
-    );
-
-    if (shouldSequentiallyDistribute && unassignedActive.length > 0) {
-      const autoAllocated = { ...categories };
-      const effectiveRings = Math.max(1, ringCount);
-      const perRing = Math.ceil(unassignedActive.length / effectiveRings);
-      unassignedActive.forEach((k, idx) => {
-        const ringNum = Math.min(Math.floor(idx / perRing) + 1, effectiveRings);
-        autoAllocated[k] = { ...autoAllocated[k], ring: ringNum };
-      });
-      const arranged = autoArrangeRingsByAge(autoAllocated);
-      setCategories(arranged);
-      currentCategories = arranged;
-    }
-
-    let eligibleKeys = keysAll.filter((k) => {
+    const eligibleKeys = keysAll.filter((k) => {
       const matchesRing = !targetRing 
-        ? (currentCategories[k].ring !== undefined && currentCategories[k].ring > 0)
-        : currentCategories[k].ring === targetRing;
-      return currentCategories[k].count >= 1 && matchesRing;
+        ? (categories[k].ring !== undefined && categories[k].ring > 0)
+        : categories[k].ring === targetRing;
+      return categories[k].count >= 1 && matchesRing;
     });
-
-    // Fallback: If still no eligible keys and generating all, allocate sequentially across rings
-    if (eligibleKeys.length === 0 && !targetRing && unassignedActive.length > 0) {
-      const autoAllocated = { ...categories };
-      const effectiveRings = Math.max(1, ringCount);
-      const perRing = Math.ceil(unassignedActive.length / effectiveRings);
-      unassignedActive.forEach((k, idx) => {
-        const ringNum = Math.min(Math.floor(idx / perRing) + 1, effectiveRings);
-        autoAllocated[k] = { ...autoAllocated[k], ring: ringNum };
-      });
-      const arranged = autoArrangeRingsByAge(autoAllocated);
-      setCategories(arranged);
-      currentCategories = arranged;
-      eligibleKeys = unassignedActive;
-    }
 
     if (eligibleKeys.length === 0 && targetRing) {
       const ringLabel = ringLabelFormat === 'letter' ? String.fromCharCode(64 + targetRing) : String(targetRing);
@@ -1702,15 +1793,16 @@ export default function App() {
       return;
     }
 
-    // Strict Ring-by-Ring Ordering: Ring 1 (Ring A) finishes 1st, then Ring 2 (Ring B), then Ring 3 (Ring C), Ring 4 (Ring D), etc.
+    // Strict Ring-by-Ring Ordering: Follow the rings and category order that admin set in Competition Ring Allocation
+    // Ring 1 (Ring A) finishes 1st, then Ring 2 (Ring B), then Ring 3 (Ring C), Ring 4 (Ring D), etc.
     eligibleKeys.sort((a, b) => {
-      const ringA = currentCategories[a]?.ring || 9999;
-      const ringB = currentCategories[b]?.ring || 9999;
+      const ringA = categories[a]?.ring || 9999;
+      const ringB = categories[b]?.ring || 9999;
       if (ringA !== ringB) return ringA - ringB;
-      const orderA = currentCategories[a]?.order ?? 99999;
-      const orderB = currentCategories[b]?.order ?? 99999;
+      const orderA = categories[a]?.order ?? 99999;
+      const orderB = categories[b]?.order ?? 99999;
       if (orderA !== orderB) return orderA - orderB;
-      return compareCategoriesByAgeAndWeight(a, b, currentCategories[a], currentCategories[b]);
+      return compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]);
     });
 
     // Keep other rings' brackets when generating/regenerating specific ring only
@@ -1726,7 +1818,7 @@ export default function App() {
     }
 
     eligibleKeys.forEach((key) => {
-      const c = currentCategories[key];
+      const c = categories[key];
       let entrants = c.entrants.slice(0, 64);
       if (shuffleSeed) {
         entrants = shuffle(entrants);
@@ -1750,7 +1842,7 @@ export default function App() {
       nextBrackets[key] = model;
     });
 
-    assignAllBoutNumbers(currentCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder, continuousBouts);
+    assignAllBoutNumbers(categories, nextBrackets, ringSequenceOrders, boutSequenceOrder, continuousBouts);
     setBrackets(nextBrackets);
     setBracketSortMode('ring');
 
@@ -1776,7 +1868,7 @@ export default function App() {
     setBrackets((prev) => {
       const next = handleCheckboxToggle(prev, catKey, k, i, checked);
       // Re-number bout codes across the ring
-      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
+      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder, continuousBouts);
       return next;
     });
   };
@@ -2288,7 +2380,7 @@ export default function App() {
   };
 
   // 8. Custom High-Fidelity SVG Print Trigger
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (ringFilter?: number | string) => {
     setIsExportingPdf(true);
     // Wait for the DOM to update to render all generated brackets
     await new Promise(r => setTimeout(r, 250));
@@ -2303,13 +2395,15 @@ export default function App() {
       setIsExportingPdf(false);
     });
 
+    const activeRing = ringFilter !== undefined ? ringFilter : selectedRingFilter;
+
     // Temporarily add 'no-print' class to non-matching bracket pages so browser print ignores them
-    if (selectedRingFilter !== 'all') {
-      const allCards = document.querySelectorAll('.bracket-page-card');
+    if (activeRing !== 'all') {
+      const allCards = document.querySelectorAll('.bracket-page-card, [data-ring]');
       allCards.forEach((c) => {
         const ringAttr = c.getAttribute('data-ring');
-        const match = String(ringAttr) === String(selectedRingFilter) || 
-                      String(ringAttr) === String(getRingLabel(selectedRingFilter));
+        const match = String(ringAttr) === String(activeRing) || 
+                      String(ringAttr) === String(getRingLabel(activeRing));
         if (!match) {
           const cardEl = c as HTMLElement;
           cardEl.classList.add('no-print');
@@ -2566,36 +2660,56 @@ export default function App() {
       // Internal copy of getFormattedBout to avoid module exports mismatch
       const getFormattedBoutLabel = (
         ring: string | number,
-        boutNumber: number | undefined
+        boutNumber: number | undefined,
+        isPoomsae: boolean = false
       ): string => {
-        if (boutNumber === undefined) return '';
+        if (boutNumber === undefined || boutNumber === null) return '';
 
-        let ringNum = 1;
+        let ringPrefix = 'A';
         if (typeof ring === 'number') {
-          ringNum = ring;
+          ringPrefix = ring > 0 && ring <= 26 ? String.fromCharCode(64 + ring) : String(ring || 'A');
         } else {
-          const cleaned = String(ring).trim().toLowerCase();
-          const numMatch = cleaned.match(/\d+$/);
-          if (numMatch) {
-            ringNum = parseInt(numMatch[0], 10);
+          const cleaned = String(ring).trim();
+          const upper = cleaned.toUpperCase();
+          const letterMatch = upper.match(/RING\s*([A-Z])/i) || upper.match(/^([A-Z])$/);
+          if (letterMatch) {
+            ringPrefix = letterMatch[1];
           } else {
-            const letterMatch = cleaned.match(/[a-z]$/);
-            if (letterMatch) {
-              ringNum = letterMatch[0].charCodeAt(0) - 96;
+            const anyLetter = upper.match(/[A-Z]/);
+            const numMatch = cleaned.match(/\d+/);
+            if (anyLetter && !numMatch) {
+              ringPrefix = anyLetter[0];
+            } else if (numMatch && !anyLetter) {
+              const n = parseInt(numMatch[0], 10);
+              if (n >= 1 && n <= 26) {
+                ringPrefix = String.fromCharCode(64 + n);
+              } else {
+                ringPrefix = numMatch[0];
+              }
+            } else if (anyLetter) {
+              ringPrefix = anyLetter[0];
+            } else if (numMatch) {
+              const n = parseInt(numMatch[0], 10);
+              if (n >= 1 && n <= 26) {
+                ringPrefix = String.fromCharCode(64 + n);
+              } else {
+                ringPrefix = numMatch[0];
+              }
+            } else {
+              ringPrefix = cleaned || 'A';
             }
           }
         }
 
-        if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+        const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
+        const pad = String(boutNumber).padStart(padLength, '0');
 
-        if (boutLabelFormat === 'thousands-3') {
-          const pad = String(boutNumber).padStart(3, '0');
-          return `${ringNum}${pad}`;
-        } else {
-          const letter = String.fromCharCode(64 + ringNum);
-          const pad = String(boutNumber).padStart(2, '0');
-          return `${letter}${pad}`;
+        if (isPoomsae) {
+          const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
+          return `${prefix}${pad}`;
         }
+
+        return `${ringPrefix}${pad}`;
       };
 
       for (let index = 0; index < keysToExport.length; index++) {
@@ -2844,9 +2958,9 @@ export default function App() {
               pdf.setFontSize(8.5);
               pdf.setTextColor(15, 23, 42); // slate-900
 
-              // 1. No. (Follow sequential numbering)
-              const displayNo = rowIdx + 1;
-              const noStr = String(displayNo);
+              // 1. No. / Bout (Follow separate Poomsae bout numbering)
+              const poomsaeBout = ath.bout ?? (rowIdx + 1);
+              const noStr = getFormattedBoutLabel(ringLabel, poomsaeBout, true);
               pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
 
               // 2. Athlete / Club
@@ -3118,7 +3232,8 @@ export default function App() {
               pdf.roundedRect(rectLeft, rectTop, rectW, rectH, 1 * scale, 1 * scale, 'FD');
             }
 
-            const boutText = getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout);
+            const isCatPoomsae = Boolean(node.isPoomsae || bracket.systemType?.startsWith('poomsae') || cat?.systemType?.startsWith('poomsae') || cat?.name?.toLowerCase().includes('poomsae') || bracket.categoryKey?.toLowerCase().includes('poomsae'));
+            const boutText = getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout, isCatPoomsae);
             pdf.setTextColor(30, 41, 59);
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(Math.max(8, 60 * scale));
@@ -3297,7 +3412,8 @@ export default function App() {
                 pdf.setLineWidth(0.5);
                 pdf.roundedRect(left, top, width, champHeight, 1.5 * scale, 1.5 * scale, 'FD');
 
-                const badgeText = node.bout ? `FINAL · ${getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout)}` : 'CHAMPION';
+                const isCatPoomsae = Boolean(node.isPoomsae || bracket.systemType?.startsWith('poomsae') || cat?.systemType?.startsWith('poomsae') || cat?.name?.toLowerCase().includes('poomsae') || bracket.categoryKey?.toLowerCase().includes('poomsae'));
+                const badgeText = node.bout ? `FINAL · ${getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout, isCatPoomsae)}` : 'CHAMPION';
                 pdf.setFillColor(245, 158, 11);
                 pdf.rect(left + width / 4, top - 3 * scale, width / 2, 6 * scale, 'F');
                 pdf.setTextColor(15, 23, 42);
@@ -3397,11 +3513,32 @@ export default function App() {
       if (ringA !== ringB) {
         return ringA - ringB;
       }
+      const orderA = categories[a]?.order ?? 99999;
+      const orderB = categories[b]?.order ?? 99999;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
     }
     return compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b], ringGenderSequence as any);
   });
 
+  const activeRings = useMemo(() => {
+    const ringSet = new Set<number>();
+    Object.keys(brackets).forEach(k => {
+      const ring = categories[k]?.ring;
+      if (ring && ring > 0) ringSet.add(ring);
+    });
+    return Array.from(ringSet).sort((a, b) => a - b);
+  }, [brackets, categories]);
+
   const filteredBracketKeys = bracketKeys.filter((key) => {
+    if (selectedRingFilter !== 'all') {
+      const catRing = categories[key]?.ring || 0;
+      if (Number(selectedRingFilter) !== catRing) {
+        return false;
+      }
+    }
+
     if (!adminSearchQuery.trim()) return true;
     const lowerQuery = adminSearchQuery.trim().toLowerCase();
     
@@ -3510,6 +3647,7 @@ export default function App() {
           currentUser={currentUser}
           isPublicView={isPublicReportOnly}
           onLoginClick={handleAttemptAdminLogin}
+          onSyncWithCloud={handleSyncWithCloud}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-4 print:block print:w-full print:mt-0">
@@ -4435,6 +4573,67 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Ring Navigator: View Ring A 1st then Ring B, then Ring C, Ring D (Each ring is independent) */}
+                <div className="mb-4 bg-slate-100/90 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 px-2 flex items-center gap-1.5 font-mono">
+                      <Layers className="w-3.5 h-3.5 text-slate-400" />
+                      Ring View:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRingFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                        selectedRingFilter === 'all'
+                          ? 'bg-slate-900 text-amber-400 shadow-sm ring-1 ring-slate-800'
+                          : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                      title="Show all rings in sequence: Ring A first, then Ring B, Ring C, Ring D..."
+                    >
+                      <span>All Rings (A → B → C...)</span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md ${
+                        selectedRingFilter === 'all' ? 'bg-amber-400/20 text-amber-350' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {bracketKeys.length}
+                      </span>
+                    </button>
+
+                    {activeRings.map((rNum) => {
+                      const label = getRingLabel(rNum);
+                      const count = Object.keys(brackets).filter(k => categories[k]?.ring === rNum).length;
+                      const isSelected = selectedRingFilter === rNum || String(selectedRingFilter) === String(rNum);
+                      return (
+                        <button
+                          key={`nav-ring-${rNum}`}
+                          type="button"
+                          onClick={() => setSelectedRingFilter(rNum)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-slate-900 text-amber-400 shadow-sm ring-1 ring-slate-800'
+                              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                          title={`View Ring ${label} only (Independent ring draw)`}
+                        >
+                          <span>Ring {label}</span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md ${
+                            isSelected ? 'bg-amber-400/20 text-amber-350' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-[11px] font-semibold text-slate-500 px-2 flex items-center gap-1.5">
+                    {selectedRingFilter === 'all' ? (
+                      <span>Showing Ring A 1st, then Ring B, C, D... sequentially</span>
+                    ) : (
+                      <span>Viewing Ring {getRingLabel(selectedRingFilter)} independently</span>
+                    )}
+                  </div>
+                </div>
+
                 {/* Search Engine Input Card */}
                 <div className="mb-6 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center gap-4 no-print animate-in fade-in duration-200">
                   <div className="relative w-full flex-1">
@@ -4582,75 +4781,205 @@ export default function App() {
                     );
                   }
 
+                  // Group brackets into independent rings: Ring 1 (Ring A) 1st, then Ring 2 (Ring B), Ring 3 (Ring C), Ring 4 (Ring D)...
+                  const ringMap: Record<number, string[]> = {};
+                  bracketsToRenderKeys.forEach(k => {
+                    const r = categories[k]?.ring || 0;
+                    if (!ringMap[r]) ringMap[r] = [];
+                    ringMap[r].push(k);
+                  });
+
+                  // Sort numerically so Ring 1 (Ring A) is first, then Ring 2 (Ring B), then Ring 3 (Ring C)...
+                  const sortedRingNumbers = Object.keys(ringMap)
+                    .map(Number)
+                    .sort((a, b) => {
+                      if (a === 0) return 1;
+                      if (b === 0) return -1;
+                      return a - b;
+                    });
+
                   return (
-                    <div className="space-y-6 print:space-y-0">
-                      {bracketsToRenderKeys.map((key) => {
-                        const model = brackets[key];
-                        const cat = categories[key];
+                    <div className="space-y-10 print:space-y-0">
+                      {sortedRingNumbers.map((rNum) => {
+                        const ringKeys = ringMap[rNum] || [];
+                        const rLabel = rNum > 0 ? getRingLabel(rNum) : 'Unassigned';
+                        const isCollapsed = Boolean(collapsedRings[rNum]);
+
+                        let totalBouts = 0;
+                        let kyorugiCount = 0;
+                        let poomsaeCount = 0;
+                        let athletesCount = 0;
+
+                        ringKeys.forEach(k => {
+                          const cat = categories[k];
+                          const model = brackets[k];
+                          athletesCount += (cat?.count || 0);
+                          if (isPoomsaeCategory(k, cat, model)) {
+                            poomsaeCount++;
+                          } else {
+                            kyorugiCount++;
+                          }
+                          if (model) {
+                            totalBouts += countRealBouts(model);
+                          }
+                        });
+
                         return (
-                          <BracketCanvas
-                            key={key}
-                            bracket={model}
-                            ring={getRingLabel(cat?.ring || 1)}
-                            entrantCount={cat?.count || 0}
-                            layout={bracketLayout}
-                            tournamentName={tournamentName}
-                            leftLogo={leftLogo}
-                            leftLogo2={leftLogo2}
-                            rightLogo={rightLogo}
-                            rightLogo2={rightLogo2}
-                            onChangeLeftLogo={setLeftLogo}
-                            onChangeLeftLogo2={setLeftLogo2}
-                            onChangeRightLogo={setRightLogo}
-                            onChangeRightLogo2={setRightLogo2}
-                            boutLabelFormat={boutLabelFormat}
-                            isPublicView={isPublicReportOnly}
-                            onReshuffle={() => handleReshuffleSingleCategory(key)}
-                            onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
-                            onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
-                            onUpdateCutoffScores={(nextScores) => {
-                              setBrackets((prev) => {
-                                const existing = prev[key];
-                                if (!existing) return prev;
-                                return {
-                                  ...prev,
-                                  [key]: {
-                                    ...existing,
-                                    cutoffScores: nextScores,
-                                  },
-                                };
-                              });
-                            }}
-                            onUpdateStandings={(nextStandings) => {
-                              setBrackets((prev) => {
-                                const existing = prev[key];
-                                if (!existing) return prev;
-                                return {
-                                  ...prev,
-                                  [key]: {
-                                    ...existing,
-                                    standings: nextStandings,
-                                  },
-                                };
-                              });
-                            }}
-                            onUpdateLeafNode={(i, name, club, isBye) => {
-                              setBrackets((prev) => {
-                                const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
-                                assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
-                                return next;
-                              });
-                            }}
-                            onSwapLeafNodes={(i, j) => {
-                              setBrackets((prev) => {
-                                const next = handleSwapLeafNodes(prev, key, i, j);
-                                assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
-                                return next;
-                              });
-                            }}
-                            categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
-                            onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
-                          />
+                          <div 
+                            key={`ring-block-${rNum}`}
+                            className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden print:border-none print:shadow-none print:break-before-page"
+                            data-ring={rNum}
+                          >
+                            {/* Independent Ring Header */}
+                            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-850 text-white p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800">
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black text-xl shadow-inner shrink-0">
+                                  {rLabel}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="text-lg md:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                                      <span>Ring {rLabel}</span>
+                                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                        Independent Ring
+                                      </span>
+                                    </h3>
+                                  </div>
+                                  <p className="text-xs text-slate-350 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="font-bold text-slate-200">{ringKeys.length} Divisions</span>
+                                    <span>•</span>
+                                    <span className="font-bold text-amber-350">{totalBouts} Total Matches</span>
+                                    <span>•</span>
+                                    <span>{kyorugiCount} Sparring · {poomsaeCount} Poomsae</span>
+                                    <span className="hidden sm:inline">•</span>
+                                    <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+                                      {kyorugiCount > 0 ? `Kyorugi start: ${rLabel}01` : ''}
+                                      {kyorugiCount > 0 && poomsaeCount > 0 ? ' · ' : ''}
+                                      {poomsaeCount > 0 ? `Poomsae start: P${rLabel}01` : ''}
+                                    </span>
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Ring Action Buttons */}
+                              <div className="flex flex-wrap items-center gap-2 no-print">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportPdf(rNum)}
+                                  className="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                                  title={`Print Ring ${rLabel} brackets only`}
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Print Ring {rLabel}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadSearchablePdf(rNum)}
+                                  disabled={pdfExportLoading}
+                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                                  title={`Download vector PDF for Ring ${rLabel} only`}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Export Ring {rLabel} PDF</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRingCollapse(rNum)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                  title={isCollapsed ? `Expand Ring ${rLabel}` : `Collapse Ring ${rLabel}`}
+                                >
+                                  <span>{isCollapsed ? 'Expand' : 'Collapse'}</span>
+                                  {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Ring Brackets List */}
+                            {!isCollapsed && (
+                              <div className="p-3 sm:p-5 space-y-8 bg-slate-50/40 print:p-0 print:space-y-0 print:bg-white">
+                                {ringKeys.map((key, keyIdx) => {
+                                  const model = brackets[key];
+                                  const cat = categories[key];
+                                  return (
+                                    <div key={key} className="space-y-1.5">
+                                      <div className="flex items-center justify-between text-xs font-bold text-slate-400 px-1 print:hidden">
+                                        <span className="font-mono text-slate-500 text-[11px]">
+                                          Ring {rLabel} · Category {keyIdx + 1} of {ringKeys.length}
+                                        </span>
+                                        <span className="text-[10px] font-mono bg-slate-200/60 text-slate-700 px-2 py-0.5 rounded-md">
+                                          {cat?.count || 0} competitors
+                                        </span>
+                                      </div>
+                                      <BracketCanvas
+                                        bracket={model}
+                                        ring={getRingLabel(cat?.ring || 1)}
+                                        entrantCount={cat?.count || 0}
+                                        layout={bracketLayout}
+                                        tournamentName={tournamentName}
+                                        leftLogo={leftLogo}
+                                        leftLogo2={leftLogo2}
+                                        rightLogo={rightLogo}
+                                        rightLogo2={rightLogo2}
+                                        onChangeLeftLogo={setLeftLogo}
+                                        onChangeLeftLogo2={setLeftLogo2}
+                                        onChangeRightLogo={setRightLogo}
+                                        onChangeRightLogo2={setRightLogo2}
+                                        boutLabelFormat={boutLabelFormat}
+                                        isPublicView={isPublicReportOnly}
+                                        onReshuffle={() => handleReshuffleSingleCategory(key)}
+                                        onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
+                                        onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
+                                        onUpdateCutoffScores={(nextScores) => {
+                                          setBrackets((prev) => {
+                                            const existing = prev[key];
+                                            if (!existing) return prev;
+                                            return {
+                                              ...prev,
+                                              [key]: {
+                                                ...existing,
+                                                cutoffScores: nextScores,
+                                              },
+                                            };
+                                          });
+                                        }}
+                                        onUpdateStandings={(nextStandings) => {
+                                          setBrackets((prev) => {
+                                            const existing = prev[key];
+                                            if (!existing) return prev;
+                                            return {
+                                              ...prev,
+                                              [key]: {
+                                                ...existing,
+                                                standings: nextStandings,
+                                              },
+                                            };
+                                          });
+                                        }}
+                                        onUpdateLeafNode={(i, name, club, isBye) => {
+                                          setBrackets((prev) => {
+                                            const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
+                                            assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
+                                            return next;
+                                          });
+                                        }}
+                                        onSwapLeafNodes={(i, j) => {
+                                          setBrackets((prev) => {
+                                            const next = handleSwapLeafNodes(prev, key, i, j);
+                                            assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
+                                            return next;
+                                          });
+                                        }}
+                                        categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
+                                        onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

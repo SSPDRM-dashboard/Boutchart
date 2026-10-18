@@ -21,6 +21,7 @@ export interface CutoffScore {
   finalScore?: number;
   rank?: number;
   notes?: string;
+  isPoomsae?: boolean;
 }
 
 export interface WeightCategory {
@@ -42,6 +43,7 @@ export interface BracketNode {
   checked: boolean;
   seed?: number; // For round 0
   bout?: number; // Sequential ring-wide match ID
+  isPoomsae?: boolean; // Distinguishes Poomsae separate bout from Kyorugi
 }
 
 export interface BracketModel {

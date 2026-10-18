@@ -616,36 +616,59 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     return String(ringNum);
   };
 
-  // 2. Bout ID format helper (e.g. A02 / 1001)
-  const getFormattedBout = (ring: string | number, boutNumber: number | undefined): string => {
-    if (boutNumber === undefined) return '';
+  // 2. Bout ID format helper (e.g. A02 / 1001 / PA01)
+  const getFormattedBout = (
+    ring: string | number, 
+    boutNumber: number | undefined,
+    isPoomsae: boolean = false
+  ): string => {
+    if (boutNumber === undefined || boutNumber === null) return '';
 
-    let ringNum = 1;
+    let ringPrefix = 'A';
     if (typeof ring === 'number') {
-      ringNum = ring;
+      ringPrefix = ring > 0 && ring <= 26 ? String.fromCharCode(64 + ring) : String(ring || 'A');
     } else {
-      const cleaned = String(ring).trim().toLowerCase();
-      const numMatch = cleaned.match(/\d+$/);
-      if (numMatch) {
-        ringNum = parseInt(numMatch[0], 10);
+      const cleaned = String(ring).trim();
+      const upper = cleaned.toUpperCase();
+      const letterMatch = upper.match(/RING\s*([A-Z])/i) || upper.match(/^([A-Z])$/);
+      if (letterMatch) {
+        ringPrefix = letterMatch[1];
       } else {
-        const letterMatch = cleaned.match(/[a-z]$/);
-        if (letterMatch) {
-          ringNum = letterMatch[0].charCodeAt(0) - 96;
+        const anyLetter = upper.match(/[A-Z]/);
+        const numMatch = cleaned.match(/\d+/);
+        if (anyLetter && !numMatch) {
+          ringPrefix = anyLetter[0];
+        } else if (numMatch && !anyLetter) {
+          const n = parseInt(numMatch[0], 10);
+          if (n >= 1 && n <= 26) {
+            ringPrefix = String.fromCharCode(64 + n);
+          } else {
+            ringPrefix = numMatch[0];
+          }
+        } else if (anyLetter) {
+          ringPrefix = anyLetter[0];
+        } else if (numMatch) {
+          const n = parseInt(numMatch[0], 10);
+          if (n >= 1 && n <= 26) {
+            ringPrefix = String.fromCharCode(64 + n);
+          } else {
+            ringPrefix = numMatch[0];
+          }
+        } else {
+          ringPrefix = cleaned || 'A';
         }
       }
     }
 
-    if (isNaN(ringNum) || ringNum < 1) ringNum = 1;
+    const padLength = boutLabelFormat === 'thousands-3' ? 3 : 2;
+    const pad = String(boutNumber).padStart(padLength, '0');
 
-    if (boutLabelFormat === 'thousands-3') {
-      const pad = String(boutNumber).padStart(3, '0');
-      return `${ringNum}${pad}`;
-    } else {
-      const letter = String.fromCharCode(64 + ringNum);
-      const pad = String(boutNumber).padStart(2, '0');
-      return `${letter}${pad}`;
+    if (isPoomsae) {
+      const prefix = ringPrefix.toUpperCase() === 'P' ? 'P' : `P${ringPrefix}`;
+      return `${prefix}${pad}`;
     }
+
+    return `${ringPrefix}${pad}`;
   };
 
   // 3. Human-readable round name helper
@@ -742,7 +765,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     model: BracketModel,
     k: number, // round index
     idx: number, // node index
-    ringLabel: string
+    ringLabel: string,
+    isPoomsae: boolean = false
   ): { name: string; club: string } => {
     const node = model.nodes[k]?.[idx];
     if (!node) {
@@ -762,7 +786,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     // 3. If there is a scheduled bout at this node, the occupant will be the winner of that bout!
     if (typeof node.bout === 'number') {
       return {
-        name: `Winner of Bout ${getFormattedBout(ringLabel, node.bout)}`,
+        name: `Winner of Bout ${getFormattedBout(ringLabel, node.bout, Boolean(node.isPoomsae || isPoomsae))}`,
         club: '',
       };
     }
@@ -774,9 +798,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       const rightChild = model.nodes[k - 1]?.[2 * idx + 1];
 
       if (leftChild && !leftChild.isBye) {
-        return getAwaitingOpponentLabel(model, k - 1, 2 * idx, ringLabel);
+        return getAwaitingOpponentLabel(model, k - 1, 2 * idx, ringLabel, isPoomsae);
       } else if (rightChild && !rightChild.isBye) {
-        return getAwaitingOpponentLabel(model, k - 1, 2 * idx + 1, ringLabel);
+        return getAwaitingOpponentLabel(model, k - 1, 2 * idx + 1, ringLabel, isPoomsae);
       }
     }
 
@@ -791,6 +815,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     const cat = categories[athlete.weight];
     const model = brackets[athlete.weight];
     const ringLabel = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
+    const isCatPoomsae = Boolean(
+      cat?.systemType?.startsWith('poomsae') || 
+      model?.systemType?.startsWith('poomsae') || 
+      cat?.name?.toLowerCase().includes('poomsae') || 
+      model?.categoryKey?.toLowerCase().includes('poomsae')
+    );
 
     const bouts: PlayerFightInfo['bouts'] = [];
 
@@ -806,7 +836,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               if (typeof leafNode.bout === 'number') {
                 bouts.push({
                   boutNumber: leafNode.bout,
-                  formattedId: getFormattedBout(ringLabel, leafNode.bout),
+                  formattedId: getFormattedBout(ringLabel, leafNode.bout, true),
                   roundName: 'Final',
                   opponentName: 'Poomsae Score',
                   opponentClub: '',
@@ -843,12 +873,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           if (node && typeof node.bout === 'number') {
             const i_prev = Math.floor(leafIdx / (1 << (k - 1)));
             const oppIdx = i_prev ^ 1;
-            const oppNodeLabel = getAwaitingOpponentLabel(model, k - 1, oppIdx, ringLabel);
+            const oppNodeLabel = getAwaitingOpponentLabel(model, k - 1, oppIdx, ringLabel, Boolean(node.isPoomsae || isCatPoomsae));
             const corner: 'C' | 'H' = (i_prev % 2 === 0) ? 'C' : 'H';
 
             bouts.push({
               boutNumber: node.bout,
-              formattedId: getFormattedBout(ringLabel, node.bout),
+              formattedId: getFormattedBout(ringLabel, node.bout, Boolean(node.isPoomsae || isCatPoomsae)),
               roundName: getRoundName(k, model.numRounds),
               opponentName: oppNodeLabel.name || 'TBD',
               opponentClub: oppNodeLabel.club || '',
@@ -890,14 +920,14 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   if (leftParent && rightParent && !(leftParent.isBye || rightParent.isBye)) {
                     const prevBoutNum = model.nodes[k - 1][parentIdx]?.bout;
                     if (prevBoutNum) {
-                      opponentName = `Winner of Bout ${getFormattedBout(ringLabel, prevBoutNum)}`;
+                      opponentName = `Winner of Bout ${getFormattedBout(ringLabel, prevBoutNum, Boolean(isCatPoomsae))}`;
                     }
                   }
                 }
 
                 bouts.push({
                   boutNumber: node.bout,
-                  formattedId: getFormattedBout(ringLabel, node.bout),
+                  formattedId: getFormattedBout(ringLabel, node.bout, Boolean(node.isPoomsae || isCatPoomsae)),
                   roundName: getRoundName(k, model.numRounds),
                   opponentName,
                   opponentClub,
@@ -2703,10 +2733,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                 for (let i = 0; i < round.length; i++) {
                   if (round[i] && !round[i].isBye && round[i].name) {
                     round[i].bout = poomsaeSequenceCounter;
+                    round[i].isPoomsae = true;
                     if (model.cutoffScores) {
                       const scoreKey = `${round[i].name}||${round[i].club || ''}`;
                       if (model.cutoffScores[scoreKey]) {
                         model.cutoffScores[scoreKey].bout = poomsaeSequenceCounter;
+                        model.cutoffScores[scoreKey].isPoomsae = true;
                       }
                     }
                     poomsaeSequenceCounter++;
