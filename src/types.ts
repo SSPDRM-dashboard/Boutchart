@@ -32,6 +32,7 @@ export interface WeightCategory {
   ring: number;
   entrants: Athlete[];
   systemType?: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff';
+  event?: string;
   order?: number;
 }
 
@@ -63,6 +64,8 @@ export interface AppState {
   shuffleSeed: boolean;
   categoryConfig: Record<string, { ring: number }>;
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
+  eventSequenceOrder?: string[];
+  ringEventSequences?: Record<number, string[]>;
 }
 
 export interface DuplicateGroup {
@@ -93,9 +96,12 @@ export interface SavedEvent {
   boutLabelFormat?: 'alpha-2' | 'thousands-3';
   boutSequenceOrder?: 'sequential' | 'stages';
   ringSequenceOrders?: Record<number, 'sequential' | 'stages'>;
+  eventSequenceOrder?: string[];
+  ringEventSequences?: Record<number, string[]>;
   shuffleSeed: boolean;
   dismissedDuplicates: string[];
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
   continuousBouts?: boolean;
 }
+
 

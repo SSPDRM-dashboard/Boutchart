@@ -2,7 +2,13 @@ import React, { useState } from 'react';
 import { Users, Search, Printer, HelpCircle, ShieldAlert, CheckCircle2, Flame, AlignJustify, Grid, Award, Download, Share2, Copy, Check, Trash2, ExternalLink, Globe, Lock, AlertTriangle, Info } from 'lucide-react';
 import { Athlete, WeightCategory, BracketModel } from '../types';
 import { compressToGzipBase64 } from '../utils/compression';
-import { compareCategoriesByAgeAndWeight } from '../utils/bracketUtils';
+import {
+  compareCategoriesByAgeAndWeight,
+  DEFAULT_EVENT_SEQUENCE,
+  ALL_STANDARD_EVENTS,
+  getCategoryEventInfo,
+  getEventOrderRank
+} from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { BracketCanvas } from './BracketCanvas';
 import { db, doc, setDoc, collection } from '../lib/firebase';
@@ -36,7 +42,22 @@ interface ClubReportPanelProps {
   onUpdateStandings?: (catKey: string, nextStandings: string[]) => void;
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
   onActivePublicViewChange?: (view: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart') => void;
+  eventSequenceOrder?: string[];
+  ringEventSequences?: Record<number, string[]>;
 }
+
+export const getRingNumberFromLabel = (label: string): number => {
+  const norm = String(label).trim().toUpperCase();
+  const matchLetter = norm.match(/(?:RING|MAT)?\s*([A-Z])/i);
+  if (matchLetter && matchLetter[1]) {
+    return matchLetter[1].charCodeAt(0) - 64;
+  }
+  const matchNum = norm.match(/\d+/);
+  if (matchNum) {
+    return parseInt(matchNum[0], 10);
+  }
+  return 1;
+};
 
 export const getRingSortOrder = (ringVal: number | string | undefined): number => {
   if (ringVal === undefined || ringVal === null || ringVal === 0 || ringVal === '0') return 99999;
@@ -109,11 +130,14 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   onUpdateStandings,
   activePublicView,
   onActivePublicViewChange,
+  eventSequenceOrder = DEFAULT_EVENT_SEQUENCE,
+  ringEventSequences,
 }) => {
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const effectivePublicView = isPublicView || isPublicAppMode;
   const [selectedClub, setSelectedClub] = useState<string>('all');
   const [selectedRing, setSelectedRing] = useState<string>('all');
+  const [selectedEvent, setSelectedEvent] = useState<string>('all');
   const [cardsGroupMode, setCardsGroupMode] = useState<'ring' | 'club'>('ring');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showOnlyScheduled, setShowOnlyScheduled] = useState<boolean>(true);
@@ -1026,6 +1050,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     // Generate CSV content
     const headers = [
       "Ring/Mat",
+      "Event",
       "Division",
       "Club",
       "Competitor Name",
@@ -1038,7 +1063,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       "Fight 7"
     ];
 
-    // Determine target athletes array based on club filter (always sorted starting from Ring A, then Ring B, C, D, E...)
+    // Determine target athletes array based on club filter (always sorted starting from Ring A, then Ring B, C, D, E... and by Event sequence)
     const targetAthletes = clubName
       ? athleteList.filter(a => a.club === clubName).sort((a, b) => {
           const catA = categories[a.weight];
@@ -1046,6 +1071,15 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
           const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
           if (ringA !== ringB) return ringA - ringB;
+
+          const ringNum = catA?.ring || 1;
+          const effectiveEventSeq = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+          const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a.weight, catA?.name).id;
+          const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b.weight, catB?.name).id;
+          const rankA = getEventOrderRank(evA, effectiveEventSeq);
+          const rankB = getEventOrderRank(evB, effectiveEventSeq);
+          if (rankA !== rankB) return rankA - rankB;
+
           const catCompare = (a.weight || '').localeCompare(b.weight || '');
           if (catCompare !== 0) return catCompare;
           return a.name.localeCompare(b.name);
@@ -1056,6 +1090,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
       const fightInfo = playersMap[athKey];
       const athleteBouts = fightInfo?.bouts || [];
+      const cat = categories[ath.weight];
+      const evInfo = getCategoryEventInfo(cat?.systemType, cat?.event, ath.weight, cat?.name);
 
       const boutColumns = Array.from({ length: 7 }).map((_, colIndex) => {
         const bout = athleteBouts[colIndex];
@@ -1068,6 +1104,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
 
       return [
         fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`,
+        evInfo.label,
         ath.weight,
         ath.club,
         ath.name,
@@ -1324,6 +1361,16 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     return Array.from(rings).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
   }, [categories, ringCount, ringLabelFormat]);
 
+  // Distinct events across tournament divisions
+  const availableEvents = React.useMemo(() => {
+    const evSet = new Set<string>();
+    Object.values(categories).forEach((cat: WeightCategory) => {
+      const ev = getCategoryEventInfo(cat.systemType, cat.event, cat.name, cat.name);
+      evSet.add(ev.id);
+    });
+    return ALL_STANDARD_EVENTS.filter(e => evSet.has(e.id));
+  }, [categories]);
+
   // Filter and compute matches
   const filteredAthletes = athleteList.filter(ath => {
     const matchesClub = selectedClub === 'all' || 
@@ -1333,16 +1380,20 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     const ringLabel = cat?.ring && cat.ring > 0 ? getRingLabel(cat.ring) : 'Unassigned';
     const matchesRing = selectedRing === 'all' || ringLabel.toUpperCase() === selectedRing.toUpperCase();
 
+    const evInfo = getCategoryEventInfo(cat?.systemType, cat?.event, ath.weight, cat?.name);
+    const matchesEvent = selectedEvent === 'all' || evInfo.id === selectedEvent;
+
     const matchesSearch = 
       ath.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       ath.club.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ath.weight.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesScheduled = !showOnlyScheduled || !!brackets[ath.weight];
-    return matchesClub && matchesRing && matchesSearch && matchesScheduled;
+    return matchesClub && matchesRing && matchesEvent && matchesSearch && matchesScheduled;
   });
 
   // Group sorted athletes - SHOW BY RING, START FROM RING A, THEN RING B, C, D, E...
+  // AND WITHIN EACH RING: SHOW BY EVENT SEQUENCE DECIDED BY ADMIN!
   const sortedAthletes = [...filteredAthletes].sort((a, b) => {
     const catA = categories[a.weight];
     const catB = categories[b.weight];
@@ -1352,19 +1403,29 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     // 1. Primary sort: Start from Ring A, then Ring B, C, D, E...
     if (ringA !== ringB) return ringA - ringB;
 
-    // 2. Secondary sort: Division / category
+    // 2. Secondary sort: Sequence of events decided by admin for this ring
+    const ringNum = catA?.ring || 1;
+    const effectiveEventSeq = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+    const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a.weight, catA?.name).id;
+    const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b.weight, catB?.name).id;
+    const rankA = getEventOrderRank(evA, effectiveEventSeq);
+    const rankB = getEventOrderRank(evB, effectiveEventSeq);
+    if (rankA !== rankB) return rankA - rankB;
+
+    // 3. Category / division
     const catCompare = (a.weight || '').localeCompare(b.weight || '');
     if (catCompare !== 0) return catCompare;
 
-    // 3. Tertiary sort: Club
+    // 4. Club
     const clubCompare = (a.club || '').localeCompare(b.club || '');
     if (clubCompare !== 0) return clubCompare;
 
-    // 4. Competitor Name
+    // 5. Competitor Name
     return (a.name || '').localeCompare(b.name || '');
   });
 
   // Group athletes by ring strictly in sequence: Ring A, Ring B, Ring C, Ring D, Ring E...
+  // And under each ring, separate into distinct event sections in admin's sequence!
   const athletesGroupedByRing = React.useMemo(() => {
     const map: Record<string, typeof sortedAthletes> = {};
     sortedAthletes.forEach(ath => {
@@ -1375,11 +1436,40 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
     });
 
     const sortedRingKeys = Object.keys(map).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
-    return sortedRingKeys.map(ringKey => ({
-      ring: ringKey,
-      athletes: map[ringKey]
-    }));
-  }, [sortedAthletes, categories, ringLabelFormat]);
+    return sortedRingKeys.map(ringKey => {
+      const ringNum = getRingNumberFromLabel(ringKey);
+      const effectiveEventSeq = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+
+      // Group athletes in this ring by Event
+      const eventMap: Record<string, typeof sortedAthletes> = {};
+      map[ringKey].forEach(ath => {
+        const cat = categories[ath.weight];
+        const ev = getCategoryEventInfo(cat?.systemType, cat?.event, ath.weight, cat?.name).id;
+        if (!eventMap[ev]) eventMap[ev] = [];
+        eventMap[ev].push(ath);
+      });
+
+      const sortedEvIds = Object.keys(eventMap).sort((a, b) => {
+        return getEventOrderRank(a, effectiveEventSeq) - getEventOrderRank(b, effectiveEventSeq);
+      });
+
+      const eventSections = sortedEvIds.map(evId => {
+        const sampleCat = categories[eventMap[evId][0]?.weight];
+        const evInfo = getCategoryEventInfo(sampleCat?.systemType, sampleCat?.event, eventMap[evId][0]?.weight, sampleCat?.name);
+        return {
+          eventId: evId,
+          eventInfo: evInfo,
+          athletes: eventMap[evId]
+        };
+      });
+
+      return {
+        ring: ringKey,
+        athletes: map[ringKey],
+        eventSections
+      };
+    });
+  }, [sortedAthletes, categories, ringLabelFormat, eventSequenceOrder, ringEventSequences]);
 
   // Grouped results map for classic card layout style (with internal athletes sorted by Ring A, B, C, D, E...)
   const groupedResults: Record<string, typeof athleteList> = {};
@@ -1410,18 +1500,46 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
       map[ring].push(ath);
     });
     const sortedRingKeys = Object.keys(map).sort((a, b) => getRingSortOrder(a) - getRingSortOrder(b));
-    return sortedRingKeys.map(ringKey => ({
-      ringName: ringKey === 'Unassigned' ? 'Unassigned Ring' : `Ring ${ringKey}`,
-      ringKey,
-      athletes: map[ringKey].sort((a, b) => {
-        const catCompare = (a.weight || '').localeCompare(b.weight || '');
-        if (catCompare !== 0) return catCompare;
-        const clubCompare = (a.club || '').localeCompare(b.club || '');
-        if (clubCompare !== 0) return clubCompare;
-        return a.name.localeCompare(b.name);
-      })
-    }));
-  }, [filteredAthletes, categories, ringLabelFormat]);
+    return sortedRingKeys.map(ringKey => {
+      const ringNum = getRingNumberFromLabel(ringKey);
+      const effectiveEventSeq = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+
+      const eventMap: Record<string, typeof athleteList> = {};
+      map[ringKey].forEach(ath => {
+        const cat = categories[ath.weight];
+        const ev = getCategoryEventInfo(cat?.systemType, cat?.event, ath.weight, cat?.name).id;
+        if (!eventMap[ev]) eventMap[ev] = [];
+        eventMap[ev].push(ath);
+      });
+
+      const sortedEvIds = Object.keys(eventMap).sort((a, b) => {
+        return getEventOrderRank(a, effectiveEventSeq) - getEventOrderRank(b, effectiveEventSeq);
+      });
+
+      const eventSections = sortedEvIds.map(evId => {
+        const sampleCat = categories[eventMap[evId][0]?.weight];
+        const evInfo = getCategoryEventInfo(sampleCat?.systemType, sampleCat?.event, eventMap[evId][0]?.weight, sampleCat?.name);
+        return {
+          eventId: evId,
+          eventInfo: evInfo,
+          athletes: eventMap[evId].sort((a, b) => {
+            const catCompare = (a.weight || '').localeCompare(b.weight || '');
+            if (catCompare !== 0) return catCompare;
+            const clubCompare = (a.club || '').localeCompare(b.club || '');
+            if (clubCompare !== 0) return clubCompare;
+            return a.name.localeCompare(b.name);
+          })
+        };
+      });
+
+      return {
+        ringName: ringKey === 'Unassigned' ? 'Unassigned Ring' : `Ring ${ringKey}`,
+        ringKey,
+        athletes: map[ringKey],
+        eventSections
+      };
+    });
+  }, [filteredAthletes, categories, ringLabelFormat, eventSequenceOrder, ringEventSequences]);
 
   const visibleClubsForCards = Object.keys(groupedResults).sort((a, b) => a.localeCompare(b));
   const medalStandings = computeMedalStandings();
@@ -1860,6 +1978,44 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   </div>
                 )}
 
+                {/* Event Filter Pills (Show distinct events e.g. Poomsae Cut-off, Poomsae PK, Sparring) */}
+                {activeReportStyle !== 'medal-standings' && availableEvents.length > 1 && (
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs overflow-x-auto max-w-full">
+                    <span className="text-[10px] font-black uppercase text-slate-500 px-1.5 flex items-center gap-1 shrink-0">
+                      <span>⚡</span>
+                      <span>Event:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEvent('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer shrink-0 ${
+                        selectedEvent === 'all'
+                          ? 'bg-slate-900 text-amber-400 shadow-xs'
+                          : 'text-slate-650 hover:text-slate-900 hover:bg-white/70'
+                      }`}
+                      title="Show all events"
+                    >
+                      All Events
+                    </button>
+                    {availableEvents.map(ev => (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        onClick={() => setSelectedEvent(ev.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                          selectedEvent === ev.id
+                            ? 'bg-slate-900 text-amber-400 shadow-xs'
+                            : 'text-slate-650 hover:text-slate-900 hover:bg-white/70'
+                        }`}
+                        title={`Filter specifically to ${ev.label}`}
+                      >
+                        <span>{ev.icon}</span>
+                        <span>{ev.shortLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Club Dropdown Filter */}
                 <select
                   value={selectedClub}
@@ -1968,86 +2124,113 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                             </td>
                           </tr>
 
-                          {group.athletes.map((ath, idx) => {
-                            const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
-                            const fightInfo = playersMap[athKey];
-                            const athleteBouts = fightInfo?.bouts || [];
-
+                          {/* Separate Event Sections within this Ring in Admin Sequence */}
+                          {group.eventSections.map((evSec, evIdx) => {
+                            const evInfo = evSec.eventInfo;
                             return (
-                              <tr 
-                                key={`${athKey}||${idx}`} 
-                                className="hover:bg-slate-50/50 transition-colors bg-white print:hover:bg-transparent duration-150"
-                              >
-                                {/* Ring and Division */}
-                                <td className="px-4 py-3 border border-[#cbd5e1] align-middle bg-slate-50/20 print:bg-transparent">
-                                  <span className={`font-extrabold text-[11px] block uppercase tracking-wide ${
-                                    fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400 font-bold' : 'text-[#0c2e5c]'
-                                  }`}>
-                                    {fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`}
-                                  </span>
-                            <span className="text-slate-500 text-[10px] block mt-0.5 font-bold leading-tight uppercase font-sans">
-                              {ath.weight}
-                            </span>
-                          </td>
+                              <React.Fragment key={`ring-${group.ring}-ev-${evSec.eventId}`}>
+                                {/* Distinct Event Subheader Banner */}
+                                <tr className="bg-slate-100/90 text-slate-800 border-y border-[#cbd5e1] print:bg-slate-100">
+                                  <td colSpan={10} className="px-4 py-2 border border-[#cbd5e1]">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border shadow-2xs ${evInfo.badgeBg} ${evInfo.badgeBorder} ${evInfo.badgeText}`}>
+                                          {evInfo.icon} Event {evIdx + 1}: {evInfo.label}
+                                        </span>
+                                        <span className="text-slate-600 font-extrabold text-[11px] font-mono">
+                                          ({evSec.athletes.length} Competitor{evSec.athletes.length === 1 ? '' : 's'})
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] font-mono text-slate-500 font-bold uppercase">
+                                        Mat / Ring {group.ring} • Sequence #{evIdx + 1}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
 
-                          {/* Club Name */}
-                          <td className="px-4 py-3 border border-[#cbd5e1] align-middle font-extrabold text-slate-900 text-xs tracking-wider uppercase">
-                            {ath.club}
-                          </td>
+                                {evSec.athletes.map((ath, idx) => {
+                                  const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+                                  const fightInfo = playersMap[athKey];
+                                  const athleteBouts = fightInfo?.bouts || [];
 
-                          {/* Competitor Name */}
-                          <td className="px-4 py-3 border border-[#cbd5e1] align-middle font-bold text-slate-800 text-xs tracking-wide uppercase">
-                            {ath.name}
-                          </td>
-
-                          {/* Match Progression Columns */}
-                          {Array.from({ length: 7 }).map((_, colIndex) => {
-                            const bout = athleteBouts[colIndex];
-                            if (bout) {
-                              const isRed = bout.corner === 'H';
-                              return (
-                                <td 
-                                  key={colIndex} 
-                                  className="px-2 py-3 border border-[#cbd5e1] align-middle text-center group relative cursor-pointer hover:bg-amber-50/30 print:hover:bg-transparent"
-                                >
-                                  <div className="inline-flex items-center justify-center gap-1.5">
-                                    <span className="text-[12px] font-mono font-black text-slate-950">
-                                      {bout.formattedId}
-                                    </span>
-                                    <span 
-                                      className={`w-5 h-5 text-[10px] font-black rounded flex items-center justify-center text-white shrink-0 shadow-xs ${
-                                        isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
-                                      }`}
-                                      title={bout.corner === 'G' ? 'Poomsae Cut-Off' : isRed ? 'Hong (Red) Corner - Bottom Slot' : 'Chung (Blue) Corner - Top Slot'}
+                                  return (
+                                    <tr 
+                                      key={`${athKey}||${idx}`} 
+                                      className="hover:bg-slate-50/50 transition-colors bg-white print:hover:bg-transparent duration-150"
                                     >
-                                      {bout.corner === 'G' ? '' : bout.corner}
-                                    </span>
-                                  </div>
+                                      {/* Ring and Division */}
+                                      <td className="px-4 py-3 border border-[#cbd5e1] align-middle bg-slate-50/20 print:bg-transparent">
+                                        <span className={`font-extrabold text-[11px] block uppercase tracking-wide ${
+                                          fightInfo?.ringLabel === 'Unassigned' ? 'text-slate-400 font-bold' : 'text-[#0c2e5c]'
+                                        }`}>
+                                          {fightInfo?.ringLabel === 'Unassigned' ? 'Unassigned' : `Ring ${fightInfo?.ringLabel || 'A'}`}
+                                        </span>
+                                        <span className="text-slate-500 text-[10px] block mt-0.5 font-bold leading-tight uppercase font-sans">
+                                          {ath.weight}
+                                        </span>
+                                      </td>
 
-                                  {/* Tooltip on Hover */}
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 text-white rounded-lg p-2.5 text-[10px] min-w-[200px] shadow-xl z-50 border border-slate-800 text-left no-print pointer-events-none">
-                                    <div className="font-semibold text-amber-400 mb-0.5">{bout.roundName}</div>
-                                    <div className="text-slate-300 font-medium">Opponent:</div>
-                                    <div className="font-extrabold truncate text-white">{bout.opponentName}</div>
-                                    {bout.opponentClub && (
-                                      <div className="text-slate-400 mt-0.5 text-[9px] font-bold">Club: {bout.opponentClub}</div>
-                                    )}
-                                  </div>
-                                </td>
-                              );
-                            }
-                            return (
-                              <td 
-                                key={colIndex} 
-                                className="px-2 py-3 border border-[#cbd5e1] align-middle text-center text-slate-300 select-none font-medium text-xs"
-                              >
-                                -
-                              </td>
+                                      {/* Club Name */}
+                                      <td className="px-4 py-3 border border-[#cbd5e1] align-middle font-extrabold text-slate-900 text-xs tracking-wider uppercase">
+                                        {ath.club}
+                                      </td>
+
+                                      {/* Competitor Name */}
+                                      <td className="px-4 py-3 border border-[#cbd5e1] align-middle font-bold text-slate-800 text-xs tracking-wide uppercase">
+                                        {ath.name}
+                                      </td>
+
+                                      {/* Match Progression Columns */}
+                                      {Array.from({ length: 7 }).map((_, colIndex) => {
+                                        const bout = athleteBouts[colIndex];
+                                        if (bout) {
+                                          const isRed = bout.corner === 'H';
+                                          return (
+                                            <td 
+                                              key={colIndex} 
+                                              className="px-2 py-3 border border-[#cbd5e1] align-middle text-center group relative cursor-pointer hover:bg-amber-50/30 print:hover:bg-transparent"
+                                            >
+                                              <div className="inline-flex items-center justify-center gap-1.5">
+                                                <span className="text-[12px] font-mono font-black text-slate-950">
+                                                  {bout.formattedId}
+                                                </span>
+                                                <span 
+                                                  className={`w-5 h-5 text-[10px] font-black rounded flex items-center justify-center text-white shrink-0 shadow-xs ${
+                                                    isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
+                                                  }`}
+                                                  title={bout.corner === 'G' ? 'Poomsae Cut-Off' : isRed ? 'Hong (Red) Corner - Bottom Slot' : 'Chung (Blue) Corner - Top Slot'}
+                                                >
+                                                  {bout.corner === 'G' ? '' : bout.corner}
+                                                </span>
+                                              </div>
+
+                                              {/* Tooltip on Hover */}
+                                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 text-white rounded-lg p-2.5 text-[10px] min-w-[200px] shadow-xl z-50 border border-slate-800 text-left no-print pointer-events-none">
+                                                <div className="font-semibold text-amber-400 mb-0.5">{bout.roundName}</div>
+                                                <div className="text-slate-300 font-medium">Opponent:</div>
+                                                <div className="font-extrabold truncate text-white">{bout.opponentName}</div>
+                                                {bout.opponentClub && (
+                                                  <div className="text-slate-400 mt-0.5 text-[9px] font-bold">Club: {bout.opponentClub}</div>
+                                                )}
+                                              </div>
+                                            </td>
+                                          );
+                                        }
+                                        return (
+                                          <td 
+                                            key={colIndex} 
+                                            className="px-2 py-3 border border-[#cbd5e1] align-middle text-center text-slate-300 select-none font-medium text-xs"
+                                          >
+                                            -
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
                             );
                           })}
-                        </tr>
-                              );
-                            })}
                           </React.Fragment>
                         );
                       })}
@@ -2552,118 +2735,142 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                             </div>
                           </div>
 
-                          {/* Athlete Matchup Cards Grid */}
-                          <div className="p-4 md:p-5 divide-y divide-slate-200/80 bg-white print:px-1 print:py-2">
-                            {ringCard.athletes.map((ath, idx) => {
-                              const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
-                              const fightInfo = playersMap[athKey];
-                              const athleteBouts = fightInfo?.bouts || [];
-
+                          {/* Athlete Matchup Cards Grid Separated by Event */}
+                          <div className="p-4 md:p-5 bg-white print:px-1 print:py-2">
+                            {ringCard.eventSections.map((evSec, evIdx) => {
+                              const evInfo = evSec.eventInfo;
                               return (
-                                <div key={`${athKey}||${idx}`} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
-                                  {/* Left column: Competitor Info */}
-                                  <div className="min-w-[220px]">
-                                    <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 font-sans print:text-black">
-                                      <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0 print:hidden" />
-                                      {ath.name}
-                                    </p>
-                                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                                      <span className="bg-slate-105 hover:bg-slate-200/80 text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wide border border-slate-200/60 print:bg-white print:border print:border-slate-300">
-                                        {ath.weight}
+                                <div key={`ring-${ringCard.ringKey}-ev-${evSec.eventId}`} className="mb-6 last:mb-0">
+                                  {/* Distinct Event Subheader Banner */}
+                                  <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200/90 rounded-xl px-4 py-2 mb-3 shadow-2xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border shadow-2xs ${evInfo.badgeBg} ${evInfo.badgeBorder} ${evInfo.badgeText}`}>
+                                        {evInfo.icon} Event {evIdx + 1}: {evInfo.label}
                                       </span>
-                                      <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
-                                        {ath.club}
-                                      </span>
-                                      <span className={`text-[10px] font-black font-mono px-2 py-0.5 rounded-md border ${
-                                        ringCard.ringKey === 'Unassigned' ? 'text-slate-400 bg-slate-100 border-slate-200' : ringColors.bg
-                                      }`}>
-                                        {ringCard.ringKey === 'Unassigned' ? 'No Mat Assigned' : `Mat / Ring: ${ringCard.ringKey}`}
+                                      <span className="text-xs font-bold text-slate-600 font-mono">
+                                        ({evSec.athletes.length} Competitor{evSec.athletes.length === 1 ? '' : 's'})
                                       </span>
                                     </div>
+                                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                                      Ring {ringCard.ringKey} • Sequence #{evIdx + 1}
+                                    </span>
                                   </div>
 
-                                  {/* Right column: Bouts list cards */}
-                                  <div className="flex-1">
-                                    {athleteBouts.length === 0 ? (
-                                      (() => {
-                                        const hasBracket = !!brackets[ath.weight];
-                                        if (!hasBracket) {
-                                          return (
-                                            <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
-                                              <ShieldAlert className="w-4.5 h-4.5 text-slate-400 shrink-0" />
-                                              <div>
-                                                <p className="text-[11px] font-bold text-slate-500 leading-snug">
-                                                  No Bracket Drawn Yet
-                                                </p>
-                                                <p className="text-[9px] text-slate-400 mt-0.5">
-                                                  This category has not been drawn or assigned a competition ring to generate combat matching.
-                                                </p>
-                                              </div>
-                                            </div>
-                                          );
-                                        }
-                                        return (
-                                          <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
-                                            {isPublicView ? (
-                                              <Check className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
-                                            ) : (
-                                              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
-                                            )}
-                                            <div>
-                                              <p className="text-[11px] font-bold text-slate-800 leading-snug">
-                                                Waiting / Bye Allocation
-                                              </p>
-                                              <p className="text-[9px] text-slate-500 mt-0.5">
-                                                This competitor starts the bracket tree with an initial Bye slot.
-                                              </p>
+                                  <div className="divide-y divide-slate-200/80">
+                                    {evSec.athletes.map((ath, idx) => {
+                                      const athKey = `${ath.name}||${ath.club}||${ath.weight}`;
+                                      const fightInfo = playersMap[athKey];
+                                      const athleteBouts = fightInfo?.bouts || [];
+
+                                      return (
+                                        <div key={`${athKey}||${idx}`} className="py-4 first:pt-0 last:pb-0 flex flex-col lg:flex-row lg:items-start justify-between gap-4 print:py-3 print:page-break-inside-avoid">
+                                          {/* Left column: Competitor Info */}
+                                          <div className="min-w-[220px]">
+                                            <p className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 font-sans print:text-black">
+                                              <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0 print:hidden" />
+                                              {ath.name}
+                                            </p>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                              <span className="bg-slate-105 hover:bg-slate-200/80 text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wide border border-slate-200/60 print:bg-white print:border print:border-slate-300">
+                                                {ath.weight}
+                                              </span>
+                                              <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                                {ath.club}
+                                              </span>
+                                              <span className={`text-[10px] font-black font-mono px-2 py-0.5 rounded-md border ${
+                                                ringCard.ringKey === 'Unassigned' ? 'text-slate-400 bg-slate-100 border-slate-200' : ringColors.bg
+                                              }`}>
+                                                {ringCard.ringKey === 'Unassigned' ? 'No Mat Assigned' : `Mat / Ring: ${ringCard.ringKey}`}
+                                              </span>
                                             </div>
                                           </div>
-                                        );
-                                      })()
-                                    ) : (
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {athleteBouts.map(bout => {
-                                          const isRed = bout.corner === 'H';
-                                          return (
-                                            <div
-                                              key={bout.formattedId}
-                                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs hover:border-amber-500 transition-colors flex flex-col justify-between print:border print:border-slate-300"
-                                            >
-                                              <div>
-                                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
-                                                  <div className="flex items-center gap-1.5">
-                                                    <span className="bg-slate-900 text-amber-400 text-[10px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                                      Bout {bout.formattedId}
-                                                    </span>
-                                                    <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
-                                                      {bout.roundName}
-                                                    </span>
+
+                                          {/* Right column: Bouts list cards */}
+                                          <div className="flex-1">
+                                            {athleteBouts.length === 0 ? (
+                                              (() => {
+                                                const hasBracket = !!brackets[ath.weight];
+                                                if (!hasBracket) {
+                                                  return (
+                                                    <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
+                                                      <ShieldAlert className="w-4.5 h-4.5 text-slate-400 shrink-0" />
+                                                      <div>
+                                                        <p className="text-[11px] font-bold text-slate-500 leading-snug">
+                                                          No Bracket Drawn Yet
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 mt-0.5">
+                                                          This category has not been drawn or assigned a competition ring to generate combat matching.
+                                                        </p>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                }
+                                                return (
+                                                  <div className="bg-slate-50 border border-slate-200/65 rounded-xl p-3 flex items-center gap-2 max-w-md print:bg-white print:border-dashed">
+                                                    {isPublicView ? (
+                                                      <Check className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                                    ) : (
+                                                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+                                                    )}
+                                                    <div>
+                                                      <p className="text-[11px] font-bold text-slate-800 leading-snug">
+                                                        Waiting / Bye Allocation
+                                                      </p>
+                                                      <p className="text-[9px] text-slate-500 mt-0.5">
+                                                        This competitor starts the bracket tree with an initial Bye slot.
+                                                      </p>
+                                                    </div>
                                                   </div>
-                                                  
-                                                  <span className={`px-2 py-0.5 rounded font-black text-[9px] text-white flex items-center gap-1 uppercase ${
-                                                    isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
-                                                  }`}>
-                                                    {bout.corner === 'G' ? 'TURN' : `Corner: ${bout.corner}`}
-                                                  </span>
-                                                </div>
+                                                );
+                                              })()
+                                            ) : (
+                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {athleteBouts.map(bout => {
+                                                  const isRed = bout.corner === 'H';
+                                                  return (
+                                                    <div
+                                                      key={bout.formattedId}
+                                                      className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs hover:border-amber-500 transition-colors flex flex-col justify-between print:border print:border-slate-300"
+                                                    >
+                                                      <div>
+                                                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+                                                          <div className="flex items-center gap-1.5">
+                                                            <span className="bg-slate-900 text-amber-400 text-[10px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                                              Bout {bout.formattedId}
+                                                            </span>
+                                                            <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
+                                                              {bout.roundName}
+                                                            </span>
+                                                          </div>
+                                                          
+                                                          <span className={`px-2 py-0.5 rounded font-black text-[9px] text-white flex items-center gap-1 uppercase ${
+                                                            isRed ? 'bg-[#dc2626]' : bout.corner === 'G' ? 'bg-emerald-600' : 'bg-[#1e40af]'
+                                                          }`}>
+                                                            {bout.corner === 'G' ? 'TURN' : `Corner: ${bout.corner}`}
+                                                          </span>
+                                                        </div>
 
-                                                <p className="text-xs font-extrabold text-slate-800 mt-2.5 flex items-center gap-1 print:text-black">
-                                                  <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wide">Vs</span>{' '}
-                                                  {bout.opponentName}
-                                                </p>
+                                                        <p className="text-xs font-extrabold text-slate-800 mt-2.5 flex items-center gap-1 print:text-black">
+                                                          <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wide">Vs</span>{' '}
+                                                          {bout.opponentName}
+                                                        </p>
 
-                                                {bout.opponentClub && !bout.opponentName.startsWith('Winner of') && (
-                                                  <p className="text-[10px] text-slate-500 font-bold italic mt-1 flex items-center gap-1 pl-4">
-                                                    <span>🏠</span>
-                                                    <span>{bout.opponentClub}</span>
-                                                  </p>
-                                                )}
+                                                        {bout.opponentClub && !bout.opponentName.startsWith('Winner of') && (
+                                                          <p className="text-[10px] text-slate-500 font-bold italic mt-1 flex items-center gap-1 pl-4">
+                                                            <span>🏠</span>
+                                                            <span>{bout.opponentClub}</span>
+                                                          </p>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
                                               </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               );
@@ -3149,8 +3356,19 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
               const ringA = catA?.ring ? getRingSortOrder(getRingLabel(catA.ring)) : 99999;
               const ringB = catB?.ring ? getRingSortOrder(getRingLabel(catB.ring)) : 99999;
               
-              // PRIMARY SORT: Start from Ring A, then Ring B, C, D, E...
+              // 1. PRIMARY SORT: Start from Ring A, then Ring B, C, D, E...
               if (ringA !== ringB) return ringA - ringB;
+
+              // 2. SECONDARY SORT: Sequence of events decided by admin for this ring
+              const ringNum = catA?.ring || 1;
+              const effectiveEventSeq = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+              const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a, catA?.name).id;
+              const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b, catB?.name).id;
+              const rankA = getEventOrderRank(evA, effectiveEventSeq);
+              const rankB = getEventOrderRank(evB, effectiveEventSeq);
+              if (rankA !== rankB) return rankA - rankB;
+
+              // 3. TERTIARY SORT: Age and weight
               return compareCategoriesByAgeAndWeight(a, b, catA, catB);
             });
 
@@ -3201,6 +3419,21 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                 {sortedRingKeys.map(rKey => {
                   const keysInRing = ringBracketsMap[rKey];
                   const ringColors = getRingColorClasses(rKey);
+                  const ringNum = getRingNumberFromLabel(rKey);
+                  const effectiveEventSeq = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+
+                  // Group brackets in this ring by Event according to admin's sequence
+                  const ringEventMap: Record<string, string[]> = {};
+                  keysInRing.forEach(k => {
+                    const cat = categories[k];
+                    const ev = getCategoryEventInfo(cat?.systemType, cat?.event, k, cat?.name).id;
+                    if (!ringEventMap[ev]) ringEventMap[ev] = [];
+                    ringEventMap[ev].push(k);
+                  });
+
+                  const sortedEvIds = Object.keys(ringEventMap).sort((a, b) => {
+                    return getEventOrderRank(a, effectiveEventSeq) - getEventOrderRank(b, effectiveEventSeq);
+                  });
 
                   return (
                     <div key={`ring-section-${rKey}`} className="space-y-6">
@@ -3215,7 +3448,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                               {rKey === 'Unassigned' ? 'Unassigned Ring Categories' : `Ring ${rKey} — Boutcharts`}
                             </h3>
                             <p className="text-[11px] text-slate-400 print:text-slate-600 font-medium">
-                              {keysInRing.length} Division Bracket{keysInRing.length === 1 ? '' : 's'} assigned to Mat {rKey}
+                              {keysInRing.length} Division Bracket{keysInRing.length === 1 ? '' : 's'} assigned to Mat {rKey} • {sortedEvIds.length} Event{sortedEvIds.length === 1 ? '' : 's'}
                             </p>
                           </div>
                         </div>
@@ -3224,26 +3457,53 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                         </span>
                       </div>
 
-                      {/* Brackets in this Ring */}
-                      <div className="space-y-6">
-                        {keysInRing.map(key => {
-                          const model = brackets[key];
-                          const cat = categories[key];
+                      {/* Brackets in this Ring separated by Event */}
+                      <div className="space-y-8">
+                        {sortedEvIds.map((evId, evIdx) => {
+                          const evKeys = ringEventMap[evId];
+                          const sampleCat = categories[evKeys[0]];
+                          const evInfo = getCategoryEventInfo(sampleCat?.systemType, sampleCat?.event, evKeys[0], sampleCat?.name);
+
                           return (
-                            <BracketCanvas
-                              key={`boutchart-${key}`}
-                              bracket={model}
-                              ring={getRingLabel(cat?.ring || 1)}
-                              entrantCount={cat?.count || 0}
-                              layout="classic"
-                              tournamentName={tournamentName}
-                              boutLabelFormat={boutLabelFormat}
-                              isPublicView={true}
-                              onReshuffle={() => {}}
-                              onCheckboxToggle={() => {}}
-                              onTextChange={() => {}}
-                              onUpdateCutoffScores={() => {}}
-                            />
+                            <div key={`ring-${rKey}-ev-${evId}`} className="space-y-4">
+                              {/* Event Subheader Banner */}
+                              <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200 rounded-xl px-4 py-2.5 shadow-2xs">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider border shadow-2xs ${evInfo.badgeBg} ${evInfo.badgeBorder} ${evInfo.badgeText}`}>
+                                    {evInfo.icon} Event {evIdx + 1}: {evInfo.label}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-600 font-mono">
+                                    ({evKeys.length} Division Bracket{evKeys.length === 1 ? '' : 's'})
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                                  Ring {rKey} • Sequence #{evIdx + 1}
+                                </span>
+                              </div>
+
+                              <div className="space-y-6">
+                                {evKeys.map(key => {
+                                  const model = brackets[key];
+                                  const cat = categories[key];
+                                  return (
+                                    <BracketCanvas
+                                      key={`boutchart-${key}`}
+                                      bracket={model}
+                                      ring={getRingLabel(cat?.ring || 1)}
+                                      entrantCount={cat?.count || 0}
+                                      layout="classic"
+                                      tournamentName={tournamentName}
+                                      boutLabelFormat={boutLabelFormat}
+                                      isPublicView={true}
+                                      onReshuffle={() => {}}
+                                      onCheckboxToggle={() => {}}
+                                      onTextChange={() => {}}
+                                      onUpdateCutoffScores={() => {}}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>

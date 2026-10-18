@@ -31,7 +31,8 @@ import {
   findDuplicateAthletes,
   compareCategoriesByAgeAndWeight,
   countRealBouts,
-  isPoomsaeCategory
+  isPoomsaeCategory,
+  DEFAULT_EVENT_SEQUENCE
 } from './utils/bracketUtils';
 import { isQuotaError, setQuotaExceeded, getQuotaExceeded } from './utils/quotaManager';
 import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download } from 'lucide-react';
@@ -117,6 +118,8 @@ export default function App() {
   const [boutLabelFormat, setBoutLabelFormat] = useState<'alpha-2' | 'thousands-3'>('alpha-2');
   const [boutSequenceOrder, setBoutSequenceOrder] = useState<'sequential' | 'stages'>('sequential');
   const [ringSequenceOrders, setRingSequenceOrders] = useState<Record<number, 'sequential' | 'stages'>>({});
+  const [eventSequenceOrder, setEventSequenceOrder] = useState<string[]>(DEFAULT_EVENT_SEQUENCE);
+  const [ringEventSequences, setRingEventSequences] = useState<Record<number, string[]>>({});
   const [ringGenderSequence, setRingGenderSequence] = useState<'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only'>('all');
   const [shuffleSeed, setShuffleSeed] = useState(true);
   const [activePublicView, setActivePublicView] = useState<PublicReportViewStyle>(() => {
@@ -450,6 +453,8 @@ export default function App() {
                if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
                if (snap.boutSequenceOrder) setBoutSequenceOrder(snap.boutSequenceOrder);
                if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
+               if (snap.eventSequenceOrder) setEventSequenceOrder(snap.eventSequenceOrder);
+               if (snap.ringEventSequences) setRingEventSequences(snap.ringEventSequences);
                if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
                if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
                if (snap.continuousBouts !== undefined) setContinuousBouts(snap.continuousBouts);
@@ -822,6 +827,8 @@ export default function App() {
           if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
           if (snap.boutSequenceOrder) setBoutSequenceOrder(snap.boutSequenceOrder);
           if (snap.ringSequenceOrders) setRingSequenceOrders(snap.ringSequenceOrders);
+          if (snap.eventSequenceOrder) setEventSequenceOrder(snap.eventSequenceOrder);
+          if (snap.ringEventSequences) setRingEventSequences(snap.ringEventSequences);
           if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
           if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
           if (snap.activePublicView) {
@@ -876,6 +883,8 @@ export default function App() {
           boutLabelFormat,
           boutSequenceOrder,
           ringSequenceOrders,
+          eventSequenceOrder,
+          ringEventSequences,
           shuffleSeed,
           dismissedDuplicates,
           continuousBouts,
@@ -939,7 +948,7 @@ export default function App() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, ringSequenceOrders, shuffleSeed, dismissedDuplicates, activePublicView, isPublicReportOnly]);
+  }, [tournamentName, roster, categories, brackets, ringCount, ringLabelFormat, boutLabelFormat, boutSequenceOrder, ringSequenceOrders, eventSequenceOrder, ringEventSequences, shuffleSeed, dismissedDuplicates, activePublicView, isPublicReportOnly]);
 
   // Auto-sync with Google Studio / Cloud active_state on mount
   useEffect(() => {
@@ -1095,6 +1104,8 @@ export default function App() {
         if (snapPayload.boutLabelFormat) setBoutLabelFormat(snapPayload.boutLabelFormat);
         if (snapPayload.boutSequenceOrder) setBoutSequenceOrder(snapPayload.boutSequenceOrder);
         if (snapPayload.ringSequenceOrders) setRingSequenceOrders(snapPayload.ringSequenceOrders);
+        if (snapPayload.eventSequenceOrder) setEventSequenceOrder(snapPayload.eventSequenceOrder);
+        if (snapPayload.ringEventSequences) setRingEventSequences(snapPayload.ringEventSequences);
         if (snapPayload.shuffleSeed !== undefined) setShuffleSeed(snapPayload.shuffleSeed);
         if (snapPayload.continuousBouts !== undefined) setContinuousBouts(snapPayload.continuousBouts);
       }
@@ -1563,8 +1574,31 @@ export default function App() {
     setBrackets((prev) => {
       if (Object.keys(prev).length === 0) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      assignAllBoutNumbers(categories, next, updatedRingOrders, order);
+      assignAllBoutNumbers(categories, next, updatedRingOrders, order, continuousBouts, eventSequenceOrder, ringEventSequences);
       return next;
+    });
+  };
+
+  const handleUpdateEventSequenceOrder = (newSequence: string[]) => {
+    setEventSequenceOrder(newSequence);
+    setBrackets((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = JSON.parse(JSON.stringify(prev));
+      assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder, continuousBouts, newSequence, ringEventSequences);
+      return next;
+    });
+  };
+
+  const handleUpdateRingEventSequence = (ring: number, newSequence: string[]) => {
+    setRingEventSequences((prev) => {
+      const nextRingSeqs = { ...prev, [ring]: newSequence };
+      setBrackets((prevBrackets) => {
+        if (Object.keys(prevBrackets).length === 0) return prevBrackets;
+        const next = JSON.parse(JSON.stringify(prevBrackets));
+        assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder, continuousBouts, eventSequenceOrder, nextRingSeqs);
+        return next;
+      });
+      return nextRingSeqs;
     });
   };
 
@@ -2118,6 +2152,8 @@ export default function App() {
       boutLabelFormat,
       boutSequenceOrder,
       ringSequenceOrders,
+      eventSequenceOrder,
+      ringEventSequences,
       shuffleSeed,
       dismissedDuplicates,
       activePublicView,
@@ -2413,6 +2449,8 @@ export default function App() {
       setBoutLabelFormat(target.boutLabelFormat || 'alpha-2');
       setBoutSequenceOrder(target.boutSequenceOrder || 'sequential');
       setRingSequenceOrders(target.ringSequenceOrders || {});
+      setEventSequenceOrder(target.eventSequenceOrder || DEFAULT_EVENT_SEQUENCE);
+      setRingEventSequences(target.ringEventSequences || {});
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
       if (target.activePublicView) {
@@ -4566,6 +4604,10 @@ export default function App() {
                     onUpdateRingSequenceOrder={handleUpdateRingSequenceOrder}
                     continuousBouts={continuousBouts}
                     onToggleContinuousBouts={handleToggleContinuousBouts}
+                    eventSequenceOrder={eventSequenceOrder}
+                    onUpdateEventSequenceOrder={handleUpdateEventSequenceOrder}
+                    ringEventSequences={ringEventSequences}
+                    onUpdateRingEventSequence={handleUpdateRingEventSequence}
                     onExportPdf={() => setShowExportModal(true)}
                     onDownloadSearchablePdf={handleDownloadSearchablePdf}
                     hasBrackets={bracketKeys.length > 0}
@@ -4597,6 +4639,8 @@ export default function App() {
                   hideShareControl={isPublicReportOnly}
                   activePublicView={activePublicView}
                   onActivePublicViewChange={handleActivePublicViewChange}
+                  eventSequenceOrder={eventSequenceOrder}
+                  ringEventSequences={ringEventSequences}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];
@@ -4632,6 +4676,8 @@ export default function App() {
                   isPublicView={false} // Force admin view
                   activePublicView={activePublicView}
                   onActivePublicViewChange={handleActivePublicViewChange}
+                  eventSequenceOrder={eventSequenceOrder}
+                  ringEventSequences={ringEventSequences}
                   onUpdateStandings={(catKey, nextStandings) => {
                     setBrackets((prev) => {
                       const existing = prev[catKey];

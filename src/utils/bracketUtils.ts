@@ -465,6 +465,134 @@ export function isPoomsaeCategory(
   return false;
 }
 
+export interface EventCategoryInfo {
+  id: string; // 'poomsae-cutoff' | 'poomsae-pk' | 'kyorugi-pk' or custom
+  label: string; // 'Poomsae (Cut-off)', 'Poomsae (PK)', 'Sparring (Kyorugi)'
+  shortLabel: string; // 'Cut-off', 'Poomsae PK', 'Sparring'
+  icon: string; // '🥋' or '🥊'
+  badgeBg: string;
+  badgeBorder: string;
+  badgeText: string;
+}
+
+export const DEFAULT_EVENT_SEQUENCE: string[] = ['poomsae-cutoff', 'poomsae-pk', 'kyorugi-pk'];
+
+export const ALL_STANDARD_EVENTS: { id: string; label: string; icon: string; shortLabel: string }[] = [
+  { id: 'poomsae-cutoff', label: 'Poomsae (Cut-off Score)', icon: '🥋', shortLabel: 'Cut-off' },
+  { id: 'poomsae-pk', label: 'Poomsae (PK Elimination)', icon: '🥋', shortLabel: 'Poomsae PK' },
+  { id: 'kyorugi-pk', label: 'Sparring (Kyorugi PK)', icon: '🥊', shortLabel: 'Sparring' },
+];
+
+export function getCategoryEventInfo(
+  systemType?: string,
+  event?: string,
+  categoryKey?: string,
+  categoryName?: string
+): EventCategoryInfo {
+  if (event && event.trim()) {
+    const clean = event.trim();
+    const l = clean.toLowerCase();
+    if (l.includes('cutoff') || l.includes('cut-off')) {
+      return { id: 'poomsae-cutoff', label: clean, shortLabel: clean, icon: '🥋', badgeBg: 'bg-emerald-50', badgeBorder: 'border-emerald-250', badgeText: 'text-emerald-800' };
+    }
+    if (l.includes('poomsae') || l.includes('form') || l.includes('pattern')) {
+      return { id: 'poomsae-pk', label: clean, shortLabel: clean, icon: '🥋', badgeBg: 'bg-cyan-50', badgeBorder: 'border-cyan-250', badgeText: 'text-cyan-800' };
+    }
+    return { id: clean, label: clean, shortLabel: clean, icon: '🥊', badgeBg: 'bg-rose-50', badgeBorder: 'border-rose-250', badgeText: 'text-rose-800' };
+  }
+
+  const sys = systemType || '';
+  if (sys === 'poomsae-cutoff') {
+    return {
+      id: 'poomsae-cutoff',
+      label: 'Poomsae (Cut-off Score)',
+      shortLabel: 'Cut-off',
+      icon: '🥋',
+      badgeBg: 'bg-emerald-50',
+      badgeBorder: 'border-emerald-250',
+      badgeText: 'text-emerald-800',
+    };
+  }
+  if (sys === 'poomsae-pk') {
+    return {
+      id: 'poomsae-pk',
+      label: 'Poomsae (PK Elimination)',
+      shortLabel: 'Poomsae PK',
+      icon: '🥋',
+      badgeBg: 'bg-cyan-50',
+      badgeBorder: 'border-cyan-250',
+      badgeText: 'text-cyan-800',
+    };
+  }
+  if (sys === 'kyorugi-pk') {
+    return {
+      id: 'kyorugi-pk',
+      label: 'Sparring (Kyorugi PK)',
+      shortLabel: 'Sparring',
+      icon: '🥊',
+      badgeBg: 'bg-rose-50',
+      badgeBorder: 'border-rose-250',
+      badgeText: 'text-rose-800',
+    };
+  }
+
+  const combined = `${categoryKey || ''} ${categoryName || ''}`.toLowerCase();
+  if (combined.includes('cutoff') || combined.includes('cut-off')) {
+    return {
+      id: 'poomsae-cutoff',
+      label: 'Poomsae (Cut-off Score)',
+      shortLabel: 'Cut-off',
+      icon: '🥋',
+      badgeBg: 'bg-emerald-50',
+      badgeBorder: 'border-emerald-250',
+      badgeText: 'text-emerald-800',
+    };
+  }
+  if (combined.includes('poomsae') || combined.includes('pomsae') || combined.includes('pattern')) {
+    return {
+      id: 'poomsae-pk',
+      label: 'Poomsae (PK Elimination)',
+      shortLabel: 'Poomsae PK',
+      icon: '🥋',
+      badgeBg: 'bg-cyan-50',
+      badgeBorder: 'border-cyan-250',
+      badgeText: 'text-cyan-800',
+    };
+  }
+
+  return {
+    id: 'kyorugi-pk',
+    label: 'Sparring (Kyorugi PK)',
+    shortLabel: 'Sparring',
+    icon: '🥊',
+    badgeBg: 'bg-rose-50',
+    badgeBorder: 'border-rose-250',
+    badgeText: 'text-rose-800',
+  };
+}
+
+export function getEventOrderRank(
+  eventId: string,
+  eventSequence: string[] = DEFAULT_EVENT_SEQUENCE
+): number {
+  const norm = eventId.toLowerCase().trim();
+  const idx = eventSequence.findIndex(s => s.toLowerCase().trim() === norm);
+  if (idx !== -1) return idx;
+  if (norm.includes('cutoff') || norm.includes('cut-off')) {
+    const cIdx = eventSequence.indexOf('poomsae-cutoff');
+    if (cIdx !== -1) return cIdx;
+  }
+  if (norm.includes('poomsae')) {
+    const pIdx = eventSequence.indexOf('poomsae-pk');
+    if (pIdx !== -1) return pIdx;
+  }
+  if (norm.includes('sparring') || norm.includes('kyorugi')) {
+    const kIdx = eventSequence.indexOf('kyorugi-pk');
+    if (kIdx !== -1) return kIdx;
+  }
+  return 999;
+}
+
 export function formatBoutLabel(
   ring: string | number,
   boutNumber: number | undefined,
@@ -525,39 +653,94 @@ export function assignBoutNumbersByStagesForRing(
   keysInOrder: string[], 
   startCounter: number = 1,
   categories?: Record<string, WeightCategory>,
-  poomsaeStartCounter: number = 1
+  poomsaeStartCounter: number = 1,
+  eventSequence: string[] = DEFAULT_EVENT_SEQUENCE
 ): { kyorugiEnd: number; poomsaeEnd: number } {
   if (keysInOrder.length === 0) return { kyorugiEnd: startCounter, poomsaeEnd: poomsaeStartCounter };
   
-  // Separate Kyorugi and Poomsae into two distinct sequences - NEVER mix them together!
-  const kyorugiKeys = keysInOrder.filter(k => !isPoomsaeCategory(k, categories?.[k], brackets[k]));
-  const poomsaeKeys = keysInOrder.filter(k => isPoomsaeCategory(k, categories?.[k], brackets[k]));
+  const poomsaeRank = Math.min(
+    getEventOrderRank('poomsae-cutoff', eventSequence),
+    getEventOrderRank('poomsae-pk', eventSequence)
+  );
+  const kyorugiRank = getEventOrderRank('kyorugi-pk', eventSequence);
+  const poomsaeFirst = poomsaeRank < kyorugiRank;
 
-  // 1. Assign Kyorugi bouts by stages (earliest round to finals) starting from startCounter (e.g. 1)
-  let kyorugiCounter = startCounter;
-  let maxRounds = 0;
-  kyorugiKeys.forEach(key => {
-    const model = brackets[key];
-    if (model && model.numRounds > maxRounds) {
-      maxRounds = model.numRounds;
-    }
+  const kyorugiKeys = keysInOrder.filter(k => !isPoomsaeCategory(k, categories?.[k], brackets[k]));
+  const poomsaeKeys = keysInOrder.filter(k => isPoomsaeCategory(k, categories?.[k], brackets[k])).sort((a, b) => {
+    const catA = categories?.[a];
+    const catB = categories?.[b];
+    const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a, catA?.name).id;
+    const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b, catB?.name).id;
+    return getEventOrderRank(evA, eventSequence) - getEventOrderRank(evB, eventSequence);
   });
 
-  for (let currentRound = 1; currentRound <= maxRounds; currentRound++) {
+  let kyorugiCounter = startCounter;
+  let poomsaeCounter = poomsaeStartCounter;
+
+  const runKyorugiByStages = () => {
+    let maxRounds = 0;
     kyorugiKeys.forEach(key => {
       const model = brackets[key];
+      if (model && model.numRounds > maxRounds) {
+        maxRounds = model.numRounds;
+      }
+    });
+
+    for (let currentRound = 1; currentRound <= maxRounds; currentRound++) {
+      kyorugiKeys.forEach(key => {
+        const model = brackets[key];
+        if (!model) return;
+        
+        const depthOffset = maxRounds - model.numRounds;
+        if (currentRound > depthOffset) {
+          const k = currentRound - depthOffset;
+          if (k >= 1 && k <= model.numRounds) {
+            const round = model.nodes[k];
+            for (let i = 0; i < round.length; i++) {
+              if (isRealBout(model, k, i)) {
+                model.nodes[k][i].bout = kyorugiCounter;
+                model.nodes[k][i].isPoomsae = false;
+                kyorugiCounter++;
+              } else {
+                model.nodes[k][i].bout = undefined;
+              }
+            }
+          }
+        }
+      });
+    }
+  };
+
+  const runPoomsae = () => {
+    poomsaeKeys.forEach(key => {
+      const model = brackets[key];
       if (!model) return;
-      
-      const depthOffset = maxRounds - model.numRounds;
-      if (currentRound > depthOffset) {
-        const k = currentRound - depthOffset;
-        if (k >= 1 && k <= model.numRounds) {
+
+      if (model.systemType === 'poomsae-cutoff') {
+        const round = model.nodes[0] || [];
+        for (let i = 0; i < round.length; i++) {
+          if (round[i] && !round[i].isBye && round[i].name) {
+            model.nodes[0][i].bout = poomsaeCounter;
+            model.nodes[0][i].isPoomsae = true;
+            if (model.cutoffScores) {
+              const scoreKey = `${round[i].name}||${round[i].club || ''}`;
+              if (model.cutoffScores[scoreKey]) {
+                model.cutoffScores[scoreKey].bout = poomsaeCounter;
+                model.cutoffScores[scoreKey].isPoomsae = true;
+              }
+            }
+            poomsaeCounter++;
+          }
+        }
+      } else {
+        // poomsae-pk
+        for (let k = 1; k <= model.numRounds; k++) {
           const round = model.nodes[k];
           for (let i = 0; i < round.length; i++) {
             if (isRealBout(model, k, i)) {
-              model.nodes[k][i].bout = kyorugiCounter;
-              model.nodes[k][i].isPoomsae = false;
-              kyorugiCounter++;
+              model.nodes[k][i].bout = poomsaeCounter;
+              model.nodes[k][i].isPoomsae = true;
+              poomsaeCounter++;
             } else {
               model.nodes[k][i].bout = undefined;
             }
@@ -565,46 +748,15 @@ export function assignBoutNumbersByStagesForRing(
         }
       }
     });
+  };
+
+  if (poomsaeFirst) {
+    runPoomsae();
+    runKyorugiByStages();
+  } else {
+    runKyorugiByStages();
+    runPoomsae();
   }
-
-  // 2. Assign Poomsae bouts in their OWN SEPARATE numbering sequence starting from 1 (independent from Kyorugi)
-  let poomsaeCounter = poomsaeStartCounter;
-  poomsaeKeys.forEach(key => {
-    const model = brackets[key];
-    if (!model) return;
-
-    if (model.systemType === 'poomsae-cutoff') {
-      const round = model.nodes[0] || [];
-      for (let i = 0; i < round.length; i++) {
-        if (round[i] && !round[i].isBye && round[i].name) {
-          model.nodes[0][i].bout = poomsaeCounter;
-          model.nodes[0][i].isPoomsae = true;
-          if (model.cutoffScores) {
-            const scoreKey = `${round[i].name}||${round[i].club || ''}`;
-            if (model.cutoffScores[scoreKey]) {
-              model.cutoffScores[scoreKey].bout = poomsaeCounter;
-              model.cutoffScores[scoreKey].isPoomsae = true;
-            }
-          }
-          poomsaeCounter++;
-        }
-      }
-    } else {
-      // poomsae-pk (Poomsae elimination tournament)
-      for (let k = 1; k <= model.numRounds; k++) {
-        const round = model.nodes[k];
-        for (let i = 0; i < round.length; i++) {
-          if (isRealBout(model, k, i)) {
-            model.nodes[k][i].bout = poomsaeCounter;
-            model.nodes[k][i].isPoomsae = true;
-            poomsaeCounter++;
-          } else {
-            model.nodes[k][i].bout = undefined;
-          }
-        }
-      }
-    }
-  });
 
   return { kyorugiEnd: kyorugiCounter, poomsaeEnd: poomsaeCounter };
 }
@@ -614,72 +766,96 @@ export function assignBoutNumbersForRing(
   keysInOrder: string[], 
   startCounter: number = 1,
   categories?: Record<string, WeightCategory>,
-  poomsaeStartCounter: number = 1
+  poomsaeStartCounter: number = 1,
+  eventSequence: string[] = DEFAULT_EVENT_SEQUENCE
 ): { kyorugiEnd: number; poomsaeEnd: number } {
   if (keysInOrder.length === 0) return { kyorugiEnd: startCounter, poomsaeEnd: poomsaeStartCounter };
 
-  // Separate Kyorugi and Poomsae into two distinct sequences - NEVER mix them together!
-  const kyorugiKeys = keysInOrder.filter(k => !isPoomsaeCategory(k, categories?.[k], brackets[k]));
-  const poomsaeKeys = keysInOrder.filter(k => isPoomsaeCategory(k, categories?.[k], brackets[k]));
+  const poomsaeRank = Math.min(
+    getEventOrderRank('poomsae-cutoff', eventSequence),
+    getEventOrderRank('poomsae-pk', eventSequence)
+  );
+  const kyorugiRank = getEventOrderRank('kyorugi-pk', eventSequence);
+  const poomsaeFirst = poomsaeRank < kyorugiRank;
 
-  // 1. Assign Kyorugi bouts sequentially starting from startCounter (e.g. 1)
-  let kyorugiCounter = startCounter;
-  kyorugiKeys.forEach(key => {
-    const model = brackets[key];
-    if (!model) return;
-    
-    for (let k = 1; k <= model.numRounds; k++) {
-      const round = model.nodes[k];
-      for (let i = 0; i < round.length; i++) {
-        if (isRealBout(model, k, i)) {
-          model.nodes[k][i].bout = kyorugiCounter;
-          model.nodes[k][i].isPoomsae = false;
-          kyorugiCounter++;
-        } else {
-          model.nodes[k][i].bout = undefined;
-        }
-      }
-    }
+  const kyorugiKeys = keysInOrder.filter(k => !isPoomsaeCategory(k, categories?.[k], brackets[k]));
+  const poomsaeKeys = keysInOrder.filter(k => isPoomsaeCategory(k, categories?.[k], brackets[k])).sort((a, b) => {
+    const catA = categories?.[a];
+    const catB = categories?.[b];
+    const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a, catA?.name).id;
+    const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b, catB?.name).id;
+    return getEventOrderRank(evA, eventSequence) - getEventOrderRank(evB, eventSequence);
   });
 
-  // 2. Assign Poomsae bouts in their OWN SEPARATE numbering sequence starting from 1 (independent from Kyorugi)
+  let kyorugiCounter = startCounter;
   let poomsaeCounter = poomsaeStartCounter;
-  poomsaeKeys.forEach(key => {
-    const model = brackets[key];
-    if (!model) return;
 
-    if (model.systemType === 'poomsae-cutoff') {
-      const round = model.nodes[0] || [];
-      for (let i = 0; i < round.length; i++) {
-        if (round[i] && !round[i].isBye && round[i].name) {
-          model.nodes[0][i].bout = poomsaeCounter;
-          model.nodes[0][i].isPoomsae = true;
-          if (model.cutoffScores) {
-            const scoreKey = `${round[i].name}||${round[i].club || ''}`;
-            if (model.cutoffScores[scoreKey]) {
-              model.cutoffScores[scoreKey].bout = poomsaeCounter;
-              model.cutoffScores[scoreKey].isPoomsae = true;
-            }
-          }
-          poomsaeCounter++;
-        }
-      }
-    } else {
-      // poomsae-pk
+  const runKyorugi = () => {
+    kyorugiKeys.forEach(key => {
+      const model = brackets[key];
+      if (!model) return;
+      
       for (let k = 1; k <= model.numRounds; k++) {
         const round = model.nodes[k];
         for (let i = 0; i < round.length; i++) {
           if (isRealBout(model, k, i)) {
-            model.nodes[k][i].bout = poomsaeCounter;
-            model.nodes[k][i].isPoomsae = true;
-            poomsaeCounter++;
+            model.nodes[k][i].bout = kyorugiCounter;
+            model.nodes[k][i].isPoomsae = false;
+            kyorugiCounter++;
           } else {
             model.nodes[k][i].bout = undefined;
           }
         }
       }
-    }
-  });
+    });
+  };
+
+  const runPoomsae = () => {
+    poomsaeKeys.forEach(key => {
+      const model = brackets[key];
+      if (!model) return;
+
+      if (model.systemType === 'poomsae-cutoff') {
+        const round = model.nodes[0] || [];
+        for (let i = 0; i < round.length; i++) {
+          if (round[i] && !round[i].isBye && round[i].name) {
+            model.nodes[0][i].bout = poomsaeCounter;
+            model.nodes[0][i].isPoomsae = true;
+            if (model.cutoffScores) {
+              const scoreKey = `${round[i].name}||${round[i].club || ''}`;
+              if (model.cutoffScores[scoreKey]) {
+                model.cutoffScores[scoreKey].bout = poomsaeCounter;
+                model.cutoffScores[scoreKey].isPoomsae = true;
+              }
+            }
+            poomsaeCounter++;
+          }
+        }
+      } else {
+        // poomsae-pk
+        for (let k = 1; k <= model.numRounds; k++) {
+          const round = model.nodes[k];
+          for (let i = 0; i < round.length; i++) {
+            if (isRealBout(model, k, i)) {
+              model.nodes[k][i].bout = poomsaeCounter;
+              model.nodes[k][i].isPoomsae = true;
+              poomsaeCounter++;
+            } else {
+              model.nodes[k][i].bout = undefined;
+            }
+          }
+        }
+      }
+    });
+  };
+
+  if (poomsaeFirst) {
+    runPoomsae();
+    runKyorugi();
+  } else {
+    runKyorugi();
+    runPoomsae();
+  }
 
   return { kyorugiEnd: kyorugiCounter, poomsaeEnd: poomsaeCounter };
 }
@@ -689,7 +865,9 @@ export function assignAllBoutNumbers(
   brackets: Record<string, BracketModel>, 
   sequenceOrder: 'sequential' | 'stages' | Record<number, 'sequential' | 'stages'> = 'sequential',
   defaultOrder: 'sequential' | 'stages' = 'sequential',
-  continuousAcrossRings: boolean = false
+  continuousAcrossRings: boolean = false,
+  eventSequenceOrder: string[] = DEFAULT_EVENT_SEQUENCE,
+  ringEventSequences?: Record<number, string[]>
 ): void {
   const eligibleKeys = Object.keys(categories).filter(k => brackets[k]);
   const ringGroups: Record<string, string[]> = {};
@@ -706,17 +884,29 @@ export function assignAllBoutNumbers(
   Object.keys(ringGroups)
     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
     .forEach(ringKey => {
-      // Sort keys within the ring by explicit order or age (smallest age first)
+      const ringNum = parseInt(ringKey, 10) || 1;
+      const effectiveEventSequence = (ringEventSequences && ringEventSequences[ringNum]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+
+      // Sort keys within the ring:
+      // 1. By Event Sequence decided by admin (Event 1 first, then Event 2, then Event 3)
+      // 2. By explicit category order or age/weight
       const sortedKeys = ringGroups[ringKey].sort((a, b) => {
-        const orderA = categories[a]?.order;
-        const orderB = categories[b]?.order;
+        const catA = categories[a];
+        const catB = categories[b];
+        const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a, catA?.name).id;
+        const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b, catB?.name).id;
+        const rankA = getEventOrderRank(evA, effectiveEventSequence);
+        const rankB = getEventOrderRank(evB, effectiveEventSequence);
+        if (rankA !== rankB) return rankA - rankB;
+
+        const orderA = catA?.order;
+        const orderB = catB?.order;
         if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
           return orderA - orderB;
         }
-        return compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b]);
+        return compareCategoriesByAgeAndWeight(a, b, catA, catB);
       });
 
-      const ringNum = parseInt(ringKey, 10);
       let orderForRing: 'sequential' | 'stages' = defaultOrder;
 
       if (typeof sequenceOrder === 'string') {
@@ -731,9 +921,9 @@ export function assignAllBoutNumbers(
 
       let result: { kyorugiEnd: number; poomsaeEnd: number };
       if (orderForRing === 'sequential') {
-        result = assignBoutNumbersForRing(brackets, sortedKeys, kyorugiStart, categories, poomsaeStart);
+        result = assignBoutNumbersForRing(brackets, sortedKeys, kyorugiStart, categories, poomsaeStart, effectiveEventSequence);
       } else {
-        result = assignBoutNumbersByStagesForRing(brackets, sortedKeys, kyorugiStart, categories, poomsaeStart);
+        result = assignBoutNumbersByStagesForRing(brackets, sortedKeys, kyorugiStart, categories, poomsaeStart, effectiveEventSequence);
       }
 
       runningKyorugiCounter = result.kyorugiEnd;

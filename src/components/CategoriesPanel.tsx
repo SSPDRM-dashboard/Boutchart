@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { WeightCategory } from '../types';
-import { compareCategoriesByAgeAndWeight, getCategoryGender } from '../utils/bracketUtils';
+import {
+  compareCategoriesByAgeAndWeight,
+  getCategoryGender,
+  DEFAULT_EVENT_SEQUENCE,
+  ALL_STANDARD_EVENTS,
+  getCategoryEventInfo,
+  getEventOrderRank
+} from '../utils/bracketUtils';
 
 interface CategoriesPanelProps {
   categories: Record<string, WeightCategory>;
@@ -26,6 +33,10 @@ interface CategoriesPanelProps {
   setBoutSequenceOrder: (order: 'sequential' | 'stages') => void;
   ringSequenceOrders?: Record<number, 'sequential' | 'stages'>;
   onUpdateRingSequenceOrder?: (ring: number, order: 'sequential' | 'stages') => void;
+  eventSequenceOrder?: string[];
+  onUpdateEventSequenceOrder?: (sequence: string[]) => void;
+  ringEventSequences?: Record<number, string[]>;
+  onUpdateRingEventSequence?: (ring: number, sequence: string[]) => void;
   continuousBouts?: boolean;
   onToggleContinuousBouts?: (enabled: boolean) => void;
   onExportPdf: () => void;
@@ -60,6 +71,10 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   setBoutSequenceOrder,
   ringSequenceOrders,
   onUpdateRingSequenceOrder,
+  eventSequenceOrder = DEFAULT_EVENT_SEQUENCE,
+  onUpdateEventSequenceOrder,
+  ringEventSequences,
+  onUpdateRingEventSequence,
   continuousBouts = false,
   onToggleContinuousBouts,
   onExportPdf,
@@ -95,7 +110,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
     key.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Get categories allocated to a specific ring
+  // Get categories allocated to a specific ring (sorted by Event Sequence decided by Admin)
   const getCategoriesForRing = (rVal: number) => {
     let keys = catKeys.filter((key) => categories[key].ring === rVal);
 
@@ -105,7 +120,25 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
       keys = keys.filter((k) => getCategoryGender(k, categories[k]) === 'female');
     }
 
-    return keys.sort((a, b) => compareCategoriesByAgeAndWeight(a, b, categories[a], categories[b], ringGenderSequence as any));
+    const effectiveEventSeq = (ringEventSequences && ringEventSequences[rVal]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+
+    return keys.sort((a, b) => {
+      const catA = categories[a];
+      const catB = categories[b];
+      const evA = getCategoryEventInfo(catA?.systemType, catA?.event, a, catA?.name).id;
+      const evB = getCategoryEventInfo(catB?.systemType, catB?.event, b, catB?.name).id;
+      const rankA = getEventOrderRank(evA, effectiveEventSeq);
+      const rankB = getEventOrderRank(evB, effectiveEventSeq);
+      if (rankA !== rankB) return rankA - rankB;
+
+      const orderA = catA?.order;
+      const orderB = catB?.order;
+      if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      return compareCategoriesByAgeAndWeight(a, b, catA, catB, ringGenderSequence as any);
+    });
   };
 
   const handleDragStart = (e: React.DragEvent, key: string) => {
@@ -216,6 +249,84 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
           <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-250 px-2.5 py-1 rounded-lg text-xs font-bold" title="Kyorugi and Poomsae have 2 separate bout numbering sequences (e.g. Kyorugi A01, Poomsae PA01) so they are never mixed together">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Separate Bout Series: Kyorugi & Poomsae</span>
+          </div>
+
+          <div className="h-6 w-[1px] bg-slate-200"></div>
+
+          {/* ADMIN DECIDES SEQUENCE OF EVENTS */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-xl p-1 shadow-2xs" title="Admin controls: Sequence of events in each ring (e.g. Poomsae first, then Sparring)">
+            <span className="text-[10px] font-black uppercase text-amber-950 px-1.5 flex items-center gap-1">
+              <span>🎯</span>
+              <span>Event Order:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onUpdateEventSequenceOrder?.(['poomsae-cutoff', 'poomsae-pk', 'kyorugi-pk'])}
+              className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                (eventSequenceOrder[0] || '').includes('poomsae')
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'bg-white/80 text-slate-700 hover:bg-white border border-amber-200'
+              }`}
+              title="Run Poomsae first (Cut-off & PK), then Sparring in each ring"
+            >
+              🥋 Poomsae 1st → 🥊 Sparring
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdateEventSequenceOrder?.(['kyorugi-pk', 'poomsae-pk', 'poomsae-cutoff'])}
+              className={`px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wide transition-all cursor-pointer ${
+                (eventSequenceOrder[0] || '').includes('kyorugi') || (eventSequenceOrder[0] || '').includes('sparring')
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'bg-white/80 text-slate-700 hover:bg-white border border-amber-200'
+              }`}
+              title="Run Sparring first, then Poomsae in each ring"
+            >
+              🥊 Sparring 1st → 🥋 Poomsae
+            </button>
+            <div className="flex items-center gap-0.5 pl-1 border-l border-amber-300/80">
+              {eventSequenceOrder.map((evId, idx) => {
+                const info = ALL_STANDARD_EVENTS.find(e => e.id === evId) || { label: evId, icon: '🥋', shortLabel: evId };
+                return (
+                  <div key={evId} className="flex items-center gap-0.5 bg-white border border-amber-200 rounded px-1.5 py-0.5 text-[9px] font-black text-slate-800 shadow-2xs">
+                    <span>{idx + 1}.</span>
+                    <span>{info.icon}</span>
+                    <span>{info.shortLabel}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx > 0) {
+                          const nextSeq = [...eventSequenceOrder];
+                          const item = nextSeq.splice(idx, 1)[0];
+                          nextSeq.splice(idx - 1, 0, item);
+                          onUpdateEventSequenceOrder?.(nextSeq);
+                        }
+                      }}
+                      disabled={idx === 0}
+                      className="text-slate-400 hover:text-slate-900 disabled:opacity-20 cursor-pointer pl-0.5"
+                      title="Move earlier"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (idx < eventSequenceOrder.length - 1) {
+                          const nextSeq = [...eventSequenceOrder];
+                          const item = nextSeq.splice(idx, 1)[0];
+                          nextSeq.splice(idx + 1, 0, item);
+                          onUpdateEventSequenceOrder?.(nextSeq);
+                        }
+                      }}
+                      disabled={idx === eventSequenceOrder.length - 1}
+                      className="text-slate-400 hover:text-slate-900 disabled:opacity-20 cursor-pointer"
+                      title="Move later"
+                    >
+                      ▶
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="h-6 w-[1px] bg-slate-200"></div>
@@ -702,7 +813,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                       }`}
                     >
                     {/* Ring Header */}
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
                       <span className="text-xs font-black text-slate-800 tracking-wider uppercase font-mono">
                         Ring {rLabel}
                       </span>
@@ -710,6 +821,54 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                         {ringCats.length} {ringCats.length === 1 ? 'class' : 'classes'}
                       </span>
                     </div>
+
+                    {/* Ring Events Overview & Sequence Override */}
+                    {(() => {
+                      const effectiveEventSeq = (ringEventSequences && ringEventSequences[rVal]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+                      const ringEventMap: Record<string, string[]> = {};
+                      ringCats.forEach(k => {
+                        const cat = categories[k];
+                        const evInfo = getCategoryEventInfo(cat?.systemType, cat?.event, k, cat?.name);
+                        if (!ringEventMap[evInfo.id]) ringEventMap[evInfo.id] = [];
+                        ringEventMap[evInfo.id].push(k);
+                      });
+                      const ringEvIds = Object.keys(ringEventMap).sort((a, b) => {
+                        return getEventOrderRank(a, effectiveEventSeq) - getEventOrderRank(b, effectiveEventSeq);
+                      });
+
+                      if (ringEvIds.length > 1) {
+                        return (
+                          <div className="flex items-center justify-between bg-amber-50 border border-amber-250 rounded-lg px-2 py-1 mb-2.5">
+                            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-amber-950 flex-wrap">
+                              <span className="bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-mono text-[8px]">
+                                {ringEvIds.length} EVENTS
+                              </span>
+                              {ringEvIds.map((evId, evI) => {
+                                const inf = ALL_STANDARD_EVENTS.find(e => e.id === evId) || { shortLabel: evId, icon: '🥋' };
+                                return (
+                                  <span key={evId} className="flex items-center gap-0.5">
+                                    {evI > 0 && <span className="text-amber-500 font-bold">→</span>}
+                                    <span>{inf.icon}</span>
+                                    <span>{inf.shortLabel}</span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            {onUpdateRingEventSequence && (
+                              <button
+                                type="button"
+                                onClick={() => onUpdateRingEventSequence(rVal, [...ringEvIds].reverse())}
+                                className="text-[9px] font-black text-amber-800 hover:text-amber-950 underline cursor-pointer shrink-0 ml-1"
+                                title="Swap event sequence for this ring"
+                              >
+                                ⇄ Swap
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {/* Allocated Cards Pool container */}
                     <div className="space-y-2 flex-1 flex flex-col justify-start">
@@ -722,13 +881,29 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                         ringCats.map((catKey, index, arr) => {
                           const cat = categories[catKey];
                           const isCatOver = dragOverCatKey === catKey;
+                          const effectiveEventSeq = (ringEventSequences && ringEventSequences[rVal]) || eventSequenceOrder || DEFAULT_EVENT_SEQUENCE;
+                          const evInfo = getCategoryEventInfo(cat?.systemType, cat?.event, catKey, cat?.name);
+                          const prevCat = index > 0 ? categories[arr[index - 1]] : null;
+                          const prevEvId = prevCat ? getCategoryEventInfo(prevCat?.systemType, prevCat?.event, arr[index - 1], prevCat?.name).id : null;
+                          const isFirstOfEvent = !prevEvId || prevEvId !== evInfo.id;
+                          const currentEventOrderIdx = getEventOrderRank(evInfo.id, effectiveEventSeq) + 1;
+
                           return (
-                            <div
-                              key={catKey}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, catKey)}
-                              onDragEnd={handleDragEnd}
-                              onDragOver={(e) => {
+                            <React.Fragment key={catKey}>
+                              {isFirstOfEvent && (
+                                <div className={`flex items-center justify-between rounded-lg px-2.5 py-1 text-[9px] font-black uppercase tracking-wider border shadow-2xs mt-2 first:mt-0 ${evInfo.badgeBg} ${evInfo.badgeBorder} ${evInfo.badgeText}`}>
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{evInfo.icon}</span>
+                                    <span>Event {currentEventOrderIdx}: {evInfo.label}</span>
+                                  </div>
+                                  <span className="font-mono opacity-80">Ring {rLabel}</span>
+                                </div>
+                              )}
+                              <div
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, catKey)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setDragOverCatKey(catKey);
@@ -874,9 +1049,10 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                                 </select>
                               </div>
                             </div>
-                          );
-                        })
-                      )}
+                          </React.Fragment>
+                        );
+                      })
+                    )}
                     </div>
 
                     {/* Ring Draw Action button */}
