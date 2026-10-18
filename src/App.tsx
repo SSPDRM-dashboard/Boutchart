@@ -614,10 +614,10 @@ export default function App() {
             });
           return; // Bypass loading from localStorage
         } else {
-          // Fetch from Firestore reports collection but instantly hydrate from local cache first for zero delay
+          // Fetch from Firestore reports collection FIRST as primary source
           const activeId = idParam || 'active_state';
           setStatusMessage({
-            text: activeId === 'active_state' ? 'Loading tournament report...' : 'Retrieving secure club report...',
+            text: activeId === 'active_state' ? 'Loading tournament report from Firebase...' : 'Retrieving secure club report from Firebase...',
             type: 'ok',
           });
 
@@ -656,7 +656,7 @@ export default function App() {
             }
 
             setStatusMessage({
-              text: `Loaded public tournament report for "${tName || 'Tournament'}"`,
+              text: `Loaded public tournament report for "${tName || 'Tournament'}" from Firebase`,
               type: 'ok',
             });
           };
@@ -697,13 +697,12 @@ export default function App() {
                 console.error(e);
               }
             }
+            setStatusMessage({
+              text: 'No active tournament report is available from Firebase or local storage.',
+              type: 'idle',
+            });
             return false;
           };
-
-          // Instantly load from local cache so details show immediately
-          useLocalCacheFallback();
-
-          const docRef = doc(db, 'reports', activeId);
 
           const handleFallback = () => {
             if (resolved) return;
@@ -747,9 +746,11 @@ export default function App() {
             return;
           }
 
-          // 8-second timeout for rapid loading and instant fallback
+          const docRef = doc(db, 'reports', activeId);
+
+          // 8-second timeout for Firestore loading
           const timeoutId = setTimeout(() => {
-            console.warn('Firestore fetch timed out, utilizing local storage/API fallback');
+            console.warn('Firestore fetch timed out, utilizing server API/local storage fallback');
             handleFallback();
           }, 8000);
 
@@ -775,7 +776,7 @@ export default function App() {
               if (isQuotaError(err)) {
                 setQuotaExceeded(true);
               } else {
-                console.error('Failed to query Firestore reports', err);
+                console.error('Failed to query Firebase Firestore reports', err);
               }
               handleFallback();
             });
