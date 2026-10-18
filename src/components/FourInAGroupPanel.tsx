@@ -74,7 +74,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
   tournamentName = 'Tournament',
   onPushToTournament
 }) => {
-  const [participants, setParticipants] = useState<FourGroupParticipant[]>(DEMO_EXACT_SPEC_DATA);
+  const [participants, setParticipants] = useState<FourGroupParticipant[]>([]);
   const [activeTab, setActiveTab] = useState<'upload' | 'paste' | 'manage'>('upload');
   const [viewMode, setViewMode] = useState<'cards' | 'table' | 'print'>('cards');
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,7 +83,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<{ text: string; type: 'ok' | 'err' | 'info' } | null>({
-    text: 'Preloaded example: 16 athletes across 2 categories demonstrating 4-pax club distribution.',
+    text: 'Upload an Excel or CSV roster, or click "Load Prompt Demo" to begin 4-athlete group allocation.',
     type: 'info'
   });
 
@@ -95,13 +95,8 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
 
   // Custom Column Mapping state for 4-in-a-Group
   const [showCustomMapper, setShowCustomMapper] = useState(false);
-  const [stagedRawText, setStagedRawText] = useState<string>(() => {
-    return [
-      'Participant Name,Category,Club,School',
-      ...DEMO_EXACT_SPEC_DATA.map(p => `"${p.name}","${p.category}","${p.club}","${p.school || ''}"`)
-    ].join('\n');
-  });
-  const [stagedFileName, setStagedFileName] = useState<string>('Preloaded Demo Dataset');
+  const [stagedRawText, setStagedRawText] = useState<string>('');
+  const [stagedFileName, setStagedFileName] = useState<string>('');
   const [mappingConfig, setMappingConfig] = useState<ColumnMappingConfig>({
     headerRowIndex: 0,
     nameIdx: -1,
@@ -263,13 +258,21 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
     });
 
     const categoryCount = Object.keys(groupedResults).length;
+    const goldNeeded = totalGroups;
+    const silverNeeded = totalGroups;
+    const bronzeNeeded = totalGroups * 2;
+    const totalMedalsNeeded = totalGroups * 4;
 
     return {
       totalAthletes,
       totalGroups,
       totalConflicts,
       totalClubs: allClubs.size,
-      categoryCount
+      categoryCount,
+      goldNeeded,
+      silverNeeded,
+      bronzeNeeded,
+      totalMedalsNeeded
     };
   }, [groupedResults]);
 
@@ -1148,7 +1151,7 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
         </div>
 
         {/* SUMMARY METRIC STRIP */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-700/60">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-6 pt-6 border-t border-slate-700/60">
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3">
             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
               Total Participants
@@ -1177,6 +1180,20 @@ export const FourInAGroupPanel: React.FC<FourInAGroupPanelProps> = ({
           </div>
 
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
+              Medals Needed
+            </span>
+            <div className="mt-0.5">
+              <span className="text-2xl font-black text-emerald-400 font-mono block">
+                {summaryStats.totalMedalsNeeded}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                🥇{summaryStats.goldNeeded} 🥈{summaryStats.silverNeeded} 🥉{summaryStats.bronzeNeeded}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 col-span-2 sm:col-span-1">
             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
               Club Diversity
             </span>
