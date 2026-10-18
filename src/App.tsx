@@ -880,6 +880,14 @@ export default function App() {
               activePublicView: activePublicView,
               timestamp: Date.now(),
             });
+
+            // Also sync with backend API / Google Studio file storage
+            await fetch('/api/reports/active_state', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: currentPayloadStr
+            }).catch(() => {});
+
             lastWrittenPayloadRef.current = currentPayloadStr;
           } catch (err: any) {
             if (isQuotaError(err)) {
@@ -999,42 +1007,51 @@ export default function App() {
 
   const handleSyncWithCloud = async () => {
     try {
-      if (getQuotaExceeded()) {
-        safeAlert("Quota exceeded. Operating in local storage mode.");
-        return;
-      }
       setStatusMessage({ text: 'Syncing data with Google Studio & Cloud...', type: 'ok' });
       
-      const publicActiveRef = doc(db, 'reports', 'active_state');
-      const snap = await getDoc(publicActiveRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.payload) {
-          const snapPayload = JSON.parse(data.payload);
-          if (snapPayload.tournamentName) setTournamentName(snapPayload.tournamentName);
-          if (snapPayload.roster) setRoster(snapPayload.roster);
-          if (snapPayload.categories) setCategories(snapPayload.categories);
-          if (snapPayload.brackets) setBrackets(snapPayload.brackets);
-          if (snapPayload.ringCount) setRingCount(snapPayload.ringCount);
-          if (snapPayload.ringLabelFormat) setRingLabelFormat(snapPayload.ringLabelFormat);
-          if (snapPayload.boutLabelFormat) setBoutLabelFormat(snapPayload.boutLabelFormat);
-          if (snapPayload.boutSequenceOrder) setBoutSequenceOrder(snapPayload.boutSequenceOrder);
-          if (snapPayload.ringSequenceOrders) setRingSequenceOrders(snapPayload.ringSequenceOrders);
-          if (snapPayload.shuffleSeed !== undefined) setShuffleSeed(snapPayload.shuffleSeed);
-          if (snapPayload.continuousBouts !== undefined) setContinuousBouts(snapPayload.continuousBouts);
+      let snapPayload: any = null;
+      try {
+        const res = await fetch('/api/reports/active_state');
+        if (res.ok) {
+          snapPayload = await res.json();
+        }
+      } catch (e) {}
+
+      if (!snapPayload && !getQuotaExceeded()) {
+        const publicActiveRef = doc(db, 'reports', 'active_state');
+        const snap = await getDoc(publicActiveRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.payload) {
+            snapPayload = JSON.parse(data.payload);
+          }
         }
       }
 
-      if (auth.currentUser && auth.currentUser.email) {
+      if (snapPayload) {
+        if (snapPayload.tournamentName) setTournamentName(snapPayload.tournamentName);
+        if (snapPayload.roster) setRoster(snapPayload.roster);
+        if (snapPayload.categories) setCategories(snapPayload.categories);
+        if (snapPayload.brackets) setBrackets(snapPayload.brackets);
+        if (snapPayload.ringCount) setRingCount(snapPayload.ringCount);
+        if (snapPayload.ringLabelFormat) setRingLabelFormat(snapPayload.ringLabelFormat);
+        if (snapPayload.boutLabelFormat) setBoutLabelFormat(snapPayload.boutLabelFormat);
+        if (snapPayload.boutSequenceOrder) setBoutSequenceOrder(snapPayload.boutSequenceOrder);
+        if (snapPayload.ringSequenceOrders) setRingSequenceOrders(snapPayload.ringSequenceOrders);
+        if (snapPayload.shuffleSeed !== undefined) setShuffleSeed(snapPayload.shuffleSeed);
+        if (snapPayload.continuousBouts !== undefined) setContinuousBouts(snapPayload.continuousBouts);
+      }
+
+      if (auth.currentUser && auth.currentUser.email && !getQuotaExceeded()) {
         const currentRef = doc(db, `users/${auth.currentUser.email}/current/state`);
         const userStateSnap = await getDoc(currentRef);
         if (userStateSnap.exists()) {
           const data = userStateSnap.data();
-          const snapPayload = data.payload ? JSON.parse(data.payload) : data;
-          if (snapPayload.tournamentName) setTournamentName(snapPayload.tournamentName);
-          if (snapPayload.roster) setRoster(snapPayload.roster);
-          if (snapPayload.categories) setCategories(snapPayload.categories);
-          if (snapPayload.brackets) setBrackets(snapPayload.brackets);
+          const userPayload = data.payload ? JSON.parse(data.payload) : data;
+          if (userPayload.tournamentName) setTournamentName(userPayload.tournamentName);
+          if (userPayload.roster) setRoster(userPayload.roster);
+          if (userPayload.categories) setCategories(userPayload.categories);
+          if (userPayload.brackets) setBrackets(userPayload.brackets);
         }
       }
 

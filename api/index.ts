@@ -136,6 +136,64 @@ app.post("/api/reports", async (req, res) => {
   }
 });
 
+// Get active state for Google Studio & web sync
+app.get("/api/reports/active_state", async (req, res) => {
+  try {
+    if (db) {
+      try {
+        const docRef = doc(db, "reports", "active_state");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const docData = docSnap.data();
+          if (docData && docData.payload) {
+            return res.json(JSON.parse(docData.payload));
+          }
+        }
+      } catch (fbErr) {
+        console.error("Failed to load active_state from Firestore", fbErr);
+      }
+    }
+    const filePath = path.join(DATA_DIR, "active_state.json");
+    if (fs.existsSync(filePath)) {
+      return res.json(JSON.parse(fs.readFileSync(filePath, "utf-8")));
+    }
+    return res.status(404).json({ error: "Active state not found" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to get active state" });
+  }
+});
+
+// Post active state for Google Studio & web sync
+app.post("/api/reports/active_state", async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data) return res.status(400).json({ error: "Invalid data" });
+    const payloadStr = typeof data === 'string' ? data : JSON.stringify(data);
+
+    if (db) {
+      try {
+        const docRef = doc(db, "reports", "active_state");
+        await setDoc(docRef, { payload: payloadStr, timestamp: Date.now() });
+      } catch (fbErr) {
+        console.error("Failed to save active_state to Firestore", fbErr);
+      }
+    }
+
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(path.join(DATA_DIR, "active_state.json"), payloadStr, "utf-8");
+    } catch (diskErr) {
+      console.warn("Could not write active_state to local disk", diskErr);
+    }
+
+    res.json({ status: "ok" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to save active state" });
+  }
+});
+
 // Fetch a stored tournament report by key
 app.get("/api/reports/:id", async (req, res) => {
   try {
