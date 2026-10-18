@@ -1,10 +1,23 @@
 import React, { useState } from 'react';
 import { Athlete, WeightCategory } from '../types';
 import { Trophy, School, Users, Medal, Shield } from 'lucide-react';
+import { getCategoryEventInfo } from '../utils/bracketUtils';
 
 interface StatisticsPanelProps {
   roster: Athlete[];
   categories: Record<string, WeightCategory>;
+}
+
+interface EventMedalStats {
+  eventId: string;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  gold: number;
+  silver: number;
+  bronze: number;
+  total: number;
+  categoryCount: number;
 }
 
 export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, categories }) => {
@@ -46,20 +59,48 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, catego
 
   const sortedStats = Object.entries(stats).sort((a, b) => b[1].total - a[1].total);
 
-  // 2. Medals calculation
+  // 2. Medals calculation overall and by event
   let totalGold = 0;
   let totalSilver = 0;
   let totalBronze = 0;
 
-  (Object.values(categories) as WeightCategory[]).forEach(cat => {
-    const count = cat.count;
-    if (count >= 1) totalGold += 1;
-    if (count >= 2) totalSilver += 1;
-    if (count >= 4) totalBronze += 2;
-    else if (count === 3) totalBronze += 1;
+  const eventMedalsMap: Record<string, EventMedalStats> = {};
+
+  (Object.entries(categories) as [string, WeightCategory][]).forEach(([catKey, cat]) => {
+    const count = cat.count || 0;
+    const g = count >= 1 ? 1 : 0;
+    const s = count >= 2 ? 1 : 0;
+    const b = count >= 4 ? 2 : (count === 3 ? 1 : 0);
+    const t = g + s + b;
+
+    totalGold += g;
+    totalSilver += s;
+    totalBronze += b;
+
+    const evInfo = getCategoryEventInfo(cat.systemType, cat.event, catKey, cat.name);
+    if (!eventMedalsMap[evInfo.id]) {
+      eventMedalsMap[evInfo.id] = {
+        eventId: evInfo.id,
+        label: evInfo.label,
+        shortLabel: evInfo.shortLabel,
+        icon: evInfo.icon,
+        gold: 0,
+        silver: 0,
+        bronze: 0,
+        total: 0,
+        categoryCount: 0,
+      };
+    }
+
+    eventMedalsMap[evInfo.id].gold += g;
+    eventMedalsMap[evInfo.id].silver += s;
+    eventMedalsMap[evInfo.id].bronze += b;
+    eventMedalsMap[evInfo.id].total += t;
+    eventMedalsMap[evInfo.id].categoryCount += 1;
   });
 
   const totalMedals = totalGold + totalSilver + totalBronze;
+  const eventMedalsList = Object.values(eventMedalsMap);
 
   return (
     <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-sm">
@@ -72,36 +113,74 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ roster, catego
             Tournament Statistics
           </h2>
           <p className="text-sm text-slate-500 font-medium mt-1">
-            Overview of player demographics and required medals.
+            Overview of player demographics and required medals by event.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Medals Summary */}
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 animate-fade-in">
-          <div className="flex items-center gap-2 mb-4">
-            <Medal className="w-5 h-5 text-amber-500" />
-            <h3 className="font-bold text-slate-800">Required Medals</h3>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-white border border-amber-200 rounded-xl p-4 text-center shadow-sm">
-              <div className="text-2xl font-black text-amber-500">{totalGold}</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Gold</div>
+        {/* Medals Summary & By Event Breakdown */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 animate-fade-in flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Medal className="w-5 h-5 text-amber-500" />
+                <h3 className="font-bold text-slate-800">Required Medals</h3>
+              </div>
+              <span className="text-xs font-mono font-bold bg-amber-100 text-amber-900 px-2.5 py-1 rounded-md shadow-2xs">
+                Total: {totalMedals} Medals Needed
+              </span>
             </div>
-            <div className="bg-white border border-slate-300 rounded-xl p-4 text-center shadow-sm">
-              <div className="text-2xl font-black text-slate-500">{totalSilver}</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Silver</div>
+            
+            <div className="grid grid-cols-3 gap-4 mb-5">
+              <div className="bg-white border border-amber-200 rounded-xl p-4 text-center shadow-sm">
+                <div className="text-2xl font-black text-amber-500">{totalGold}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Gold</div>
+              </div>
+              <div className="bg-white border border-slate-300 rounded-xl p-4 text-center shadow-sm">
+                <div className="text-2xl font-black text-slate-500">{totalSilver}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Silver</div>
+              </div>
+              <div className="bg-white border border-amber-700/30 rounded-xl p-4 text-center shadow-sm">
+                <div className="text-2xl font-black text-amber-700">{totalBronze}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Bronze</div>
+              </div>
             </div>
-            <div className="bg-white border border-amber-700/30 rounded-xl p-4 text-center shadow-sm">
-              <div className="text-2xl font-black text-amber-700">{totalBronze}</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Bronze</div>
+
+            {/* Breakdown by Event */}
+            <div className="space-y-3 pt-3 border-t border-slate-200">
+              <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                <span>⚡</span>
+                <span>Medals Breakdown by Event:</span>
+              </h4>
+              <div className="space-y-2">
+                {eventMedalsList.map(ev => (
+                  <div key={ev.eventId} className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{ev.icon}</span>
+                      <div>
+                        <div className="text-xs font-extrabold text-slate-800">{ev.label}</div>
+                        <div className="text-[10px] text-slate-400 font-bold">{ev.categoryCount} Division{ev.categoryCount === 1 ? '' : 's'}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold">
+                      <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200" title="Gold">
+                        🥇 {ev.gold}
+                      </span>
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200" title="Silver">
+                        🥈 {ev.silver}
+                      </span>
+                      <span className="bg-amber-950/10 text-amber-900 px-2 py-0.5 rounded border border-amber-800/20" title="Bronze">
+                        🥉 {ev.bronze}
+                      </span>
+                      <span className="bg-slate-900 text-amber-400 px-2.5 py-0.5 rounded font-black" title="Total Medals">
+                        {ev.total}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="flex justify-between items-center text-sm font-semibold text-slate-600 px-2">
-            <span>Total Medals Needed:</span>
-            <span className="font-black text-slate-900 bg-slate-200 px-3 py-1 rounded-md">{totalMedals}</span>
           </div>
         </div>
 
