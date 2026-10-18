@@ -614,16 +614,15 @@ export default function App() {
             });
           return; // Bypass loading from localStorage
         } else {
-          // Fetch from Firestore reports collection
+          // Fetch from Firestore reports collection but instantly hydrate from local cache first for zero delay
           const activeId = idParam || 'active_state';
           setStatusMessage({
             text: activeId === 'active_state' ? 'Loading tournament report...' : 'Retrieving secure club report...',
             type: 'ok',
           });
-          
-          const docRef = doc(db, 'reports', activeId);
+
           let resolved = false;
-          
+
           const handleReportData = (parsed: any) => {
             if (resolved) return;
             resolved = true;
@@ -671,10 +670,10 @@ export default function App() {
                 const snap = JSON.parse(stored);
                 if (snap) {
                   if (snap.tournamentName) setTournamentName(snap.tournamentName);
-             if (snap.leftLogo) setLeftLogo(snap.leftLogo);
-             if (snap.leftLogo2) setLeftLogo2(snap.leftLogo2);
-             if (snap.rightLogo) setRightLogo(snap.rightLogo);
-             if (snap.rightLogo2) setRightLogo2(snap.rightLogo2);
+                  if (snap.leftLogo) setLeftLogo(snap.leftLogo);
+                  if (snap.leftLogo2) setLeftLogo2(snap.leftLogo2);
+                  if (snap.rightLogo) setRightLogo(snap.rightLogo);
+                  if (snap.rightLogo2) setRightLogo2(snap.rightLogo2);
                   if (snap.roster) setRoster(snap.roster);
                   if (snap.categories) setCategories(snap.categories);
                   if (snap.brackets) setBrackets(snap.brackets);
@@ -692,17 +691,19 @@ export default function App() {
                     text: `Loaded tournament report from local cache (${snap.roster?.length || 0} athletes)`,
                     type: 'ok',
                   });
-                  return;
+                  return true;
                 }
               } catch (e) {
                 console.error(e);
               }
             }
-            setStatusMessage({
-              text: 'No active tournament report is available. Please log in as an administrator to create data.',
-              type: 'idle',
-            });
+            return false;
           };
+
+          // Instantly load from local cache so details show immediately
+          useLocalCacheFallback();
+
+          const docRef = doc(db, 'reports', activeId);
 
           const handleFallback = () => {
             if (resolved) return;
