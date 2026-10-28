@@ -102,6 +102,17 @@ export interface SavedEvent {
   dismissedDuplicates: string[];
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
   continuousBouts?: boolean;
+  ringGenderSequence?: string;
 }
 
-
+export type RingGenderSequenceMode =
+  | 'all'
+  | 'all-oldest-first'
+  | 'male-first'
+  | 'male-first-oldest-first'
+  | 'female-first'
+  | 'female-first-oldest-first'
+  | 'male-only'
+  | 'male-only-oldest-first'
+  | 'female-only'
+  | 'female-only-oldest-first';

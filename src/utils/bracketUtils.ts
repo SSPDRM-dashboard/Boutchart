@@ -1337,18 +1337,23 @@ export function compareCategoriesByAgeAndWeight(
   catBKey: string,
   catAObj?: WeightCategory,
   catBObj?: WeightCategory,
-  genderSequence: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only' = 'all'
+  genderSequence: string = 'all'
 ): number {
-  if (genderSequence === 'male-first' || genderSequence === 'female-first') {
+  if (
+    genderSequence === 'male-first' ||
+    genderSequence === 'male-first-oldest-first' ||
+    genderSequence === 'female-first' ||
+    genderSequence === 'female-first-oldest-first'
+  ) {
     const genderA = getCategoryGender(catAKey, catAObj);
     const genderB = getCategoryGender(catBKey, catBObj);
     if (genderA !== genderB) {
-      if (genderSequence === 'male-first') {
+      if (genderSequence === 'male-first' || genderSequence === 'male-first-oldest-first') {
         if (genderA === 'male' && genderB !== 'male') return -1;
         if (genderB === 'male' && genderA !== 'male') return 1;
         if (genderA === 'female' && genderB === 'mixed') return -1;
         if (genderB === 'female' && genderA === 'mixed') return 1;
-      } else if (genderSequence === 'female-first') {
+      } else if (genderSequence === 'female-first' || genderSequence === 'female-first-oldest-first') {
         if (genderA === 'female' && genderB !== 'female') return -1;
         if (genderB === 'female' && genderA !== 'female') return 1;
         if (genderA === 'male' && genderB === 'mixed') return -1;
@@ -1360,8 +1365,15 @@ export function compareCategoriesByAgeAndWeight(
   const ageA = parseAgeValue(catAKey);
   const ageB = parseAgeValue(catBKey);
 
+  const isOldestFirst =
+    genderSequence === 'all-oldest-first' ||
+    genderSequence === 'male-first-oldest-first' ||
+    genderSequence === 'female-first-oldest-first' ||
+    genderSequence === 'male-only-oldest-first' ||
+    genderSequence === 'female-only-oldest-first';
+
   if (ageA !== ageB) {
-    return ageA - ageB; // Smallest age first!
+    return isOldestFirst ? ageB - ageA : ageA - ageB;
   }
 
   // Secondary sort by order if available

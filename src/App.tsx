@@ -120,7 +120,7 @@ export default function App() {
   const [ringSequenceOrders, setRingSequenceOrders] = useState<Record<number, 'sequential' | 'stages'>>({});
   const [eventSequenceOrder, setEventSequenceOrder] = useState<string[]>(DEFAULT_EVENT_SEQUENCE);
   const [ringEventSequences, setRingEventSequences] = useState<Record<number, string[]>>({});
-  const [ringGenderSequence, setRingGenderSequence] = useState<'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only'>('all');
+  const [ringGenderSequence, setRingGenderSequence] = useState<string>('all');
   const [shuffleSeed, setShuffleSeed] = useState(true);
   const [activePublicView, setActivePublicView] = useState<PublicReportViewStyle>(() => {
     try {
@@ -1333,10 +1333,10 @@ export default function App() {
     setDismissedDuplicates(prev => [...prev, ...activeGroups.map(g => g.signature)]);
   };
 
-  // Helper to re-arrange categories within each ring from smallest age to oldest age
+  // Helper to re-arrange categories within each ring from smallest age to oldest age (or vice versa)
   const autoArrangeRingsByAge = (
     cats: Record<string, WeightCategory>,
-    genderSeq: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only' = ringGenderSequence
+    genderSeq: string = ringGenderSequence
   ) => {
     const next = { ...cats };
     const ringMap: Record<number, string[]> = {};
@@ -1361,7 +1361,7 @@ export default function App() {
     return next;
   };
 
-  const handleRingGenderSequenceChange = (mode: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only') => {
+  const handleRingGenderSequenceChange = (mode: string) => {
     setRingGenderSequence(mode);
     setCategories((prev) => autoArrangeRingsByAge(prev, mode));
     setBrackets((prev) => {
@@ -1372,15 +1372,20 @@ export default function App() {
       return next;
     });
 
-    const modeLabels = {
+    const modeLabels: Record<string, string> = {
       'all': 'All Genders (Age: Youngest → Oldest)',
+      'all-oldest-first': 'All Genders (Age: Oldest → Youngest)',
       'male-first': 'Male First → Female (Age: Youngest → Oldest)',
+      'male-first-oldest-first': 'Male First → Female (Age: Oldest → Youngest)',
       'female-first': 'Female First → Male (Age: Youngest → Oldest)',
-      'male-only': 'Filter: Male Divisions Only',
-      'female-only': 'Filter: Female Divisions Only'
+      'female-first-oldest-first': 'Female First → Male (Age: Oldest → Youngest)',
+      'male-only': 'Filter: Male Divisions Only (Youngest → Oldest)',
+      'male-only-oldest-first': 'Filter: Male Divisions Only (Oldest → Youngest)',
+      'female-only': 'Filter: Female Divisions Only (Youngest → Oldest)',
+      'female-only-oldest-first': 'Filter: Female Divisions Only (Oldest → Youngest)',
     };
     setStatusMessage({
-      text: `Updated Ring Sequencing rule to "${modeLabels[mode]}". Competition rings re-ordered.`,
+      text: `Updated Ring Sequencing rule to "${modeLabels[mode] || mode}". Competition rings re-ordered.`,
       type: 'ok',
     });
   };
@@ -2168,6 +2173,7 @@ export default function App() {
       ringSequenceOrders,
       eventSequenceOrder,
       ringEventSequences,
+      ringGenderSequence,
       shuffleSeed,
       dismissedDuplicates,
       activePublicView,
@@ -2467,6 +2473,7 @@ export default function App() {
       setRingSequenceOrders(target.ringSequenceOrders || {});
       setEventSequenceOrder(target.eventSequenceOrder || DEFAULT_EVENT_SEQUENCE);
       setRingEventSequences(target.ringEventSequences || {});
+      if (target.ringGenderSequence) setRingGenderSequence(target.ringGenderSequence);
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
       if (target.activePublicView) {

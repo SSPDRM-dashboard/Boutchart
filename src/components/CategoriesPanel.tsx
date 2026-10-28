@@ -20,8 +20,8 @@ interface CategoriesPanelProps {
   onBulkUpdateRing?: (keys: string[], ring: number) => void;
   onUpdateCategorySystemType?: (categoryKey: string, systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => void;
   onBulkUpdateSystemType?: (keys: string[], systemType: 'kyorugi-pk' | 'poomsae-pk' | 'poomsae-cutoff') => void;
-  ringGenderSequence?: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only';
-  onUpdateRingGenderSequence?: (mode: 'all' | 'male-first' | 'female-first' | 'male-only' | 'female-only') => void;
+  ringGenderSequence?: string;
+  onUpdateRingGenderSequence?: (mode: any) => void;
   shuffleSeed: boolean;
   setShuffleSeed: (shuffle: boolean) => void;
   onGenerateBrackets: (targetRing?: number) => void;
@@ -114,9 +114,9 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   const getCategoriesForRing = (rVal: number) => {
     let keys = catKeys.filter((key) => categories[key].ring === rVal);
 
-    if (ringGenderSequence === 'male-only') {
+    if (ringGenderSequence === 'male-only' || ringGenderSequence === 'male-only-oldest-first') {
       keys = keys.filter((k) => getCategoryGender(k, categories[k]) === 'male');
-    } else if (ringGenderSequence === 'female-only') {
+    } else if (ringGenderSequence === 'female-only' || ringGenderSequence === 'female-only-oldest-first') {
       keys = keys.filter((k) => getCategoryGender(k, categories[k]) === 'female');
     }
 
@@ -748,24 +748,29 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                     Gender &amp; Age Sequencing Rule
                   </span>
                   <span className="text-[11px] text-slate-300">
-                    Auto-arranges categories from youngest to oldest age automatically when assigned.
+                    Auto-arranges categories by age (youngest → oldest or oldest → youngest) automatically when assigned.
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-300">Gender Sequencing:</span>
+                <span className="text-xs font-bold text-slate-300">Gender &amp; Age Sequencing:</span>
                 <select
                   value={ringGenderSequence}
-                  onChange={(e) => onUpdateRingGenderSequence?.(e.target.value as any)}
+                  onChange={(e) => onUpdateRingGenderSequence?.(e.target.value)}
                   className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl px-3.5 py-2 border border-amber-400 outline-none cursor-pointer transition-all shadow-sm"
-                  title="Choose Gender Sequencing for all Competition Rings (Smallest to oldest age auto-sorted)"
+                  title="Choose Gender & Age Sequencing for all Competition Rings"
                 >
                   <option value="all">🚻 All Genders (Sorted Youngest → Oldest Age)</option>
-                  <option value="male-first">♂️ Male First → ♀️ Female (Youngest → Oldest Age)</option>
-                  <option value="female-first">♀️ Female First → ♂️ Male (Youngest → Oldest Age)</option>
-                  <option value="male-only">♂️ Filter: Male Divisions Only</option>
-                  <option value="female-only">♀️ Filter: Female Divisions Only</option>
+                  <option value="all-oldest-first">🚻 All Genders (Sorted Oldest → Youngest Age)</option>
+                  <option value="male-first">♂️ Male First → ♀️ Female (Sorted Youngest → Oldest Age)</option>
+                  <option value="male-first-oldest-first">♂️ Male First → ♀️ Female (Sorted Oldest → Youngest Age)</option>
+                  <option value="female-first">♀️ Female First → ♂️ Male (Sorted Youngest → Oldest Age)</option>
+                  <option value="female-first-oldest-first">♀️ Female First → ♂️ Male (Sorted Oldest → Youngest Age)</option>
+                  <option value="male-only">♂️ Filter: Male Divisions Only (Youngest → Oldest)</option>
+                  <option value="male-only-oldest-first">♂️ Filter: Male Divisions Only (Oldest → Youngest)</option>
+                  <option value="female-only">♀️ Filter: Female Divisions Only (Youngest → Oldest)</option>
+                  <option value="female-only-oldest-first">♀️ Filter: Female Divisions Only (Oldest → Youngest)</option>
                 </select>
               </div>
             </div>
