@@ -66,6 +66,9 @@ export interface AppState {
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
   eventSequenceOrder?: string[];
   ringEventSequences?: Record<number, string[]>;
+  showEstimatedTime?: boolean;
+  competitionStartTime?: string;
+  boutGapMinutes?: number;
 }
 
 export interface DuplicateGroup {
@@ -103,6 +106,9 @@ export interface SavedEvent {
   activePublicView?: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
   continuousBouts?: boolean;
   ringGenderSequence?: string;
+  showEstimatedTime?: boolean;
+  competitionStartTime?: string;
+  boutGapMinutes?: number;
 }
 
 export type RingGenderSequenceMode =

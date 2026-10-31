@@ -45,6 +45,52 @@ export function nextPow2(n: number): number {
   return Math.max(p, 2);
 }
 
+/**
+ * Calculates estimated bout start time based on competition start time,
+ * interval gap between bouts, and bout index/number in the ring.
+ * e.g., 09:00 with 5 min gap: Bout 1 => 9.00 am, Bout 2 => 9.05 am.
+ */
+export function getEstimatedBoutTime(
+  boutNumber: number | undefined | null,
+  competitionStartTime: string = '09:00',
+  boutGapMinutes: number = 5,
+  minBoutInRing: number = 1
+): string {
+  if (boutNumber === undefined || boutNumber === null || isNaN(boutNumber) || boutNumber < 1) {
+    return '';
+  }
+
+  let startHour = 9;
+  let startMinute = 0;
+  if (competitionStartTime) {
+    const timeMatch = String(competitionStartTime).trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    if (timeMatch) {
+      let h = parseInt(timeMatch[1], 10);
+      const m = parseInt(timeMatch[2], 10);
+      const period = timeMatch[3]?.toUpperCase();
+      if (period === 'PM' && h < 12) h += 12;
+      if (period === 'AM' && h === 12) h = 0;
+      startHour = h;
+      startMinute = m;
+    }
+  }
+
+  const gap = typeof boutGapMinutes === 'number' && boutGapMinutes > 0 ? boutGapMinutes : 5;
+  const baseBout = typeof minBoutInRing === 'number' && minBoutInRing > 0 ? minBoutInRing : 1;
+  const boutOffsetIndex = Math.max(0, boutNumber - baseBout);
+  const totalOffsetMinutes = boutOffsetIndex * gap;
+  const totalMinutes = startHour * 60 + startMinute + totalOffsetMinutes;
+
+  const currentHour24 = Math.floor(totalMinutes / 60) % 24;
+  const currentMin = totalMinutes % 60;
+
+  const period = currentHour24 >= 12 ? 'pm' : 'am';
+  const hour12 = currentHour24 % 12 === 0 ? 12 : currentHour24 % 12;
+  const padMin = String(currentMin).padStart(2, '0');
+
+  return `${hour12}.${padMin} ${period}`;
+}
+
 export function parseDelimitedLine(line: string, delim: string): string[] {
   const out: string[] = [];
   let cur = '';

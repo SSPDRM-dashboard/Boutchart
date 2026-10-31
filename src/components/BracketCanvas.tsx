@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BracketModel, BracketNode, CutoffScore } from '../types';
 import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
-import { isRealBout, countRealBouts } from '../utils/bracketUtils';
+import { isRealBout, countRealBouts, getEstimatedBoutTime } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
 import { getQuotaExceeded, setQuotaExceeded, isQuotaError } from '../utils/quotaManager';
@@ -44,6 +44,10 @@ interface BracketCanvasProps {
   onUpdateStandings?: (standings: string[]) => void;
   isPublicView?: boolean;
   onUpdateCutoffScores?: (nextScores: Record<string, CutoffScore>) => void;
+  competitionStartTime?: string;
+  boutGapMinutes?: number;
+  showEstimatedTime?: boolean;
+  minBoutInRing?: number;
 }
 
 function getFormattedBout(
@@ -121,6 +125,10 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   onUpdateStandings,
   isPublicView = false,
   onUpdateCutoffScores,
+  competitionStartTime = '09:00',
+  boutGapMinutes = 5,
+  showEstimatedTime = false,
+  minBoutInRing = 1,
 }) => {
   const [scale, setScale] = useState(1);
   const [isAutoFit, setIsAutoFit] = useState(true);
@@ -900,6 +908,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             <span className="inline-flex items-center justify-center px-3 py-1 rounded-lg text-xs font-mono font-black bg-amber-500 text-slate-950 shadow-2xs border border-amber-600/30">
                               {formattedBout}
                             </span>
+                            {showEstimatedTime && (
+                              <span className="text-[10px] font-mono font-extrabold text-slate-600 block mt-0.5">
+                                {getEstimatedBoutTime(boutNum, competitionStartTime, boutGapMinutes, minBoutInRing)}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-left">
                             <div className="font-extrabold text-xs text-slate-900">{ath.athleteName}</div>
@@ -1075,6 +1088,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                    const c2 = positions[k - 1][1];
                    const riserX = (c1.x + BOX_W + c2.x) / 2;
                    const riserY = pos.y;
+                   const estTime = showEstimatedTime ? getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBoutInRing) : '';
                    return (
                      <div
                         key={`riser-bout-final`}
@@ -1087,6 +1101,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                         }}
                       >
                         {getFormattedBout(ring, node.bout, boutLabelFormat, Boolean(node.isPoomsae || isCategoryPoomsae))}
+                        {showEstimatedTime && estTime && (
+                          <span
+                            className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-black text-[12px] shadow-2xs font-mono tracking-tight whitespace-nowrap z-20 print:bg-white print:text-black print:border print:border-black print:text-[11px] print:-top-5"
+                            title={`Estimated bout start: ${estTime}`}
+                          >
+                            {estTime}
+                          </span>
+                        )}
                       </div>
                    )
                 }
@@ -1097,6 +1119,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   ? (c1.x + BOX_W + pos.x) / 2
                   : (c1.x + pos.x + BOX_W) / 2;
                 const riserY = pos.y;
+
+                const estTime = showEstimatedTime ? getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBoutInRing) : '';
 
                 return (
                   <div
@@ -1110,6 +1134,14 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     }}
                   >
                     {getFormattedBout(ring, node.bout, boutLabelFormat, Boolean(node.isPoomsae || isCategoryPoomsae))}
+                    {showEstimatedTime && estTime && (
+                      <span
+                        className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-black text-[12px] shadow-2xs font-mono tracking-tight whitespace-nowrap z-20 print:bg-white print:text-black print:border print:border-black print:text-[11px] print:-top-5"
+                        title={`Estimated bout start: ${estTime}`}
+                      >
+                        {estTime}
+                      </span>
+                    )}
                   </div>
                 );
               });
@@ -1453,8 +1485,11 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                     }}
                   >
                     {hasBout ? (
-                      <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">
+                      <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm whitespace-nowrap">
                         FINAL · {getFormattedBout(ring, node.bout, boutLabelFormat, Boolean(node.isPoomsae || isCategoryPoomsae))}
+                        {showEstimatedTime && (
+                          <span className="ml-1 font-bold">({getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBoutInRing)})</span>
+                        )}
                       </span>
                     ) : (
                       <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 rounded text-[8px] font-black tracking-widest uppercase shadow-sm">

@@ -35,7 +35,7 @@ import {
   DEFAULT_EVENT_SEQUENCE
 } from './utils/bracketUtils';
 import { isQuotaError, setQuotaExceeded, getQuotaExceeded } from './utils/quotaManager';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download, Clock } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -122,6 +122,36 @@ export default function App() {
   const [ringEventSequences, setRingEventSequences] = useState<Record<number, string[]>>({});
   const [ringGenderSequence, setRingGenderSequence] = useState<string>('all');
   const [shuffleSeed, setShuffleSeed] = useState(true);
+  const [showEstimatedTime, setShowEstimatedTime] = useState<boolean>(() => {
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        if (snap && snap.showEstimatedTime !== undefined) return Boolean(snap.showEstimatedTime);
+      }
+    } catch (e) {}
+    return false;
+  });
+  const [competitionStartTime, setCompetitionStartTime] = useState<string>(() => {
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        if (snap && snap.competitionStartTime) return snap.competitionStartTime;
+      }
+    } catch (e) {}
+    return '09:00';
+  });
+  const [boutGapMinutes, setBoutGapMinutes] = useState<number>(() => {
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        if (snap && snap.boutGapMinutes) return Number(snap.boutGapMinutes);
+      }
+    } catch (e) {}
+    return 5;
+  });
   const [activePublicView, setActivePublicView] = useState<PublicReportViewStyle>(() => {
     try {
       const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -458,6 +488,9 @@ export default function App() {
                if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
                if (snap.dismissedDuplicates) setDismissedDuplicates(snap.dismissedDuplicates);
                if (snap.continuousBouts !== undefined) setContinuousBouts(snap.continuousBouts);
+               if (snap.showEstimatedTime !== undefined) setShowEstimatedTime(snap.showEstimatedTime);
+               if (snap.competitionStartTime) setCompetitionStartTime(snap.competitionStartTime);
+               if (snap.boutGapMinutes) setBoutGapMinutes(snap.boutGapMinutes);
                if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
             }
           }
@@ -658,6 +691,9 @@ export default function App() {
             if (parsed.boutLabelFormat) setBoutLabelFormat(parsed.boutLabelFormat);
             if (parsed.shuffleSeed !== undefined) setShuffleSeed(parsed.shuffleSeed);
             if (parsed.dismissedDuplicates !== undefined) setDismissedDuplicates(parsed.dismissedDuplicates);
+            if (parsed.showEstimatedTime !== undefined) setShowEstimatedTime(parsed.showEstimatedTime);
+            if (parsed.competitionStartTime) setCompetitionStartTime(parsed.competitionStartTime);
+            if (parsed.boutGapMinutes) setBoutGapMinutes(parsed.boutGapMinutes);
             
             const activeViewFromData = parsed.activePublicView || parsed.active_public_view || parsed.reportStyle || parsed.apv;
             if (activeViewFromData) {
@@ -692,6 +728,9 @@ export default function App() {
                   if (snap.boutLabelFormat) setBoutLabelFormat(snap.boutLabelFormat);
                   if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
                   if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+                  if (snap.showEstimatedTime !== undefined) setShowEstimatedTime(snap.showEstimatedTime);
+                  if (snap.competitionStartTime) setCompetitionStartTime(snap.competitionStartTime);
+                  if (snap.boutGapMinutes) setBoutGapMinutes(snap.boutGapMinutes);
                   if (snap.activePublicView) {
                     setActivePublicView(snap.activePublicView);
                     safeLocalStorage.setItem('bracket_builder_active_public_view', snap.activePublicView);
@@ -831,6 +870,9 @@ export default function App() {
           if (snap.ringEventSequences) setRingEventSequences(snap.ringEventSequences);
           if (snap.shuffleSeed !== undefined) setShuffleSeed(snap.shuffleSeed);
           if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
+          if (snap.showEstimatedTime !== undefined) setShowEstimatedTime(snap.showEstimatedTime);
+          if (snap.competitionStartTime) setCompetitionStartTime(snap.competitionStartTime);
+          if (snap.boutGapMinutes) setBoutGapMinutes(snap.boutGapMinutes);
           if (snap.activePublicView) {
             setActivePublicView(snap.activePublicView);
             safeLocalStorage.setItem('bracket_builder_active_public_view', snap.activePublicView);
@@ -888,6 +930,9 @@ export default function App() {
           shuffleSeed,
           dismissedDuplicates,
           continuousBouts,
+          showEstimatedTime,
+          competitionStartTime,
+          boutGapMinutes,
           currentEventId,
           activePublicView,
         };
@@ -1793,6 +1838,27 @@ export default function App() {
     });
   };
 
+  const handleToggleShowEstimatedTime = () => {
+    setShowEstimatedTime((prev) => {
+      const next = !prev;
+      setStatusMessage({
+        text: next
+          ? `Estimated Bout Times enabled (Starts at ${competitionStartTime}, ${boutGapMinutes}m per bout).`
+          : 'Estimated Bout Times hidden.',
+        type: 'ok',
+      });
+      return next;
+    });
+  };
+
+  const handleUpdateCompetitionStartTime = (time: string) => {
+    setCompetitionStartTime(time);
+  };
+
+  const handleUpdateBoutGapMinutes = (gap: number) => {
+    setBoutGapMinutes(gap);
+  };
+
   const handleMoveToCategory = (sourceCatKey: string, leafIndex: number, targetCatKey: string) => {
     // 1. Get the bracket node for the athlete so we can identify them
     const model = brackets[sourceCatKey];
@@ -2176,6 +2242,9 @@ export default function App() {
       ringGenderSequence,
       shuffleSeed,
       dismissedDuplicates,
+      showEstimatedTime,
+      competitionStartTime,
+      boutGapMinutes,
       activePublicView,
     };
 
@@ -2282,6 +2351,9 @@ export default function App() {
         ringSequenceOrders,
         shuffleSeed,
         dismissedDuplicates,
+        showEstimatedTime,
+        competitionStartTime,
+        boutGapMinutes,
         currentEventId,
         activePublicView,
       };
@@ -2365,6 +2437,9 @@ export default function App() {
           ringSequenceOrders,
           shuffleSeed,
           dismissedDuplicates,
+          showEstimatedTime,
+          competitionStartTime,
+          boutGapMinutes,
           activePublicView,
         };
 
@@ -2476,6 +2551,9 @@ export default function App() {
       if (target.ringGenderSequence) setRingGenderSequence(target.ringGenderSequence);
       setShuffleSeed(target.shuffleSeed !== undefined ? target.shuffleSeed : true);
       setDismissedDuplicates(target.dismissedDuplicates || []);
+      if (target.showEstimatedTime !== undefined) setShowEstimatedTime(target.showEstimatedTime);
+      if (target.competitionStartTime) setCompetitionStartTime(target.competitionStartTime);
+      if (target.boutGapMinutes) setBoutGapMinutes(target.boutGapMinutes);
       if (target.activePublicView) {
         setActivePublicView(target.activePublicView);
         safeLocalStorage.setItem('bracket_builder_active_public_view', target.activePublicView);
@@ -2496,6 +2574,9 @@ export default function App() {
         ringSequenceOrders: target.ringSequenceOrders || {},
         shuffleSeed: target.shuffleSeed,
         dismissedDuplicates: target.dismissedDuplicates,
+        showEstimatedTime: target.showEstimatedTime,
+        competitionStartTime: target.competitionStartTime,
+        boutGapMinutes: target.boutGapMinutes,
         activePublicView: target.activePublicView || activePublicView,
       };
       safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
@@ -4633,6 +4714,12 @@ export default function App() {
                     onResetBrackets={handleResetBrackets}
                     onReorderCategory={handleReorderCategory}
                     onReorderCategoryTo={handleReorderCategoryTo}
+                    showEstimatedTime={showEstimatedTime}
+                    onToggleShowEstimatedTime={handleToggleShowEstimatedTime}
+                    competitionStartTime={competitionStartTime}
+                    onUpdateCompetitionStartTime={handleUpdateCompetitionStartTime}
+                    boutGapMinutes={boutGapMinutes}
+                    onUpdateBoutGapMinutes={handleUpdateBoutGapMinutes}
                   />
                 )}
               </div>
@@ -4657,6 +4744,9 @@ export default function App() {
                   hideShareControl={isPublicReportOnly}
                   activePublicView={activePublicView}
                   onActivePublicViewChange={handleActivePublicViewChange}
+                  showEstimatedTime={showEstimatedTime}
+                  competitionStartTime={competitionStartTime}
+                  boutGapMinutes={boutGapMinutes}
                   eventSequenceOrder={eventSequenceOrder}
                   ringEventSequences={ringEventSequences}
                   onUpdateStandings={(catKey, nextStandings) => {
@@ -4694,6 +4784,9 @@ export default function App() {
                   isPublicView={false} // Force admin view
                   activePublicView={activePublicView}
                   onActivePublicViewChange={handleActivePublicViewChange}
+                  showEstimatedTime={showEstimatedTime}
+                  competitionStartTime={competitionStartTime}
+                  boutGapMinutes={boutGapMinutes}
                   eventSequenceOrder={eventSequenceOrder}
                   ringEventSequences={ringEventSequences}
                   onUpdateStandings={(catKey, nextStandings) => {
@@ -4814,6 +4907,19 @@ export default function App() {
                         Classic Style
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleShowEstimatedTime}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer no-print active:scale-95 ${
+                        showEstimatedTime
+                          ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-500 shadow-sm'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                      }`}
+                      title={showEstimatedTime ? 'Estimated Bout Time badges visible on bracket nodes. Click to hide.' : 'Click to show estimated bout times on bracket nodes.'}
+                    >
+                      <Clock className={`w-3.5 h-3.5 ${showEstimatedTime ? 'text-slate-950' : 'text-slate-400'}`} />
+                      <span>{showEstimatedTime ? `Time: ON (${competitionStartTime})` : 'Time: OFF'}</span>
+                    </button>
                     <span className="text-xs bg-slate-200 text-slate-800 font-mono px-3 py-1 rounded-full font-bold no-print hidden md:inline-block">
                       {bracketKeys.length} active classes
                     </span>
@@ -5190,38 +5296,58 @@ export default function App() {
                             {/* Ring Brackets List */}
                             {!isCollapsed && (
                               <div className="p-3 sm:p-5 space-y-8 bg-slate-50/40 print:p-0 print:space-y-0 print:bg-white">
-                                {ringKeys.map((key, keyIdx) => {
-                                  const model = brackets[key];
-                                  const cat = categories[key];
-                                  return (
-                                    <div key={key} className="space-y-1.5">
-                                      <div className="flex items-center justify-between text-xs font-bold text-slate-400 px-1 print:hidden">
-                                        <span className="font-mono text-slate-500 text-[11px]">
-                                          Ring {rLabel} · Category {keyIdx + 1} of {ringKeys.length}
-                                        </span>
-                                        <span className="text-[10px] font-mono bg-slate-200/60 text-slate-700 px-2 py-0.5 rounded-md">
-                                          {cat?.count || 0} competitors
-                                        </span>
-                                      </div>
-                                      <BracketCanvas
-                                        bracket={model}
-                                        ring={getRingLabel(cat?.ring || 1)}
-                                        entrantCount={cat?.count || 0}
-                                        layout={bracketLayout}
-                                        tournamentName={tournamentName}
-                                        leftLogo={leftLogo}
-                                        leftLogo2={leftLogo2}
-                                        rightLogo={rightLogo}
-                                        rightLogo2={rightLogo2}
-                                        onChangeLeftLogo={setLeftLogo}
-                                        onChangeLeftLogo2={setLeftLogo2}
-                                        onChangeRightLogo={setRightLogo}
-                                        onChangeRightLogo2={setRightLogo2}
-                                        boutLabelFormat={boutLabelFormat}
-                                        isPublicView={isPublicReportOnly}
-                                        onReshuffle={() => handleReshuffleSingleCategory(key)}
-                                        onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
-                                        onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
+                                {(() => {
+                                  let ringMinBout = 999999;
+                                  ringKeys.forEach(rk => {
+                                    const bm = brackets[rk];
+                                    if (bm?.nodes) {
+                                      bm.nodes.forEach(col => {
+                                        col.forEach(node => {
+                                          if (node.boutNumber && node.boutNumber < ringMinBout) {
+                                            ringMinBout = node.boutNumber;
+                                          }
+                                        });
+                                      });
+                                    }
+                                  });
+                                  const effectiveMinBout = ringMinBout === 999999 ? 1 : ringMinBout;
+
+                                  return ringKeys.map((key, keyIdx) => {
+                                    const model = brackets[key];
+                                    const cat = categories[key];
+                                    return (
+                                      <div key={key} className="space-y-1.5">
+                                        <div className="flex items-center justify-between text-xs font-bold text-slate-400 px-1 print:hidden">
+                                          <span className="font-mono text-slate-500 text-[11px]">
+                                            Ring {rLabel} · Category {keyIdx + 1} of {ringKeys.length}
+                                          </span>
+                                          <span className="text-[10px] font-mono bg-slate-200/60 text-slate-700 px-2 py-0.5 rounded-md">
+                                            {cat?.count || 0} competitors
+                                          </span>
+                                        </div>
+                                        <BracketCanvas
+                                          bracket={model}
+                                          ring={getRingLabel(cat?.ring || 1)}
+                                          entrantCount={cat?.count || 0}
+                                          layout={bracketLayout}
+                                          tournamentName={tournamentName}
+                                          leftLogo={leftLogo}
+                                          leftLogo2={leftLogo2}
+                                          rightLogo={rightLogo}
+                                          rightLogo2={rightLogo2}
+                                          onChangeLeftLogo={setLeftLogo}
+                                          onChangeLeftLogo2={setLeftLogo2}
+                                          onChangeRightLogo={setRightLogo}
+                                          onChangeRightLogo2={setRightLogo2}
+                                          boutLabelFormat={boutLabelFormat}
+                                          isPublicView={isPublicReportOnly}
+                                          showEstimatedTime={showEstimatedTime}
+                                          competitionStartTime={competitionStartTime}
+                                          boutGapMinutes={boutGapMinutes}
+                                          minBoutInRing={effectiveMinBout}
+                                          onReshuffle={() => handleReshuffleSingleCategory(key)}
+                                          onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
+                                          onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
                                         onUpdateCutoffScores={(nextScores) => {
                                           setBrackets((prev) => {
                                             const existing = prev[key];
@@ -5267,7 +5393,8 @@ export default function App() {
                                       />
                                     </div>
                                   );
-                                })}
+                                });
+                              })()}
                               </div>
                             )}
                           </div>

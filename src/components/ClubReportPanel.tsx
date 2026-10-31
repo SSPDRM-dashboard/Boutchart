@@ -7,7 +7,8 @@ import {
   DEFAULT_EVENT_SEQUENCE,
   ALL_STANDARD_EVENTS,
   getCategoryEventInfo,
-  getEventOrderRank
+  getEventOrderRank,
+  getEstimatedBoutTime,
 } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { BracketCanvas } from './BracketCanvas';
@@ -44,6 +45,9 @@ interface ClubReportPanelProps {
   onActivePublicViewChange?: (view: 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart') => void;
   eventSequenceOrder?: string[];
   ringEventSequences?: Record<number, string[]>;
+  showEstimatedTime?: boolean;
+  competitionStartTime?: string;
+  boutGapMinutes?: number;
 }
 
 export const getRingNumberFromLabel = (label: string): number => {
@@ -132,6 +136,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   onActivePublicViewChange,
   eventSequenceOrder = DEFAULT_EVENT_SEQUENCE,
   ringEventSequences,
+  showEstimatedTime = false,
+  competitionStartTime = '09:00',
+  boutGapMinutes = 5,
 }) => {
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
   const effectivePublicView = isPublicView || isPublicAppMode;
@@ -2546,6 +2553,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                             <span className="bg-slate-900 text-amber-400 text-[9px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
                                               Bout {bout.formattedId}
                                             </span>
+                                            {showEstimatedTime && (
+                                              <span className="bg-amber-100 text-amber-950 border border-amber-300 text-[9px] font-mono font-black px-1.5 py-0.5 rounded shadow-2xs">
+                                                ⏰ {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                              </span>
+                                            )}
                                             <span className="text-[9px] bg-slate-100 font-extrabold text-slate-600 px-1.5 py-0.5 rounded uppercase tracking-wide font-sans">
                                               {bout.roundName}
                                             </span>
@@ -2829,10 +2841,15 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                                     >
                                                       <div>
                                                         <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
-                                                          <div className="flex items-center gap-1.5">
+                                                          <div className="flex items-center gap-1.5 flex-wrap">
                                                             <span className="bg-slate-900 text-amber-400 text-[10px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
                                                               Bout {bout.formattedId}
                                                             </span>
+                                                            {showEstimatedTime && (
+                                                              <span className="bg-amber-100 text-amber-950 border border-amber-300 text-[10px] font-mono font-black px-1.5 py-0.5 rounded shadow-2xs">
+                                                                ⏰ {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                              </span>
+                                                            )}
                                                             <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
                                                               {bout.roundName}
                                                             </span>
@@ -3009,10 +3026,15 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                         >
                                           <div>
                                             <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
-                                              <div className="flex items-center gap-1.5">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
                                                 <span className="bg-slate-900 text-amber-400 text-[10px] font-mono font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
                                                   Bout {bout.formattedId}
                                                 </span>
+                                                {showEstimatedTime && (
+                                                  <span className="bg-amber-100 text-amber-950 border border-amber-300 text-[10px] font-mono font-black px-1.5 py-0.5 rounded shadow-2xs">
+                                                    ⏰ {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                  </span>
+                                                )}
                                                 <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
                                                   {bout.roundName}
                                                 </span>
@@ -3494,6 +3516,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                       rightLogo2={rightLogo2}
                                       boutLabelFormat={boutLabelFormat}
                                       isPublicView={effectivePublicView}
+                                      competitionStartTime={competitionStartTime}
+                                      boutGapMinutes={boutGapMinutes}
+                                      showEstimatedTime={showEstimatedTime}
                                       onReshuffle={() => {}}
                                       onCheckboxToggle={() => {}}
                                       onTextChange={() => {}}

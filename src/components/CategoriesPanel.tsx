@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { WeightCategory } from '../types';
 import {
   compareCategoriesByAgeAndWeight,
@@ -46,6 +46,12 @@ interface CategoriesPanelProps {
   onResetBrackets?: () => void;
   onReorderCategory?: (categoryKey: string, direction: 'up' | 'down') => void;
   onReorderCategoryTo?: (sourceKey: string, targetKey: string) => void;
+  showEstimatedTime?: boolean;
+  onToggleShowEstimatedTime?: (show: boolean) => void;
+  competitionStartTime?: string;
+  onUpdateCompetitionStartTime?: (time: string) => void;
+  boutGapMinutes?: number;
+  onUpdateBoutGapMinutes?: (gap: number) => void;
 }
 
 export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
@@ -83,7 +89,13 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   onDeleteCategory,
   onResetBrackets,
   onReorderCategory,
-  onReorderCategoryTo
+  onReorderCategoryTo,
+  showEstimatedTime = false,
+  onToggleShowEstimatedTime,
+  competitionStartTime = '09:00',
+  onUpdateCompetitionStartTime,
+  boutGapMinutes = 5,
+  onUpdateBoutGapMinutes,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCatKey, setDraggedCatKey] = useState<string | null>(null);
@@ -241,6 +253,87 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
             >
               X001 (e.g. A001)
             </button>
+          </div>
+
+          <div className="h-6 w-[1px] bg-slate-200"></div>
+
+          {/* ESTIMATED BOUT TIME CONTROL (Photo 1) */}
+          <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-lg border border-slate-200 shadow-xs">
+            <button
+              type="button"
+              onClick={() => onToggleShowEstimatedTime?.(!showEstimatedTime)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-black transition-all cursor-pointer ${
+                showEstimatedTime
+                  ? 'bg-amber-500 text-slate-950 shadow-xs hover:bg-amber-400'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+              }`}
+              title={showEstimatedTime ? 'Click to hide estimated bout start times on brackets' : 'Click to show estimated bout start times on brackets'}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>{showEstimatedTime ? '⏰ Est. Time: ON' : '⏰ Est. Time: OFF'}</span>
+            </button>
+
+            {showEstimatedTime && (
+              <div className="flex items-center gap-2.5 pl-1.5 border-l border-slate-200 animate-in fade-in duration-200">
+                {/* Competition Start Time */}
+                <div className="flex items-center gap-1.5 text-xs">
+                  <label htmlFor="compStartTime" className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Start:
+                  </label>
+                  <input
+                    id="compStartTime"
+                    type="time"
+                    value={competitionStartTime || '09:00'}
+                    onChange={(e) => onUpdateCompetitionStartTime?.(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500 cursor-pointer"
+                    title="Competition start time for Bout 1 in each ring (e.g. 09:00 AM)"
+                  />
+                </div>
+
+                <div className="h-4 w-[1px] bg-slate-200"></div>
+
+                {/* Bout Gap Minutes */}
+                <div className="flex items-center gap-1.5 text-xs">
+                  <label htmlFor="boutGapInput" className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Gap:
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      id="boutGapInput"
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={boutGapMinutes ?? 5}
+                      onChange={(e) => onUpdateBoutGapMinutes?.(Math.max(1, parseInt(e.target.value, 10) || 5))}
+                      className="w-12 bg-slate-50 border border-slate-200 rounded-l px-1.5 py-0.5 text-xs font-mono font-bold text-slate-900 text-center focus:outline-none focus:border-amber-500"
+                      title="Minutes interval per bout"
+                    />
+                    <span className="bg-slate-100 border border-l-0 border-slate-200 rounded-r px-1.5 py-0.5 text-[10px] font-extrabold text-slate-500 uppercase font-mono">
+                      min
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick Gap Preset Pills */}
+                <div className="hidden sm:flex items-center gap-1">
+                  {[3, 5, 8, 10].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => onUpdateBoutGapMinutes?.(m)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
+                        boutGapMinutes === m
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                      }`}
+                      title={`Set bout interval to ${m} minutes`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="h-6 w-[1px] bg-slate-200"></div>
