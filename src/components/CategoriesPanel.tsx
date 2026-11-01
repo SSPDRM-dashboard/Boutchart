@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { Layers, Activity, Dumbbell, ShieldAlert, CheckCircle2, RotateCcw, HelpCircle, Search, Sparkles, X, Shuffle, Trash2, ChevronUp, ChevronDown, Clock, FileSpreadsheet } from 'lucide-react';
 import { WeightCategory } from '../types';
 import {
   compareCategoriesByAgeAndWeight,
@@ -41,6 +41,7 @@ interface CategoriesPanelProps {
   onToggleContinuousBouts?: (enabled: boolean) => void;
   onExportPdf: () => void;
   onDownloadSearchablePdf?: (ringFilter: 'all' | number) => void;
+  onDownloadBoutList?: (ringFilter: 'all' | number) => void;
   hasBrackets: boolean;
   onDeleteCategory?: (categoryKey: string) => void;
   onResetBrackets?: () => void;
@@ -85,6 +86,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   onToggleContinuousBouts,
   onExportPdf,
   onDownloadSearchablePdf,
+  onDownloadBoutList,
   hasBrackets,
   onDeleteCategory,
   onResetBrackets,
@@ -1308,6 +1310,23 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                     })}
                   </select>
                 </div>
+              )}
+
+              {hasBrackets && onDownloadBoutList && (
+                <button
+                  type="button"
+                  onClick={() => onDownloadBoutList(selectedDownloadRing === 'all' ? 'all' : Number(selectedDownloadRing))}
+                  disabled={!hasBrackets}
+                  className="w-full sm:w-auto px-5 py-3 text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Download chronological Bout List / Match Schedule (CSV) with estimated bout times"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-indigo-100 shrink-0" />
+                  <span>
+                    {selectedDownloadRing === 'all'
+                      ? 'Download Bout List (CSV)'
+                      : `Download Ring ${ringLabelFormat === 'letter' ? String.fromCharCode(64 + Number(selectedDownloadRing)) : selectedDownloadRing} Bout List (CSV)`}
+                  </span>
+                </button>
               )}
               
             </div>

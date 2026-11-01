@@ -1432,3 +1432,335 @@ export function compareCategoriesByAgeAndWeight(
   // Tertiary sort alphabetically
   return catAKey.localeCompare(catBKey);
 }
+
+export function getRingSortOrder(ringLabel: string): number {
+  if (!ringLabel || ringLabel === 'Unassigned') return 99999;
+  const upper = ringLabel.toUpperCase().trim();
+  const letterMatch = upper.match(/RING\s*([A-Z])/i) || upper.match(/^([A-Z])$/);
+  if (letterMatch) {
+    return letterMatch[1].charCodeAt(0) - 64;
+  }
+  const numMatch = upper.match(/\d+/);
+  if (numMatch) {
+    return parseInt(numMatch[0], 10);
+  }
+  return 99999;
+}
+
+export function formatBoutId(
+  ring: string | number,
+  boutNumber: number | undefined | null,
+  boutLabelFormat: string = 'alpha-2',
+  isPoomsae: boolean = false
+): string {
+  if (boutNumber === undefined || boutNumber === null) return '';
+
+  let ringPrefix = 'A';
+  if (typeof ring === 'number') {
+    ringPrefix = ring > 0 && ring <= 26 ? String.fromCharCode(64 + ring) : String(ring || 'A');
+  } else {
+    const cleaned = String(ring).trim();
+    const upper = cleaned.toUpperCase();
+    const letterMatch = upper.match(/RING\s*([A-Z])/i) || upper.match(/^([A-Z])$/);
+    if (letterMatch) {
+      ringPrefix = letterMatch[1];
+    } else {
+      const anyLetter = upper.match(/[A-Z]/);
+      const numMatch = cleaned.match(/\d+/);
+      if (anyLetter && !numMatch) {
+        ringPrefix = anyLetter[0];
+      } else if (numMatch && !anyLetter) {
+        const n = parseInt(numMatch[0], 10);
+        if (n >= 1 && n <= 26) {
+          ringPrefix = String.fromCharCode(64 + n);
+        } else {
+          ringPrefix = numMatch[0];
+        }
+      } else if (anyLetter) {
+        ringPrefix = anyLetter[0];
+      } else if (numMatch) {
+        ringPrefix = numMatch[0];
+      }
+    }
+  }
+
+  if (boutLabelFormat === 'thousands-3') {
+    let baseRingNum = 1;
+    if (ringPrefix.length === 1 && ringPrefix >= 'A' && ringPrefix <= 'Z') {
+      baseRingNum = ringPrefix.charCodeAt(0) - 64;
+    } else {
+      const parsed = parseInt(ringPrefix, 10);
+      if (!isNaN(parsed) && parsed > 0) baseRingNum = parsed;
+    }
+    const combinedNum = baseRingNum * 1000 + boutNumber;
+    return isPoomsae ? `P${combinedNum}` : `${combinedNum}`;
+  }
+
+  const pad = String(boutNumber).padStart(2, '0');
+  return isPoomsae ? `P${ringPrefix}${pad}` : `${ringPrefix}${pad}`;
+}
+
+export interface BoutListEntry {
+  ringNumber: number;
+  ringLabel: string;
+  boutNumber: number;
+  formattedBout: string;
+  estimatedTime: string;
+  eventName: string;
+  categoryName: string;
+  roundName: string;
+  blueCornerName: string;
+  blueCornerClub: string;
+  redCornerName: string;
+  redCornerClub: string;
+  status: string;
+}
+
+export function compileBoutList(
+  brackets: Record<string, BracketModel>,
+  categories: Record<string, WeightCategory>,
+  showEstimatedTime: boolean = true,
+  competitionStartTime: string = '09:00',
+  boutGapMinutes: number = 5,
+  boutLabelFormat: string = 'alpha-2',
+  targetRing?: 'all' | number
+): BoutListEntry[] {
+  const boutList: BoutListEntry[] = [];
+
+  // Compute ringMinBoutMap
+  const ringMinBoutMap: Record<number, number> = {};
+  Object.keys(brackets).forEach(catKey => {
+    const cat = categories[catKey];
+    const ringNum = cat?.ring || 1;
+    if (!ringMinBoutMap[ringNum]) ringMinBoutMap[ringNum] = 999999;
+
+    const bm = brackets[catKey];
+    if (bm?.nodes) {
+      bm.nodes.forEach(col => {
+        col?.forEach(node => {
+          if (typeof node?.bout === 'number' && node.bout < ringMinBoutMap[ringNum]) {
+            ringMinBoutMap[ringNum] = node.bout;
+          }
+        });
+      });
+    }
+    if (bm?.cutoffScores) {
+      Object.values(bm.cutoffScores).forEach((sc: any) => {
+        if (typeof sc?.bout === 'number' && sc.bout < ringMinBoutMap[ringNum]) {
+          ringMinBoutMap[ringNum] = sc.bout;
+        }
+      });
+    }
+  });
+
+  const getRoundName = (k: number, numRounds: number): string => {
+    if (k === numRounds) return 'Final';
+    if (k === numRounds - 1) return 'Semifinal';
+    if (k === numRounds - 2) return 'Quarterfinal';
+    if (k === numRounds - 3) return 'Round of 16';
+    if (k === numRounds - 4) return 'Round of 32';
+    return `Round ${k}`;
+  };
+
+  const getCompetitorInfo = (
+    bracket: BracketModel,
+    node: BracketNode | undefined,
+    k: number,
+    ringLabel: string,
+    isPoomsae: boolean
+  ): { name: string; club: string } => {
+    if (!node) return { name: 'TBD', club: '' };
+    if (node.name && node.name.trim() !== '' && node.name !== 'BYE') {
+      return { name: node.name.trim(), club: node.club?.trim() || '' };
+    }
+    if (node.isBye) {
+      return { name: 'BYE', club: '' };
+    }
+    if (typeof node.bout === 'number') {
+      return {
+        name: `Winner of Bout ${formatBoutId(ringLabel, node.bout, boutLabelFormat, isPoomsae)}`,
+        club: '',
+      };
+    }
+    if (k > 0) {
+      const left = bracket.nodes[k - 1]?.[2 * (node.seed ? node.seed - 1 : 0)];
+      if (left && left.name && !left.isBye) {
+        return { name: left.name.trim(), club: left.club?.trim() || '' };
+      }
+    }
+    return { name: 'TBD', club: '' };
+  };
+
+  Object.keys(brackets).forEach(catKey => {
+    const model = brackets[catKey];
+    if (!model) return;
+
+    const cat = categories[catKey];
+    const ringNum = cat?.ring || 1;
+    if (targetRing !== undefined && targetRing !== 'all' && ringNum !== targetRing) {
+      return;
+    }
+
+    const ringLabel = typeof ringNum === 'number' && ringNum <= 26 ? String.fromCharCode(64 + ringNum) : String(ringNum);
+    const minBoutInRing = ringMinBoutMap[ringNum] === 999999 ? 1 : ringMinBoutMap[ringNum] || 1;
+    const isCatPoomsae = Boolean(
+      model?.systemType?.startsWith('poomsae') ||
+      cat?.systemType?.startsWith('poomsae') ||
+      cat?.name?.toLowerCase().includes('poomsae') ||
+      catKey.toLowerCase().includes('poomsae')
+    );
+    const eventName = isCatPoomsae ? 'Poomsae' : 'Sparring';
+
+    if (model.systemType === 'poomsae-cutoff') {
+      const items = model.cutoffScores && Object.values(model.cutoffScores).length > 0
+        ? Object.values(model.cutoffScores)
+        : (model.nodes?.[0]?.filter(n => !n.isBye).map((n, i) => ({
+            athleteName: n.name,
+            athleteClub: n.club,
+            bout: n.bout ?? (i + 1),
+          })) || []);
+
+      items.forEach((item: any, idx: number) => {
+        const bNum = item.bout ?? (idx + 1);
+        const formattedBout = formatBoutId(ringLabel, bNum, boutLabelFormat, true);
+        const estTime = showEstimatedTime ? getEstimatedBoutTime(bNum, competitionStartTime, boutGapMinutes, minBoutInRing) : '';
+
+        boutList.push({
+          ringNumber: ringNum,
+          ringLabel,
+          boutNumber: bNum,
+          formattedBout,
+          estimatedTime: estTime,
+          eventName: 'Poomsae Cut-Off',
+          categoryName: catKey,
+          roundName: 'Scoring Round',
+          blueCornerName: item.athleteName || 'Athlete',
+          blueCornerClub: item.athleteClub || '',
+          redCornerName: '-',
+          redCornerClub: '-',
+          status: item.finalScore ? `Score: ${item.finalScore.toFixed(2)} (Rank ${item.rank || '-'})` : 'Scheduled',
+        });
+      });
+    } else {
+      for (let k = 1; k <= model.numRounds; k++) {
+        const roundNodes = model.nodes[k];
+        if (!roundNodes) continue;
+
+        for (let m = 0; m < roundNodes.length; m++) {
+          const node = roundNodes[m];
+          if (!node || typeof node.bout !== 'number') continue;
+
+          const boutNum = node.bout;
+          const formattedBout = formatBoutId(ringLabel, boutNum, boutLabelFormat, isCatPoomsae);
+          const estTime = showEstimatedTime ? getEstimatedBoutTime(boutNum, competitionStartTime, boutGapMinutes, minBoutInRing) : '';
+
+          const leftChild = model.nodes[k - 1]?.[2 * m];
+          const rightChild = model.nodes[k - 1]?.[2 * m + 1];
+
+          const blue = getCompetitorInfo(model, leftChild, k - 1, ringLabel, isCatPoomsae);
+          const red = getCompetitorInfo(model, rightChild, k - 1, ringLabel, isCatPoomsae);
+
+          const roundName = getRoundName(k, model.numRounds);
+          let status = 'Scheduled';
+          if (node.name && node.name.trim() !== '' && node.name !== 'BYE') {
+            status = `Winner: ${node.name}`;
+          }
+
+          boutList.push({
+            ringNumber: ringNum,
+            ringLabel,
+            boutNumber: boutNum,
+            formattedBout,
+            estimatedTime: estTime,
+            eventName,
+            categoryName: catKey,
+            roundName,
+            blueCornerName: blue.name,
+            blueCornerClub: blue.club,
+            redCornerName: red.name,
+            redCornerClub: red.club,
+            status,
+          });
+        }
+      }
+    }
+  });
+
+  boutList.sort((a, b) => {
+    const rDiff = getRingSortOrder(a.ringLabel) - getRingSortOrder(b.ringLabel);
+    if (rDiff !== 0) return rDiff;
+    return a.boutNumber - b.boutNumber;
+  });
+
+  return boutList;
+}
+
+export function downloadBoutListCSV(
+  brackets: Record<string, BracketModel>,
+  categories: Record<string, WeightCategory>,
+  showEstimatedTime: boolean = true,
+  competitionStartTime: string = '09:00',
+  boutGapMinutes: number = 5,
+  boutLabelFormat: string = 'alpha-2',
+  tournamentName?: string,
+  targetRing?: 'all' | number
+): void {
+  const list = compileBoutList(
+    brackets,
+    categories,
+    showEstimatedTime,
+    competitionStartTime,
+    boutGapMinutes,
+    boutLabelFormat,
+    targetRing
+  );
+
+  if (list.length === 0) {
+    alert('No scheduled bouts found to download. Please generate tournament brackets first.');
+    return;
+  }
+
+  const headers = [
+    "Ring/Mat",
+    "Bout #",
+    ...(showEstimatedTime ? ["Estimated Start Time"] : []),
+    "Event",
+    "Division / Category",
+    "Stage / Round",
+    "Chung (Blue Corner)",
+    "Chung Club",
+    "Hong (Red Corner)",
+    "Hong Club",
+    "Status / Winner"
+  ];
+
+  const rows = list.map(b => {
+    const rowVals = [
+      `Ring ${b.ringLabel}`,
+      b.formattedBout,
+      ...(showEstimatedTime ? [b.estimatedTime || '-'] : []),
+      b.eventName,
+      b.categoryName,
+      b.roundName,
+      b.blueCornerName,
+      b.blueCornerClub,
+      b.redCornerName,
+      b.redCornerClub,
+      b.status
+    ];
+    return rowVals.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+  });
+
+  const csvContent = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  
+  const ringSuffix = targetRing && targetRing !== 'all' ? `_Ring_${targetRing}` : '_All_Rings';
+  const prefix = (tournamentName || 'Tournament').replace(/[^a-zA-Z0-9_\-]/g, '_');
+  link.setAttribute("download", `${prefix}${ringSuffix}_Bout_List.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}

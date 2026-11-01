@@ -9,6 +9,7 @@ import {
   getCategoryEventInfo,
   getEventOrderRank,
   getEstimatedBoutTime,
+  downloadBoutListCSV,
 } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { BracketCanvas } from './BracketCanvas';
@@ -357,11 +358,12 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           const colX = 146 + f * 20;
 
           if (bout) {
+            const estTime = showEstimatedTime ? getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes) : '';
             // Draw bout formattedId text
             pdf.setTextColor(15, 23, 42);
             pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(9);
-            pdf.text(bout.formattedId, colX + 4, currentY + 7, { baseline: 'middle' });
+            pdf.setFontSize(estTime ? 8 : 9);
+            pdf.text(bout.formattedId, colX + 4, currentY + (estTime ? 5.5 : 7), { baseline: 'middle' });
 
             // Draw Corner badge
             const isRed = bout.corner === 'H';
@@ -372,13 +374,21 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             } else {
               pdf.setFillColor(30, 64, 175); // `#1e40af`
             }
-            pdf.roundedRect(colX + 11.5, currentY + 3.75, 4.5, 4.5, 0.8, 0.8, 'F');
+            pdf.roundedRect(colX + 11.5, currentY + (estTime ? 3 : 3.75), 4.5, 4.5, 0.8, 0.8, 'F');
 
             // Draw Corner text
             pdf.setTextColor(255, 255, 255);
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(7.5);
-            pdf.text(bout.corner === 'G' ? '' : bout.corner, colX + 13.75, currentY + 6.25, { align: 'center', baseline: 'middle' });
+            pdf.text(bout.corner === 'G' ? '' : bout.corner, colX + 13.75, currentY + (estTime ? 5.5 : 6.25), { align: 'center', baseline: 'middle' });
+
+            // Draw estimated time if active
+            if (estTime) {
+              pdf.setTextColor(100, 116, 139);
+              pdf.setFont('helvetica', 'normal');
+              pdf.setFontSize(6.5);
+              pdf.text(estTime, colX + 10, currentY + 9.8, { align: 'center', baseline: 'middle' });
+            }
           } else {
             pdf.setTextColor(203, 213, 225);
             pdf.setFont('helvetica', 'normal');
@@ -1102,7 +1112,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         const bout = athleteBouts[colIndex];
         if (bout) {
           const cornerLabel = bout.corner === 'G' ? 'Turn / Order' : bout.corner === 'H' ? 'Hong (Red)' : 'Chung (Blue)';
-          return `Bout ${bout.formattedId} (${cornerLabel}) vs ${bout.opponentName}${bout.opponentClub ? ' [' + bout.opponentClub + ']' : ''}`;
+          const estTimeStr = showEstimatedTime ? ` (${getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)})` : '';
+          return `Bout ${bout.formattedId}${estTimeStr} (${cornerLabel}) vs ${bout.opponentName}${bout.opponentClub ? ' [' + bout.opponentClub + ']' : ''}`;
         }
         return '-';
       });
@@ -1636,6 +1647,29 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
             >
               <Download className="w-4 h-4 text-emerald-100" />
               <span>{activeReportStyle === 'medal-standings' ? 'Export Medal Standings' : 'Export CSV Report'}</span>
+            </button>
+
+            {/* Download Master Bout List (CSV) */}
+            <button
+              type="button"
+              onClick={() => {
+                const targetR = selectedRing !== 'all' ? (getRingSortOrder(selectedRing) > 0 && getRingSortOrder(selectedRing) < 99999 ? getRingSortOrder(selectedRing) : undefined) : undefined;
+                downloadBoutListCSV(
+                  brackets,
+                  categories,
+                  showEstimatedTime,
+                  competitionStartTime,
+                  boutGapMinutes,
+                  boutLabelFormat,
+                  tournamentName,
+                  targetR
+                );
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
+              title="Download chronological Bout List / Match Schedule as CSV with estimated start times"
+            >
+              <Download className="w-4 h-4 text-indigo-100" />
+              <span>Download Bout List (CSV)</span>
             </button>
 
             {/* Print button */}

@@ -32,10 +32,12 @@ import {
   compareCategoriesByAgeAndWeight,
   countRealBouts,
   isPoomsaeCategory,
-  DEFAULT_EVENT_SEQUENCE
+  DEFAULT_EVENT_SEQUENCE,
+  downloadBoutListCSV,
+  getEstimatedBoutTime,
 } from './utils/bracketUtils';
 import { isQuotaError, setQuotaExceeded, getQuotaExceeded } from './utils/quotaManager';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download, Clock } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download, Clock, FileSpreadsheet } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -3119,6 +3121,32 @@ export default function App() {
 
       setPdfProgress({ current: 0, total: keysToExport.length });
 
+      // Pre-compute the minimum bout in each ring for accurate sequential estimated bout times
+      const ringMinBoutMap: Record<number, number> = {};
+      Object.keys(brackets).forEach(catKey => {
+        const cat = categories[catKey];
+        const ringNum = cat?.ring || 1;
+        if (!ringMinBoutMap[ringNum]) ringMinBoutMap[ringNum] = 999999;
+
+        const bm = brackets[catKey];
+        if (bm?.nodes) {
+          bm.nodes.forEach(col => {
+            col?.forEach(node => {
+              if (typeof node?.bout === 'number' && node.bout < ringMinBoutMap[ringNum]) {
+                ringMinBoutMap[ringNum] = node.bout;
+              }
+            });
+          });
+        }
+        if (bm?.cutoffScores) {
+          Object.values(bm.cutoffScores).forEach((sc: any) => {
+            if (typeof sc?.bout === 'number' && sc.bout < ringMinBoutMap[ringNum]) {
+              ringMinBoutMap[ringNum] = sc.bout;
+            }
+          });
+        }
+      });
+
       // Create a Landscape A4 PDF Document
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -3426,7 +3454,18 @@ export default function App() {
               // 1. No. / Bout (Follow separate Poomsae bout numbering)
               const poomsaeBout = ath.bout ?? (rowIdx + 1);
               const noStr = getFormattedBoutLabel(ringLabel, poomsaeBout, true);
-              pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
+              const minBout = ringMinBoutMap[cat?.ring || 1] === 999999 ? 1 : ringMinBoutMap[cat?.ring || 1] || 1;
+              const poomsaeEstTime = showEstimatedTime ? getEstimatedBoutTime(poomsaeBout, competitionStartTime, boutGapMinutes, minBout) : '';
+
+              if (showEstimatedTime && poomsaeEstTime) {
+                pdf.text(noStr, 22.5, tableY + 5.2, { align: 'center' });
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(6.5);
+                pdf.setTextColor(100, 116, 139);
+                pdf.text(poomsaeEstTime, 22.5, tableY + 9.5, { align: 'center' });
+              } else {
+                pdf.text(noStr, 22.5, tableY + 7.5, { align: 'center' });
+              }
 
               // 2. Athlete / Club
               pdf.setFont('helvetica', 'bold');
@@ -3703,6 +3742,28 @@ export default function App() {
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(Math.max(8, 60 * scale));
             pdf.text(boutText, rectLeft + rectW / 2, rectTop + rectH / 2 + (isClassic ? 2 * scale : 1.5 * scale), { align: 'center', baseline: 'middle' });
+
+            // If showEstimatedTime is active in the system, render the estimated start time badge above the bout riser
+            if (showEstimatedTime) {
+              const minBout = ringMinBoutMap[cat?.ring || 1] === 999999 ? 1 : ringMinBoutMap[cat?.ring || 1] || 1;
+              const estTime = getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBout);
+              if (estTime) {
+                const badgeW = Math.max(14, estTime.length * 2.3);
+                const badgeH = 4.0;
+                const badgeX = rectLeft + rectW / 2 - badgeW / 2;
+                const badgeY = rectTop - badgeH - 0.6;
+
+                pdf.setFillColor(251, 191, 36); // amber-400
+                pdf.setDrawColor(217, 119, 6); // amber-600
+                pdf.setLineWidth(0.2);
+                pdf.roundedRect(badgeX, badgeY, badgeW, badgeH, 0.8, 0.8, 'FD');
+
+                pdf.setTextColor(15, 23, 42); // slate-950
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(Math.max(5.5, 6.2));
+                pdf.text(estTime, rectLeft + rectW / 2, badgeY + badgeH / 2 + 0.2, { align: 'center', baseline: 'middle' });
+              }
+            }
           });
         });
 
@@ -3878,7 +3939,9 @@ export default function App() {
                 pdf.roundedRect(left, top, width, champHeight, 1.5 * scale, 1.5 * scale, 'FD');
 
                 const isCatPoomsae = Boolean(node.isPoomsae || bracket.systemType?.startsWith('poomsae') || cat?.systemType?.startsWith('poomsae') || cat?.name?.toLowerCase().includes('poomsae') || bracket.categoryKey?.toLowerCase().includes('poomsae'));
-                const badgeText = node.bout ? `FINAL · ${getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout, isCatPoomsae)}` : 'CHAMPION';
+                const minBout = ringMinBoutMap[cat?.ring || 1] === 999999 ? 1 : ringMinBoutMap[cat?.ring || 1] || 1;
+                const champEstTime = (showEstimatedTime && node.bout) ? getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBout) : '';
+                const badgeText = node.bout ? `FINAL · ${getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout, isCatPoomsae)}${champEstTime ? ` (${champEstTime})` : ''}` : 'CHAMPION';
                 pdf.setFillColor(245, 158, 11);
                 pdf.rect(left + width / 4, top - 3 * scale, width / 2, 6 * scale, 'F');
                 pdf.setTextColor(15, 23, 42);
@@ -3968,6 +4031,20 @@ export default function App() {
       }
       setPdfExportLoading(false);
     }
+  };
+
+  const handleDownloadBoutList = (ringFilter?: 'all' | number) => {
+    const activeFilter = ringFilter !== undefined ? ringFilter : selectedRingFilter;
+    downloadBoutListCSV(
+      brackets,
+      categories,
+      showEstimatedTime,
+      competitionStartTime,
+      boutGapMinutes,
+      boutLabelFormat,
+      tournamentName,
+      activeFilter
+    );
   };
 
   const hasData = roster.length > 0;
@@ -4812,6 +4889,7 @@ export default function App() {
                     onUpdateRingEventSequence={handleUpdateRingEventSequence}
                     onExportPdf={() => setShowExportModal(true)}
                     onDownloadSearchablePdf={handleDownloadSearchablePdf}
+                    onDownloadBoutList={handleDownloadBoutList}
                     hasBrackets={bracketKeys.length > 0}
                     onDeleteCategory={handleDeleteCategory}
                     onResetBrackets={handleResetBrackets}
@@ -5644,7 +5722,7 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* OPTION 1: DOWNLOAD SEARCHABLE VECTOR PDF */}
                     <button
                       type="button"
@@ -5695,7 +5773,40 @@ export default function App() {
                       </div>
                     </button>
 
-                    {/* OPTION 3: NATIVE BROWSER PRINT */}
+                    {/* OPTION 3: DOWNLOAD CHRONOLOGICAL BOUT LIST CSV */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExportModal(false);
+                        handleDownloadBoutList(selectedRingFilter);
+                      }}
+                      className="bg-indigo-50/50 hover:bg-indigo-100/50 border-2 border-indigo-200 hover:border-indigo-400 p-5 rounded-2xl text-left transition-all cursor-pointer group shadow-xs hover:shadow-md flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black shadow-sm group-hover:scale-110 transition-transform">
+                          <FileSpreadsheet className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-black text-slate-900 text-base leading-tight group-hover:text-indigo-600 transition-colors">
+                              Bout List (CSV)
+                            </h4>
+                            <span className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md ${showEstimatedTime ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-200 text-slate-600'}`}>
+                              ⏰ {showEstimatedTime ? `Est. Time: ON (${competitionStartTime})` : 'Est. Time: OFF'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed mt-1.5 font-medium">
+                            Complete match schedule spreadsheet with bout numbers, competitor details, and estimated times matching system status.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-indigo-600">
+                        <span>Save Bout List (.csv)</span>
+                        <span className="text-lg">→</span>
+                      </div>
+                    </button>
+
+                    {/* OPTION 4: NATIVE BROWSER PRINT */}
                     <button
                       type="button"
                       onClick={() => {
