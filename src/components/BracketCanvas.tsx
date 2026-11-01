@@ -127,7 +127,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   onUpdateCutoffScores,
   competitionStartTime = '09:00',
   boutGapMinutes = 5,
-  showEstimatedTime = false,
+  showEstimatedTime = true,
   minBoutInRing = 1,
 }) => {
   const [scale, setScale] = useState(1);

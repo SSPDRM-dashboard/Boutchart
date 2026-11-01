@@ -130,7 +130,7 @@ export default function App() {
         if (snap && snap.showEstimatedTime !== undefined) return Boolean(snap.showEstimatedTime);
       }
     } catch (e) {}
-    return false;
+    return true;
   });
   const [competitionStartTime, setCompetitionStartTime] = useState<string>(() => {
     try {
@@ -363,6 +363,9 @@ export default function App() {
           boutLabelFormat: boutLabelFormat || currentPayload.boutLabelFormat || 'alpha-2',
           activePublicView: newView,
           reportStyle: newView,
+          showEstimatedTime,
+          competitionStartTime,
+          boutGapMinutes,
           timestamp: Date.now()
         };
         const updatedStr = JSON.stringify(updatedPayload);
@@ -635,6 +638,9 @@ export default function App() {
                 if (cats) setCategories(cats);
                 if (bracks) setBrackets(bracks);
                 if (rlFormat) setRingLabelFormat(rlFormat);
+                if (parsed.showEstimatedTime !== undefined) setShowEstimatedTime(parsed.showEstimatedTime);
+                if (parsed.competitionStartTime) setCompetitionStartTime(parsed.competitionStartTime);
+                if (parsed.boutGapMinutes) setBoutGapMinutes(parsed.boutGapMinutes);
                 
                 const activeViewFromData = parsed.activePublicView || parsed.active_public_view || parsed.reportStyle || parsed.apv;
                 if (activeViewFromData) {
@@ -1838,9 +1844,44 @@ export default function App() {
     });
   };
 
-  const handleToggleShowEstimatedTime = () => {
+  const handleToggleShowEstimatedTime = (explicitVal?: boolean | any) => {
     setShowEstimatedTime((prev) => {
-      const next = !prev;
+      const next = typeof explicitVal === 'boolean' ? explicitVal : !prev;
+      try {
+        const stored = safeLocalStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const snap = JSON.parse(stored);
+          snap.showEstimatedTime = next;
+          safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+        }
+      } catch (e) {}
+
+      if (!getQuotaExceeded()) {
+        try {
+          const publicActiveRef = doc(db, 'reports', 'active_state');
+          getDoc(publicActiveRef).then((docSnap) => {
+            let currentPayload: any = {};
+            if (docSnap.exists() && docSnap.data().payload) {
+              try { currentPayload = JSON.parse(docSnap.data().payload); } catch (e) {}
+            }
+            const updated = {
+              ...currentPayload,
+              showEstimatedTime: next,
+              competitionStartTime,
+              boutGapMinutes,
+              timestamp: Date.now(),
+            };
+            setDoc(publicActiveRef, {
+              payload: JSON.stringify(updated),
+              id: 'active_state',
+              tournamentName: updated.tournamentName || tournamentName || 'Tournament',
+              activePublicView: activePublicView,
+              timestamp: Date.now(),
+            }).catch(() => {});
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
       setStatusMessage({
         text: next
           ? `Estimated Bout Times enabled (Starts at ${competitionStartTime}, ${boutGapMinutes}m per bout).`
@@ -1853,10 +1894,72 @@ export default function App() {
 
   const handleUpdateCompetitionStartTime = (time: string) => {
     setCompetitionStartTime(time);
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        snap.competitionStartTime = time;
+        safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+      }
+    } catch (e) {}
+    if (!getQuotaExceeded()) {
+      try {
+        const publicActiveRef = doc(db, 'reports', 'active_state');
+        getDoc(publicActiveRef).then((docSnap) => {
+          let currentPayload: any = {};
+          if (docSnap.exists() && docSnap.data().payload) {
+            try { currentPayload = JSON.parse(docSnap.data().payload); } catch (e) {}
+          }
+          const updated = {
+            ...currentPayload,
+            competitionStartTime: time,
+            timestamp: Date.now(),
+          };
+          setDoc(publicActiveRef, {
+            payload: JSON.stringify(updated),
+            id: 'active_state',
+            tournamentName: updated.tournamentName || tournamentName || 'Tournament',
+            activePublicView: activePublicView,
+            timestamp: Date.now(),
+          }).catch(() => {});
+        }).catch(() => {});
+      } catch (e) {}
+    }
   };
 
   const handleUpdateBoutGapMinutes = (gap: number) => {
     setBoutGapMinutes(gap);
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        snap.boutGapMinutes = gap;
+        safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+      }
+    } catch (e) {}
+    if (!getQuotaExceeded()) {
+      try {
+        const publicActiveRef = doc(db, 'reports', 'active_state');
+        getDoc(publicActiveRef).then((docSnap) => {
+          let currentPayload: any = {};
+          if (docSnap.exists() && docSnap.data().payload) {
+            try { currentPayload = JSON.parse(docSnap.data().payload); } catch (e) {}
+          }
+          const updated = {
+            ...currentPayload,
+            boutGapMinutes: gap,
+            timestamp: Date.now(),
+          };
+          setDoc(publicActiveRef, {
+            payload: JSON.stringify(updated),
+            id: 'active_state',
+            tournamentName: updated.tournamentName || tournamentName || 'Tournament',
+            activePublicView: activePublicView,
+            timestamp: Date.now(),
+          }).catch(() => {});
+        }).catch(() => {});
+      } catch (e) {}
+    }
   };
 
   const handleMoveToCategory = (sourceCatKey: string, leafIndex: number, targetCatKey: string) => {
@@ -5303,10 +5406,17 @@ export default function App() {
                                     if (bm?.nodes) {
                                       bm.nodes.forEach(col => {
                                         col.forEach(node => {
-                                          if (node.boutNumber && node.boutNumber < ringMinBout) {
-                                            ringMinBout = node.boutNumber;
+                                          if (typeof node.bout === 'number' && node.bout < ringMinBout) {
+                                            ringMinBout = node.bout;
                                           }
                                         });
+                                      });
+                                    }
+                                    if (bm?.cutoffScores) {
+                                      Object.values(bm.cutoffScores).forEach((sc: any) => {
+                                        if (typeof sc?.bout === 'number' && sc.bout < ringMinBout) {
+                                          ringMinBout = sc.bout;
+                                        }
                                       });
                                     }
                                   });

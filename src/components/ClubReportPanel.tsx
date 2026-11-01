@@ -136,7 +136,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   onActivePublicViewChange,
   eventSequenceOrder = DEFAULT_EVENT_SEQUENCE,
   ringEventSequences,
-  showEstimatedTime = false,
+  showEstimatedTime = true,
   competitionStartTime = '09:00',
   boutGapMinutes = 5,
 }) => {
@@ -598,6 +598,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         b: brackets,
         rl: ringLabelFormat,
         leftLogo, leftLogo2, rightLogo, rightLogo2,
+        showEstimatedTime,
+        competitionStartTime,
+        boutGapMinutes,
         activePublicView: activeReportStyle,
         reportStyle: activeReportStyle,
       };
@@ -2205,6 +2208,11 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                                   {bout.corner === 'G' ? '' : bout.corner}
                                                 </span>
                                               </div>
+                                              {showEstimatedTime && (
+                                                <div className="text-[10px] font-black text-amber-700 font-mono tracking-tight mt-0.5 whitespace-nowrap">
+                                                  {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                </div>
+                                              )}
 
                                               {/* Tooltip on Hover */}
                                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 text-white rounded-lg p-2.5 text-[10px] min-w-[200px] shadow-xl z-50 border border-slate-800 text-left no-print pointer-events-none">
@@ -2411,7 +2419,10 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                             c: categories,
                             b: brackets,
                             rl: ringLabelFormat,
-                            leftLogo, leftLogo2, rightLogo, rightLogo2
+                            leftLogo, leftLogo2, rightLogo, rightLogo2,
+                            showEstimatedTime,
+                            competitionStartTime,
+                            boutGapMinutes
                           };
                           
                           try {

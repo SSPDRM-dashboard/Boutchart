@@ -90,7 +90,7 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   onResetBrackets,
   onReorderCategory,
   onReorderCategoryTo,
-  showEstimatedTime = false,
+  showEstimatedTime = true,
   onToggleShowEstimatedTime,
   competitionStartTime = '09:00',
   onUpdateCompetitionStartTime,
@@ -936,9 +936,16 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                     >
                     {/* Ring Header */}
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
-                      <span className="text-xs font-black text-slate-800 tracking-wider uppercase font-mono">
-                        Ring {rLabel}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-800 tracking-wider uppercase font-mono">
+                          Ring {rLabel}
+                        </span>
+                        {showEstimatedTime && (
+                          <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded font-mono shadow-2xs">
+                            ⏰ {competitionStartTime} ({boutGapMinutes}m)
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] font-extrabold bg-slate-200/80 text-slate-700 px-2.5 py-0.5 rounded-full font-mono">
                         {ringCats.length} {ringCats.length === 1 ? 'class' : 'classes'}
                       </span>
