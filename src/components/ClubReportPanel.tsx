@@ -48,6 +48,7 @@ interface ClubReportPanelProps {
   ringEventSequences?: Record<number, string[]>;
   showEstimatedTime?: boolean;
   competitionStartTime?: string;
+  ringStartTimes?: Record<number, string>;
   boutGapMinutes?: number;
 }
 
@@ -139,6 +140,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
   ringEventSequences,
   showEstimatedTime = true,
   competitionStartTime = '09:00',
+  ringStartTimes,
   boutGapMinutes = 5,
 }) => {
   const isPublicAppMode = (import.meta.env.VITE_APP_MODE || '').trim().toUpperCase() === 'PUBLIC';
@@ -358,7 +360,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
           const colX = 146 + f * 20;
 
           if (bout) {
-            const estTime = showEstimatedTime ? getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes) : '';
+            const ringNum = categories[ath.weight]?.ring || 1;
+            const ringStartTime = (ringStartTimes && ringStartTimes[ringNum]) || competitionStartTime;
+            const estTime = showEstimatedTime ? getEstimatedBoutTime(bout.boutNumber, ringStartTime, boutGapMinutes) : '';
             // Draw bout formattedId text
             pdf.setTextColor(15, 23, 42);
             pdf.setFont('helvetica', 'bold');
@@ -1112,7 +1116,9 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
         const bout = athleteBouts[colIndex];
         if (bout) {
           const cornerLabel = bout.corner === 'G' ? 'Turn / Order' : bout.corner === 'H' ? 'Hong (Red)' : 'Chung (Blue)';
-          const estTimeStr = showEstimatedTime ? ` (${getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)})` : '';
+          const ringNum = cat?.ring || 1;
+          const ringStartTime = (ringStartTimes && ringStartTimes[ringNum]) || competitionStartTime;
+          const estTimeStr = showEstimatedTime ? ` (${getEstimatedBoutTime(bout.boutNumber, ringStartTime, boutGapMinutes)})` : '';
           return `Bout ${bout.formattedId}${estTimeStr} (${cornerLabel}) vs ${bout.opponentName}${bout.opponentClub ? ' [' + bout.opponentClub + ']' : ''}`;
         }
         return '-';
@@ -1662,7 +1668,8 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                   boutGapMinutes,
                   boutLabelFormat,
                   tournamentName,
-                  targetR
+                  targetR,
+                  ringStartTimes
                 );
               }}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 active:scale-95"
@@ -2244,7 +2251,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                               </div>
                                               {showEstimatedTime && (
                                                 <div className="text-[10px] font-black text-amber-700 font-mono tracking-tight mt-0.5 whitespace-nowrap">
-                                                  {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                  {getEstimatedBoutTime(bout.boutNumber, (ringStartTimes && ringStartTimes[categories[ath.weight]?.ring || 1]) || competitionStartTime, boutGapMinutes)}
                                                 </div>
                                               )}
 
@@ -2600,7 +2607,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                             </span>
                                             {showEstimatedTime && (
                                               <span className="bg-amber-100 text-amber-950 border border-amber-300 text-[9px] font-mono font-black px-1.5 py-0.5 rounded shadow-2xs">
-                                                ⏰ {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                ⏰ {getEstimatedBoutTime(bout.boutNumber, (ringStartTimes && ringStartTimes[categories[ath.weight]?.ring || 1]) || competitionStartTime, boutGapMinutes)}
                                               </span>
                                             )}
                                             <span className="text-[9px] bg-slate-100 font-extrabold text-slate-600 px-1.5 py-0.5 rounded uppercase tracking-wide font-sans">
@@ -2892,7 +2899,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                                             </span>
                                                             {showEstimatedTime && (
                                                               <span className="bg-amber-100 text-amber-950 border border-amber-300 text-[10px] font-mono font-black px-1.5 py-0.5 rounded shadow-2xs">
-                                                                ⏰ {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                                ⏰ {getEstimatedBoutTime(bout.boutNumber, (ringStartTimes && ringStartTimes[categories[ath.weight]?.ring || 1]) || competitionStartTime, boutGapMinutes)}
                                                               </span>
                                                             )}
                                                             <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
@@ -3077,7 +3084,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                                 </span>
                                                 {showEstimatedTime && (
                                                   <span className="bg-amber-100 text-amber-950 border border-amber-300 text-[10px] font-mono font-black px-1.5 py-0.5 rounded shadow-2xs">
-                                                    ⏰ {getEstimatedBoutTime(bout.boutNumber, competitionStartTime, boutGapMinutes)}
+                                                    ⏰ {getEstimatedBoutTime(bout.boutNumber, (ringStartTimes && ringStartTimes[categories[ath.weight]?.ring || 1]) || competitionStartTime, boutGapMinutes)}
                                                   </span>
                                                 )}
                                                 <span className="text-[10px] bg-slate-100 font-bold text-slate-600 px-1.5 py-0.5 rounded uppercase font-mono">
@@ -3561,7 +3568,7 @@ export const ClubReportPanel: React.FC<ClubReportPanelProps> = ({
                                       rightLogo2={rightLogo2}
                                       boutLabelFormat={boutLabelFormat}
                                       isPublicView={effectivePublicView}
-                                      competitionStartTime={competitionStartTime}
+                                      competitionStartTime={(ringStartTimes && ringStartTimes[cat?.ring || 1]) || competitionStartTime}
                                       boutGapMinutes={boutGapMinutes}
                                       showEstimatedTime={showEstimatedTime}
                                       onReshuffle={() => {}}

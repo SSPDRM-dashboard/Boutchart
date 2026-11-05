@@ -144,6 +144,16 @@ export default function App() {
     } catch (e) {}
     return '09:00';
   });
+  const [ringStartTimes, setRingStartTimes] = useState<Record<number, string>>(() => {
+    try {
+      const stored = safeLocalStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const snap = JSON.parse(stored);
+        if (snap && snap.ringStartTimes) return snap.ringStartTimes;
+      }
+    } catch (e) {}
+    return {};
+  });
   const [boutGapMinutes, setBoutGapMinutes] = useState<number>(() => {
     try {
       const stored = safeLocalStorage.getItem(STORAGE_KEY);
@@ -495,6 +505,7 @@ export default function App() {
                if (snap.continuousBouts !== undefined) setContinuousBouts(snap.continuousBouts);
                if (snap.showEstimatedTime !== undefined) setShowEstimatedTime(snap.showEstimatedTime);
                if (snap.competitionStartTime) setCompetitionStartTime(snap.competitionStartTime);
+                if (snap.ringStartTimes) setRingStartTimes(snap.ringStartTimes);
                if (snap.boutGapMinutes) setBoutGapMinutes(snap.boutGapMinutes);
                if (snap.currentEventId) setCurrentEventId(snap.currentEventId);
             }
@@ -642,6 +653,7 @@ export default function App() {
                 if (rlFormat) setRingLabelFormat(rlFormat);
                 if (parsed.showEstimatedTime !== undefined) setShowEstimatedTime(parsed.showEstimatedTime);
                 if (parsed.competitionStartTime) setCompetitionStartTime(parsed.competitionStartTime);
+            if (parsed.ringStartTimes || parsed.rst) setRingStartTimes(parsed.ringStartTimes || parsed.rst);
                 if (parsed.boutGapMinutes) setBoutGapMinutes(parsed.boutGapMinutes);
                 
                 const activeViewFromData = parsed.activePublicView || parsed.active_public_view || parsed.reportStyle || parsed.apv;
@@ -701,6 +713,7 @@ export default function App() {
             if (parsed.dismissedDuplicates !== undefined) setDismissedDuplicates(parsed.dismissedDuplicates);
             if (parsed.showEstimatedTime !== undefined) setShowEstimatedTime(parsed.showEstimatedTime);
             if (parsed.competitionStartTime) setCompetitionStartTime(parsed.competitionStartTime);
+            if (parsed.ringStartTimes || parsed.rst) setRingStartTimes(parsed.ringStartTimes || parsed.rst);
             if (parsed.boutGapMinutes) setBoutGapMinutes(parsed.boutGapMinutes);
             
             const activeViewFromData = parsed.activePublicView || parsed.active_public_view || parsed.reportStyle || parsed.apv;
@@ -738,6 +751,7 @@ export default function App() {
                   if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
                   if (snap.showEstimatedTime !== undefined) setShowEstimatedTime(snap.showEstimatedTime);
                   if (snap.competitionStartTime) setCompetitionStartTime(snap.competitionStartTime);
+                if (snap.ringStartTimes) setRingStartTimes(snap.ringStartTimes);
                   if (snap.boutGapMinutes) setBoutGapMinutes(snap.boutGapMinutes);
                   if (snap.activePublicView) {
                     setActivePublicView(snap.activePublicView);
@@ -880,6 +894,7 @@ export default function App() {
           if (snap.dismissedDuplicates !== undefined) setDismissedDuplicates(snap.dismissedDuplicates);
           if (snap.showEstimatedTime !== undefined) setShowEstimatedTime(snap.showEstimatedTime);
           if (snap.competitionStartTime) setCompetitionStartTime(snap.competitionStartTime);
+                if (snap.ringStartTimes) setRingStartTimes(snap.ringStartTimes);
           if (snap.boutGapMinutes) setBoutGapMinutes(snap.boutGapMinutes);
           if (snap.activePublicView) {
             setActivePublicView(snap.activePublicView);
@@ -1929,6 +1944,48 @@ export default function App() {
     }
   };
 
+  const handleUpdateRingStartTime = (ring: number, time: string) => {
+    setRingStartTimes((prev) => {
+      const next = { ...prev, [ring]: time };
+      try {
+        const stored = safeLocalStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const snap = JSON.parse(stored);
+          snap.ringStartTimes = next;
+          safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+        }
+      } catch (e) {}
+      if (!getQuotaExceeded()) {
+        try {
+          const publicActiveRef = doc(db, 'reports', 'active_state');
+          getDoc(publicActiveRef).then((docSnap) => {
+            let currentPayload: any = {};
+            if (docSnap.exists() && docSnap.data().payload) {
+              try { currentPayload = JSON.parse(docSnap.data().payload); } catch (e) {}
+            }
+            const updated = {
+              ...currentPayload,
+              ringStartTimes: next,
+              timestamp: Date.now(),
+            };
+            setDoc(publicActiveRef, {
+              payload: JSON.stringify(updated),
+              id: 'active_state',
+              tournamentName: updated.tournamentName || tournamentName || 'Tournament',
+              activePublicView: activePublicView,
+              timestamp: Date.now(),
+            }).catch(() => {});
+          }).catch(() => {});
+        } catch (e) {}
+      }
+      setStatusMessage({
+        text: `Ring ${getRingLabel(ring)} start time set to ${time}.`,
+        type: 'ok',
+      });
+      return next;
+    });
+  };
+
   const handleUpdateBoutGapMinutes = (gap: number) => {
     setBoutGapMinutes(gap);
     try {
@@ -2032,6 +2089,96 @@ export default function App() {
     setStatusMessage({
       text: `Successfully transferred ${athlete.name} from "${sourceCatKey}" to "${targetCatKey}". Both brackets adjusted and rescheduled.`,
       type: 'ok',
+    });
+  };
+
+  const handleAdminUpdateLeafNode = (catKey: string, i: number, name: string, club: string, isBye: boolean) => {
+    const currentModel = brackets[catKey];
+    const currentNode = currentModel?.nodes?.[0]?.[i];
+    const wasBye = Boolean(currentNode?.isBye);
+    const oldName = (currentNode?.name || '').trim();
+    const oldClub = (currentNode?.club || '').trim();
+    const trimmedName = name.trim();
+    const trimmedClub = club.trim();
+
+    // 1. Prepare updated categories and roster
+    let updatedCategories = { ...categories };
+    let updatedRoster = [...roster];
+
+    if (wasBye && !isBye) {
+      // Adding athlete to BYE / empty slot
+      const newAthlete: Athlete = {
+        name: trimmedName,
+        club: trimmedClub,
+        weight: catKey,
+      };
+      updatedRoster.push(newAthlete);
+
+      if (updatedCategories[catKey]) {
+        const existingEntrants = updatedCategories[catKey].entrants || [];
+        updatedCategories[catKey] = {
+          ...updatedCategories[catKey],
+          count: (updatedCategories[catKey].count || 0) + 1,
+          entrants: [...existingEntrants, newAthlete],
+        };
+      }
+      setStatusMessage({
+        text: `Added athlete "${trimmedName}" (${trimmedClub || 'Ind.'}) to ${catKey} (Slot ${i + 1}). Match activated!`,
+        type: 'ok',
+      });
+    } else if (!wasBye && isBye) {
+      // Removing athlete / setting to BYE
+      updatedRoster = updatedRoster.filter(
+        (a) => !(a.weight === catKey && a.name.trim().toLowerCase() === oldName.toLowerCase())
+      );
+      if (updatedCategories[catKey]) {
+        const filteredEntrants = (updatedCategories[catKey].entrants || []).filter(
+          (e) => e.name.trim().toLowerCase() !== oldName.toLowerCase()
+        );
+        updatedCategories[catKey] = {
+          ...updatedCategories[catKey],
+          count: Math.max(0, (updatedCategories[catKey].count || 1) - 1),
+          entrants: filteredEntrants,
+        };
+      }
+      setStatusMessage({
+        text: `Slot ${i + 1} set to BYE. Removed athlete "${oldName}".`,
+        type: 'ok',
+      });
+    } else if (!wasBye && !isBye && (trimmedName !== oldName || trimmedClub !== oldClub)) {
+      // Renaming / updating existing athlete
+      updatedRoster = updatedRoster.map((a) => {
+        if (a.weight === catKey && a.name.trim().toLowerCase() === oldName.toLowerCase()) {
+          return { ...a, name: trimmedName, club: trimmedClub };
+        }
+        return a;
+      });
+      if (updatedCategories[catKey]) {
+        const updatedEntrants = (updatedCategories[catKey].entrants || []).map((e) => {
+          if (e.name.trim().toLowerCase() === oldName.toLowerCase()) {
+            return { name: trimmedName, club: trimmedClub };
+          }
+          return e;
+        });
+        updatedCategories[catKey] = {
+          ...updatedCategories[catKey],
+          entrants: updatedEntrants,
+        };
+      }
+      setStatusMessage({
+        text: `Updated athlete details to "${trimmedName}" (${trimmedClub || 'Ind.'}).`,
+        type: 'ok',
+      });
+    }
+
+    setRoster(updatedRoster);
+    setCategories(updatedCategories);
+
+    // 2. Update bracket models & recompute bout numbering
+    setBrackets((prev) => {
+      const next = handleUpdateLeafNode(prev, catKey, i, trimmedName, trimmedClub, isBye);
+      assignAllBoutNumbers(updatedCategories, next, ringSequenceOrders, boutSequenceOrder);
+      return next;
     });
   };
 
@@ -2658,6 +2805,7 @@ export default function App() {
       setDismissedDuplicates(target.dismissedDuplicates || []);
       if (target.showEstimatedTime !== undefined) setShowEstimatedTime(target.showEstimatedTime);
       if (target.competitionStartTime) setCompetitionStartTime(target.competitionStartTime);
+      setRingStartTimes(target.ringStartTimes || {});
       if (target.boutGapMinutes) setBoutGapMinutes(target.boutGapMinutes);
       if (target.activePublicView) {
         setActivePublicView(target.activePublicView);
@@ -3455,7 +3603,8 @@ export default function App() {
               const poomsaeBout = ath.bout ?? (rowIdx + 1);
               const noStr = getFormattedBoutLabel(ringLabel, poomsaeBout, true);
               const minBout = ringMinBoutMap[cat?.ring || 1] === 999999 ? 1 : ringMinBoutMap[cat?.ring || 1] || 1;
-              const poomsaeEstTime = showEstimatedTime ? getEstimatedBoutTime(poomsaeBout, competitionStartTime, boutGapMinutes, minBout) : '';
+              const rStartTime = (ringStartTimes && ringStartTimes[cat?.ring || 1]) || competitionStartTime;
+              const poomsaeEstTime = showEstimatedTime ? getEstimatedBoutTime(poomsaeBout, rStartTime, boutGapMinutes, minBout) : '';
 
               if (showEstimatedTime && poomsaeEstTime) {
                 pdf.text(noStr, 22.5, tableY + 5.2, { align: 'center' });
@@ -3746,7 +3895,8 @@ export default function App() {
             // If showEstimatedTime is active in the system, render the estimated start time badge above the bout riser
             if (showEstimatedTime) {
               const minBout = ringMinBoutMap[cat?.ring || 1] === 999999 ? 1 : ringMinBoutMap[cat?.ring || 1] || 1;
-              const estTime = getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBout);
+              const rStartTime = (ringStartTimes && ringStartTimes[cat?.ring || 1]) || competitionStartTime;
+                const estTime = getEstimatedBoutTime(node.bout, rStartTime, boutGapMinutes, minBout);
               if (estTime) {
                 const badgeW = Math.max(14, estTime.length * 2.3);
                 const badgeH = 4.0;
@@ -3940,7 +4090,8 @@ export default function App() {
 
                 const isCatPoomsae = Boolean(node.isPoomsae || bracket.systemType?.startsWith('poomsae') || cat?.systemType?.startsWith('poomsae') || cat?.name?.toLowerCase().includes('poomsae') || bracket.categoryKey?.toLowerCase().includes('poomsae'));
                 const minBout = ringMinBoutMap[cat?.ring || 1] === 999999 ? 1 : ringMinBoutMap[cat?.ring || 1] || 1;
-                const champEstTime = (showEstimatedTime && node.bout) ? getEstimatedBoutTime(node.bout, competitionStartTime, boutGapMinutes, minBout) : '';
+                const rStartTime = (ringStartTimes && ringStartTimes[cat?.ring || 1]) || competitionStartTime;
+                const champEstTime = (showEstimatedTime && node.bout) ? getEstimatedBoutTime(node.bout, rStartTime, boutGapMinutes, minBout) : '';
                 const badgeText = node.bout ? `FINAL · ${getFormattedBoutLabel(getRingLabel(cat?.ring || 1), node.bout, isCatPoomsae)}${champEstTime ? ` (${champEstTime})` : ''}` : 'CHAMPION';
                 pdf.setFillColor(245, 158, 11);
                 pdf.rect(left + width / 4, top - 3 * scale, width / 2, 6 * scale, 'F');
@@ -4043,7 +4194,8 @@ export default function App() {
       boutGapMinutes,
       boutLabelFormat,
       tournamentName,
-      activeFilter
+      activeFilter,
+      ringStartTimes
     );
   };
 
@@ -4899,6 +5051,8 @@ export default function App() {
                     onToggleShowEstimatedTime={handleToggleShowEstimatedTime}
                     competitionStartTime={competitionStartTime}
                     onUpdateCompetitionStartTime={handleUpdateCompetitionStartTime}
+                    ringStartTimes={ringStartTimes}
+                    onUpdateRingStartTime={handleUpdateRingStartTime}
                     boutGapMinutes={boutGapMinutes}
                     onUpdateBoutGapMinutes={handleUpdateBoutGapMinutes}
                   />
@@ -4928,6 +5082,7 @@ export default function App() {
                   showEstimatedTime={showEstimatedTime}
                   competitionStartTime={competitionStartTime}
                   boutGapMinutes={boutGapMinutes}
+                  ringStartTimes={ringStartTimes}
                   eventSequenceOrder={eventSequenceOrder}
                   ringEventSequences={ringEventSequences}
                   onUpdateStandings={(catKey, nextStandings) => {
@@ -4968,6 +5123,7 @@ export default function App() {
                   showEstimatedTime={showEstimatedTime}
                   competitionStartTime={competitionStartTime}
                   boutGapMinutes={boutGapMinutes}
+                  ringStartTimes={ringStartTimes}
                   eventSequenceOrder={eventSequenceOrder}
                   ringEventSequences={ringEventSequences}
                   onUpdateStandings={(catKey, nextStandings) => {
@@ -5416,9 +5572,25 @@ export default function App() {
                                 </div>
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <h3 className="text-lg md:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                                    <h3 className="text-lg md:text-xl font-black text-white tracking-tight flex items-center gap-2 flex-wrap">
                                       <span>Ring {rLabel}</span>
-                                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                      {showEstimatedTime && (
+                                        <div 
+                                          className="flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-xl text-xs font-mono font-bold"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <span title={`Ring ${rLabel} start time`}>⏰</span>
+                                          <input
+                                            type="time"
+                                            value={(ringStartTimes && ringStartTimes[rNum]) || competitionStartTime || '09:00'}
+                                            onChange={(e) => handleUpdateRingStartTime(rNum, e.target.value)}
+                                            className="bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 rounded px-1.5 py-0.5 text-xs font-mono font-black text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer shadow-xs"
+                                            title={`Set competition start time for Ring ${rLabel}`}
+                                          />
+                                          <span className="text-[10px] text-amber-400/80 font-semibold">({boutGapMinutes}m gap)</span>
+                                        </div>
+                                      )}
+                                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold">
                                         Independent Ring
                                       </span>
                                     </h3>
@@ -5530,9 +5702,11 @@ export default function App() {
                                           boutLabelFormat={boutLabelFormat}
                                           isPublicView={isPublicReportOnly}
                                           showEstimatedTime={showEstimatedTime}
-                                          competitionStartTime={competitionStartTime}
+                                          competitionStartTime={(ringStartTimes && ringStartTimes[cat?.ring || 1]) || competitionStartTime}
                                           boutGapMinutes={boutGapMinutes}
+                                          ringStartTimes={ringStartTimes}
                                           minBoutInRing={effectiveMinBout}
+                                          roster={roster}
                                           onReshuffle={() => handleReshuffleSingleCategory(key)}
                                           onCheckboxToggle={(k, i, checked) => handleCheckboxToggleNode(key, k, i, checked)}
                                           onTextChange={(k, i, text) => handleTextChangeNode(key, k, i, text)}
@@ -5563,11 +5737,7 @@ export default function App() {
                                           });
                                         }}
                                         onUpdateLeafNode={(i, name, club, isBye) => {
-                                          setBrackets((prev) => {
-                                            const next = handleUpdateLeafNode(prev, key, i, name, club, isBye);
-                                            assignAllBoutNumbers(categories, next, ringSequenceOrders, boutSequenceOrder);
-                                            return next;
-                                          });
+                                          handleAdminUpdateLeafNode(key, i, name, club, isBye);
                                         }}
                                         onSwapLeafNodes={(i, j) => {
                                           setBrackets((prev) => {

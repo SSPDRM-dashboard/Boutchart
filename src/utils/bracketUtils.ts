@@ -1111,6 +1111,10 @@ export function handleUpdateLeafNode(
 
   const node = model.nodes[0][i];
   if (node) {
+    const wasBye = Boolean(node.isBye);
+    const oldName = node.name;
+    const oldClub = node.club;
+
     node.name = isBye ? 'BYE' : name;
     node.club = isBye ? '' : club;
     node.isBye = isBye;
@@ -1138,6 +1142,18 @@ export function handleUpdateLeafNode(
       model.nodes[1][parentIdx].weight = node.weight;
       model.nodes[1][parentIdx].isBye = false;
       invalidateAbove(model.nodes, model.numRounds, 1, parentIdx);
+    } else if (wasBye && !isBye && sibling && !sibling.isBye) {
+      // Sibling previously had an automatic walkover because node was a BYE.
+      // Now both are active competitors, so sibling's walkover is cancelled and both must fight!
+      sibling.checked = false;
+      node.checked = false;
+      const parentIdx = Math.floor(i / 2);
+      model.nodes[1][parentIdx].name = '';
+      model.nodes[1][parentIdx].club = '';
+      model.nodes[1][parentIdx].weight = '';
+      model.nodes[1][parentIdx].isBye = false;
+      model.nodes[1][parentIdx].checked = false;
+      invalidateAbove(model.nodes, model.numRounds, 1, parentIdx);
     } else {
       const parentIdx = Math.floor(i / 2);
       if (node.checked) {
@@ -1153,6 +1169,19 @@ export function handleUpdateLeafNode(
         model.nodes[1][parentIdx].club = '';
         model.nodes[1][parentIdx].isBye = (node.isBye && (!sibling || sibling.isBye));
         fullClear(model.nodes, model.numRounds, 1, parentIdx);
+      }
+    }
+
+    // If an existing competitor was edited/renamed, sync downstream rounds with the new name and club
+    if (!wasBye && !isBye && oldName && oldName !== 'BYE' && (name !== oldName || club !== oldClub)) {
+      for (let k = 1; k <= model.numRounds; k++) {
+        if (!model.nodes[k]) continue;
+        for (let j = 0; j < model.nodes[k].length; j++) {
+          if (model.nodes[k][j].name === oldName && (!oldClub || model.nodes[k][j].club === oldClub)) {
+            model.nodes[k][j].name = name;
+            model.nodes[k][j].club = club;
+          }
+        }
       }
     }
   }
@@ -1523,7 +1552,8 @@ export function compileBoutList(
   competitionStartTime: string = '09:00',
   boutGapMinutes: number = 5,
   boutLabelFormat: string = 'alpha-2',
-  targetRing?: 'all' | number
+  targetRing?: 'all' | number,
+  ringStartTimes?: Record<number, string>
 ): BoutListEntry[] {
   const boutList: BoutListEntry[] = [];
 
@@ -1602,6 +1632,7 @@ export function compileBoutList(
     }
 
     const ringLabel = typeof ringNum === 'number' && ringNum <= 26 ? String.fromCharCode(64 + ringNum) : String(ringNum);
+    const ringStartTime = (ringStartTimes && ringStartTimes[ringNum]) || competitionStartTime;
     const minBoutInRing = ringMinBoutMap[ringNum] === 999999 ? 1 : ringMinBoutMap[ringNum] || 1;
     const isCatPoomsae = Boolean(
       model?.systemType?.startsWith('poomsae') ||
@@ -1623,7 +1654,7 @@ export function compileBoutList(
       items.forEach((item: any, idx: number) => {
         const bNum = item.bout ?? (idx + 1);
         const formattedBout = formatBoutId(ringLabel, bNum, boutLabelFormat, true);
-        const estTime = showEstimatedTime ? getEstimatedBoutTime(bNum, competitionStartTime, boutGapMinutes, minBoutInRing) : '';
+        const estTime = showEstimatedTime ? getEstimatedBoutTime(bNum, ringStartTime, boutGapMinutes, minBoutInRing) : '';
 
         boutList.push({
           ringNumber: ringNum,
@@ -1652,7 +1683,7 @@ export function compileBoutList(
 
           const boutNum = node.bout;
           const formattedBout = formatBoutId(ringLabel, boutNum, boutLabelFormat, isCatPoomsae);
-          const estTime = showEstimatedTime ? getEstimatedBoutTime(boutNum, competitionStartTime, boutGapMinutes, minBoutInRing) : '';
+          const estTime = showEstimatedTime ? getEstimatedBoutTime(boutNum, ringStartTime, boutGapMinutes, minBoutInRing) : '';
 
           const leftChild = model.nodes[k - 1]?.[2 * m];
           const rightChild = model.nodes[k - 1]?.[2 * m + 1];
@@ -1703,7 +1734,8 @@ export function downloadBoutListCSV(
   boutGapMinutes: number = 5,
   boutLabelFormat: string = 'alpha-2',
   tournamentName?: string,
-  targetRing?: 'all' | number
+  targetRing?: 'all' | number,
+  ringStartTimes?: Record<number, string>
 ): void {
   const list = compileBoutList(
     brackets,
@@ -1712,7 +1744,8 @@ export function downloadBoutListCSV(
     competitionStartTime,
     boutGapMinutes,
     boutLabelFormat,
-    targetRing
+    targetRing,
+    ringStartTimes
   );
 
   if (list.length === 0) {

@@ -68,6 +68,7 @@ export interface AppState {
   ringEventSequences?: Record<number, string[]>;
   showEstimatedTime?: boolean;
   competitionStartTime?: string;
+  ringStartTimes?: Record<number, string>;
   boutGapMinutes?: number;
 }
 
@@ -108,6 +109,7 @@ export interface SavedEvent {
   ringGenderSequence?: string;
   showEstimatedTime?: boolean;
   competitionStartTime?: string;
+  ringStartTimes?: Record<number, string>;
   boutGapMinutes?: number;
 }
 

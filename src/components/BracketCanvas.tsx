@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BracketModel, BracketNode, CutoffScore } from '../types';
-import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
+import { BracketModel, BracketNode, CutoffScore, Athlete } from '../types';
+import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2, UserPlus } from 'lucide-react';
 import { isRealBout, countRealBouts, getEstimatedBoutTime } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
@@ -48,6 +48,8 @@ interface BracketCanvasProps {
   boutGapMinutes?: number;
   showEstimatedTime?: boolean;
   minBoutInRing?: number;
+  ringStartTimes?: Record<number, string>;
+  roster?: Athlete[];
 }
 
 function getFormattedBout(
@@ -129,6 +131,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   boutGapMinutes = 5,
   showEstimatedTime = true,
   minBoutInRing = 1,
+  roster = [],
 }) => {
   const [scale, setScale] = useState(1);
   const [isAutoFit, setIsAutoFit] = useState(true);
@@ -1184,8 +1187,9 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                           setSelectedLeafIndex(i);
                           setEditName('');
                           setEditClub('');
-                          setEditIsBye(true);
+                          setEditIsBye(false);
                           setSwapTargetIndex('');
+                          setSelectedTargetCategory('');
                           setShowModal(true);
                         }}
                         className={`absolute flex items-center px-2 transition-all group ${
@@ -1211,7 +1215,29 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             {/* BYE text ON TOP of the line */}
                             <div className={`h-[20px] flex items-end gap-1.5 w-full pb-[2.5px] min-w-0 ${isLeft ? 'justify-start text-left' : 'justify-end text-right'}`}>
                               <span className="text-[12.5px] font-mono font-black text-slate-500 shrink-0">{node.seed} -</span>
-                              <span className="text-[14px] font-black tracking-tight text-slate-400 uppercase whitespace-nowrap min-w-0">BYE</span>
+                              <span className="text-[13px] font-black tracking-tight text-slate-400 uppercase whitespace-nowrap min-w-0">BYE</span>
+                              {!isPublicView && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedLeafIndex(i);
+                                    setEditName('');
+                                    setEditClub('');
+                                    setEditIsBye(false);
+                                    setSwapTargetIndex('');
+                                    setSelectedTargetCategory('');
+                                    setShowModal(true);
+                                  }}
+                                  className={`pointer-events-auto px-1.5 py-0.5 text-[8.5px] font-extrabold rounded-md bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 ${
+                                    isLeft ? 'ml-auto' : 'mr-auto'
+                                  }`}
+                                  title="Add athlete to empty slot"
+                                >
+                                  <UserPlus className="w-2.5 h-2.5" />
+                                  <span>+ Add</span>
+                                </button>
+                              )}
                             </div>
                             {/* Empty space below line */}
                             <div className="h-[20px]" />
@@ -1221,18 +1247,28 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                             <span className={`w-5 text-slate-350 font-bold group-hover:text-amber-500 transition-colors ${isLeft ? 'mr-1 text-left' : 'ml-1 text-right'}`}>
                               {node.seed}
                             </span>
-                            <span className="flex-1 text-[11px] font-black uppercase">BYE</span>
+                            <span className="flex-1 text-[11px] font-black uppercase text-slate-400">BYE</span>
+                            {!isPublicView && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLeafIndex(i);
+                                  setEditName('');
+                                  setEditClub('');
+                                  setEditIsBye(false);
+                                  setSwapTargetIndex('');
+                                  setSelectedTargetCategory('');
+                                  setShowModal(true);
+                                }}
+                                className="px-1.5 py-0.5 text-[8.5px] font-extrabold rounded-md bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                                title="Add athlete to empty slot"
+                              >
+                                <UserPlus className="w-2.5 h-2.5" />
+                                <span>+ Add</span>
+                              </button>
+                            )}
                           </>
-                        )}
-                        {isClassic && !isPublicView && (
-                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-amber-500 font-bold ml-1 absolute bottom-0 right-0 p-1">
-                              + Edit
-                            </span>
-                        )}
-                        {!isClassic && !isPublicView && (
-                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[8px] text-amber-500 font-bold ml-1">
-                              + Edit
-                            </span>
                         )}
                       </div>
                     );
@@ -1727,222 +1763,278 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
 
       {/* Edit Leaf Node Modal overlay */}
-      {showModal && selectedLeafIndex !== null && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 font-sans no-print">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-xl relative">
-            <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center gap-1.5 border-b border-slate-100 pb-2">
-              <span className="text-amber-500 text-lg">🥋</span>
-              <span>Edit Competitor — Slot {selectedLeafIndex + 1} (Seed {nodes[0]?.[selectedLeafIndex]?.seed})</span>
-            </h3>
-
-            <div className="space-y-4">
-              {/* Type toggle */}
-              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+      {showModal && selectedLeafIndex !== null && (() => {
+        const isCurrentBye = Boolean(nodes[0]?.[selectedLeafIndex]?.isBye);
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 font-sans no-print">
+            <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+              <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-500 text-lg">🥋</span>
+                  <span>{isCurrentBye ? 'Add Athlete to Empty Slot' : 'Edit Competitor'} — Slot {selectedLeafIndex + 1} (Seed {nodes[0]?.[selectedLeafIndex]?.seed})</span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setEditIsBye(false)}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    !editIsBye ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  onClick={() => setShowModal(false)}
+                  className="text-slate-400 hover:text-slate-600 text-base leading-none p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
                 >
-                  Competitor
+                  ✕
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditIsBye(true);
-                    setEditName('BYE');
-                    setEditClub('');
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    editIsBye ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  BYE / Empty
-                </button>
-              </div>
+              </h3>
 
-              {!editIsBye && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                      Competitor Name
-                    </label>
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="e.g. John Doe"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
-                    />
+              <div className="space-y-4">
+                {isCurrentBye && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-900">
+                    <span className="text-base leading-none">💡</span>
+                    <div>
+                      <p className="font-bold">Filling an Empty / BYE Slot</p>
+                      <p className="text-amber-800 text-[11px] mt-0.5">
+                        Entering an athlete will activate this slot. The sibling's automatic walkover will be cancelled and both competitors will fight in Round 1.
+                      </p>
+                    </div>
                   </div>
+                )}
 
-                  <div className="relative">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                      Club / Team
-                    </label>
-                    <input
-                      type="text"
-                      value={editClub}
-                      onChange={(e) => {
-                        setEditClub(e.target.value);
-                        setClubSearchFocused(true);
-                      }}
-                      onFocus={() => setClubSearchFocused(true)}
-                      onBlur={() => {
-                        // Delay blurring so user can click a suggestion button
-                        setTimeout(() => setClubSearchFocused(false), 200);
-                      }}
-                      placeholder="e.g. Phoenix Judo Club (or leave blank)"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
-                    />
-                    {clubSearchFocused && (
-                      (() => {
-                        const search = editClub.trim().toLowerCase();
-                        const filtered = dbClubs.filter(name => {
-                          if (!search) return true; // Show all on empty search focus
-                          return name.toLowerCase().includes(search) && name.toLowerCase() !== search;
-                        }).slice(0, 8);
+                {/* Type toggle */}
+                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setEditIsBye(false)}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      !editIsBye ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Competitor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditIsBye(true);
+                      setEditName('BYE');
+                      setEditClub('');
+                    }}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      editIsBye ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    BYE / Empty
+                  </button>
+                </div>
 
-                        if (filtered.length === 0) return null;
-
-                        return (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100 no-print">
-                            {filtered.map((clubName, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onMouseDown={(e) => {
-                                  // Use onMouseDown to prevent focus loss before click completes
-                                  e.preventDefault();
-                                }}
-                                onClick={() => {
-                                  setEditClub(clubName);
-                                  setClubSearchFocused(false);
-                                }}
-                                className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer flex items-center justify-between"
-                              >
-                                <span>{clubName}</span>
-                                <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Select</span>
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()
+                {!editIsBye && (
+                  <>
+                    {/* Quick pick from tournament roster */}
+                    {roster && roster.length > 0 && (
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                          Select from Tournament Roster (Optional)
+                        </label>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const [athName, athClub] = val.split('|||');
+                            setEditName(athName || '');
+                            setEditClub(athClub || '');
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                        >
+                          <option value="">-- Pick athlete from roster (or enter below) --</option>
+                          {roster.map((ath, idx) => (
+                            <option key={idx} value={`${ath.name}|||${ath.club || ''}`}>
+                              {ath.name} {ath.club ? `(${ath.club})` : ''} {ath.weight ? `[${ath.weight}]` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     )}
-                  </div>
-                </>
-              )}
 
-              {/* Swapping Dropdown */}
-              <div className="pt-2 border-t border-slate-100">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                  Swap Position with another Seed Slot
-                </label>
-                <select
-                  value={swapTargetIndex}
-                  onChange={(e) => setSwapTargetIndex(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
-                >
-                  <option value="">-- Choose target slot --</option>
-                  {(nodes[0] || []).map((n, idx) => {
-                    if (idx === selectedLeafIndex) return null;
-                    const desc = n.isBye ? 'BYE' : `${n.name} (${n.club || 'Ind.'})`;
-                    return (
-                      <option key={idx} value={idx}>
-                        Slot {idx + 1} (Seed {n.seed}): {desc}
-                      </option>
-                    );
-                  })}
-                </select>
-                <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal">
-                  💡 Swapping moves this player to the selected slot and brings the target player there. You can also drag & drop players directly on the bracket canvas to swap!
-                </p>
-              </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                        Competitor Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="e.g. John Doe"
+                        autoFocus
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
+                      />
+                    </div>
 
-              {/* Move to another category dropdown */}
-              {!editIsBye && categoriesList && categoriesList.length > 0 && (
+                    <div className="relative">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                        Club / Team
+                      </label>
+                      <input
+                        type="text"
+                        value={editClub}
+                        onChange={(e) => {
+                          setEditClub(e.target.value);
+                          setClubSearchFocused(true);
+                        }}
+                        onFocus={() => setClubSearchFocused(true)}
+                        onBlur={() => {
+                          setTimeout(() => setClubSearchFocused(false), 200);
+                        }}
+                        placeholder="e.g. Phoenix Judo Club (or leave blank)"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
+                      />
+                      {clubSearchFocused && (
+                        (() => {
+                          const search = editClub.trim().toLowerCase();
+                          const filtered = dbClubs.filter(name => {
+                            if (!search) return true;
+                            return name.toLowerCase().includes(search) && name.toLowerCase() !== search;
+                          }).slice(0, 8);
+
+                          if (filtered.length === 0) return null;
+
+                          return (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100 no-print">
+                              {filtered.map((clubName, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                  }}
+                                  onClick={() => {
+                                    setEditClub(clubName);
+                                    setClubSearchFocused(false);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer flex items-center justify-between"
+                                >
+                                  <span>{clubName}</span>
+                                  <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Select</span>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Swapping Dropdown */}
                 <div className="pt-2 border-t border-slate-100">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                    Move to another Category / Division
+                    Swap Position with another Seed Slot
                   </label>
                   <select
-                    value={selectedTargetCategory}
-                    onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                    value={swapTargetIndex}
+                    onChange={(e) => setSwapTargetIndex(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
                   >
-                    <option value="">-- Choose target category --</option>
-                    {categoriesList.map((catKey) => (
-                      <option key={catKey} value={catKey}>
-                        {catKey}
-                      </option>
-                    ))}
+                    <option value="">-- Choose target slot --</option>
+                    {(nodes[0] || []).map((n, idx) => {
+                      if (idx === selectedLeafIndex) return null;
+                      const desc = n.isBye ? 'BYE' : `${n.name} (${n.club || 'Ind.'})`;
+                      return (
+                        <option key={idx} value={idx}>
+                          Slot {idx + 1} (Seed {n.seed}): {desc}
+                        </option>
+                      );
+                    })}
                   </select>
-                  <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal font-sans">
-                    💡 Moving category transfers this competitor and updates both brackets automatically.
+                  <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal">
+                    💡 Swapping moves this player to the selected slot and brings the target player there. You can also drag & drop players directly on the bracket canvas to swap!
                   </p>
                 </div>
-              )}
-            </div>
 
-            {/* Modal actions */}
-            <div className="flex gap-2.5 justify-end mt-6 pt-3 border-t border-slate-100">
-              {!editIsBye && editName && (
+                {/* Move to another category dropdown */}
+                {!editIsBye && categoriesList && categoriesList.length > 0 && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                      Move to another Category / Division
+                    </label>
+                    <select
+                      value={selectedTargetCategory}
+                      onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                    >
+                      <option value="">-- Choose target category --</option>
+                      {categoriesList.map((catKey) => (
+                        <option key={catKey} value={catKey}>
+                          {catKey}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal font-sans">
+                      💡 Moving category transfers this competitor and updates both brackets automatically.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal actions */}
+              <div className="flex gap-2.5 justify-end mt-6 pt-3 border-t border-slate-100">
+                {!editIsBye && editName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCertificateAthlete({
+                        name: editName,
+                        club: editClub,
+                        category: bracket.categoryName || '',
+                      });
+                      setShowCertificateModal(true);
+                    }}
+                    className="mr-auto px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                    title="Print custom tournament certificate"
+                  >
+                    <span>🥋</span>
+                    <span>Print Certificate</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => {
-                    setCertificateAthlete({
-                      name: editName,
-                      club: editClub,
-                      category: bracket.categoryName || '',
-                    });
-                    setShowCertificateModal(true);
-                  }}
-                  className="mr-auto px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
-                  title="Print custom tournament certificate"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 hover:bg-slate-100 text-slate-555 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
-                  <span>🥋</span>
-                  <span>Print Certificate</span>
+                  Cancel
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 hover:bg-slate-100 text-slate-555 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  // Apply actions!
-                  if (selectedTargetCategory !== '') {
-                    if (onMoveToCategory && selectedLeafIndex !== null) {
-                      onMoveToCategory(selectedLeafIndex, selectedTargetCategory);
+                <button
+                  type="button"
+                  disabled={!editIsBye && !editName.trim()}
+                  onClick={() => {
+                    if (!editIsBye && !editName.trim()) {
+                      return;
                     }
-                  } else if (swapTargetIndex !== '') {
-                    const j = parseInt(swapTargetIndex, 10);
-                    if (onSwapLeafNodes && !isNaN(j)) {
-                      onSwapLeafNodes(selectedLeafIndex, j);
+                    // Apply actions!
+                    if (selectedTargetCategory !== '') {
+                      if (onMoveToCategory && selectedLeafIndex !== null) {
+                        onMoveToCategory(selectedLeafIndex, selectedTargetCategory);
+                      }
+                    } else if (swapTargetIndex !== '') {
+                      const j = parseInt(swapTargetIndex, 10);
+                      if (onSwapLeafNodes && !isNaN(j) && selectedLeafIndex !== null) {
+                        onSwapLeafNodes(selectedLeafIndex, j);
+                      }
+                    } else {
+                      if (onUpdateLeafNode && selectedLeafIndex !== null) {
+                        onUpdateLeafNode(selectedLeafIndex, editName.trim(), editClub.trim(), editIsBye);
+                      }
+                      if (editClub.trim() && !editIsBye) {
+                        saveClubToDatabase(editClub.trim());
+                      }
                     }
-                  } else {
-                    if (onUpdateLeafNode) {
-                      onUpdateLeafNode(selectedLeafIndex, editName, editClub, editIsBye);
-                    }
-                    if (editClub.trim() && !editIsBye) {
-                      saveClubToDatabase(editClub);
-                    }
-                  }
-                  setShowModal(false);
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-black shadow-sm transition-all cursor-pointer"
-              >
-                Save changes
-              </button>
+                    setShowModal(false);
+                  }}
+                  className={`px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs shadow-sm transition-all cursor-pointer active:scale-95 ${
+                    !editIsBye && !editName.trim() ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+                  }`}
+                >
+                  {isCurrentBye && !editIsBye ? '➕ Add Athlete to Slot' : 'Save changes'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Certificate Modal Overlay */}
       {showCertificateModal && certificateAthlete && (

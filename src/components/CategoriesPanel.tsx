@@ -51,6 +51,8 @@ interface CategoriesPanelProps {
   onToggleShowEstimatedTime?: (show: boolean) => void;
   competitionStartTime?: string;
   onUpdateCompetitionStartTime?: (time: string) => void;
+  ringStartTimes?: Record<number, string>;
+  onUpdateRingStartTime?: (ring: number, time: string) => void;
   boutGapMinutes?: number;
   onUpdateBoutGapMinutes?: (gap: number) => void;
 }
@@ -96,6 +98,8 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
   onToggleShowEstimatedTime,
   competitionStartTime = '09:00',
   onUpdateCompetitionStartTime,
+  ringStartTimes,
+  onUpdateRingStartTime,
   boutGapMinutes = 5,
   onUpdateBoutGapMinutes,
 }) => {
@@ -943,9 +947,20 @@ export const CategoriesPanel: React.FC<CategoriesPanelProps> = ({
                           Ring {rLabel}
                         </span>
                         {showEstimatedTime && (
-                          <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded font-mono shadow-2xs">
-                            ⏰ {competitionStartTime} ({boutGapMinutes}m)
-                          </span>
+                          <div 
+                            className="flex items-center gap-1 bg-amber-100/90 border border-amber-300/90 px-1.5 py-0.5 rounded-lg shadow-2xs font-mono text-[10px] text-amber-900 font-bold"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span title={`Ring ${rLabel} start time`}>⏰</span>
+                            <input
+                              type="time"
+                              value={(ringStartTimes && ringStartTimes[rVal]) || competitionStartTime || '09:00'}
+                              onChange={(e) => onUpdateRingStartTime?.(rVal, e.target.value)}
+                              className="bg-amber-200/80 hover:bg-amber-200 border border-amber-400/80 rounded px-1 py-0 text-[10px] font-mono font-black text-amber-950 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer shadow-2xs"
+                              title={`Set start time for Ring ${rLabel}`}
+                            />
+                            <span className="text-[9px] text-amber-800 font-extrabold">({boutGapMinutes}m)</span>
+                          </div>
                         )}
                       </div>
                       <span className="text-[10px] font-extrabold bg-slate-200/80 text-slate-700 px-2.5 py-0.5 rounded-full font-mono">
