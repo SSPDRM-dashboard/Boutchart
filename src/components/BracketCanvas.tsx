@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BracketModel, BracketNode, CutoffScore, Athlete } from '../types';
-import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2, UserPlus, Search, Check } from 'lucide-react';
+import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2, UserPlus, Search, Check, Pencil } from 'lucide-react';
 import { isRealBout, countRealBouts, getEstimatedBoutTime } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
@@ -52,6 +52,7 @@ interface BracketCanvasProps {
   roster?: Athlete[];
   onAddPlayerToCategory?: (playerName: string, clubName: string) => void;
   onExpandChartSize?: (newSize: number) => void;
+  onRenameCategory?: (oldKey: string, newKey: string) => void;
 }
 
 function getFormattedBout(
@@ -136,6 +137,7 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   roster = [],
   onAddPlayerToCategory,
   onExpandChartSize,
+  onRenameCategory,
 }) => {
   const [scale, setScale] = useState(1);
   const [isAutoFit, setIsAutoFit] = useState(true);
@@ -163,6 +165,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [newPlayerClub, setNewPlayerClub] = useState('');
   const [newPlayerRosterSearch, setNewPlayerRosterSearch] = useState('');
   const [newPlayerClubFocused, setNewPlayerClubFocused] = useState(false);
+  const [showRenameCategoryModal, setShowRenameCategoryModal] = useState(false);
+  const [editCategoryTitleDraft, setEditCategoryTitleDraft] = useState('');
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
@@ -681,9 +685,35 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
             <p className="text-[22px] md:text-[24px] font-black text-slate-800 tracking-widest uppercase mt-1">
               RING {ring}
             </p>
-            <p className="text-[24px] md:text-[26px] font-extrabold text-amber-600 tracking-normal mt-1.5 uppercase">
-              {categoryKey}
-            </p>
+            <div className="mt-1.5 flex items-center justify-center gap-1.5 group/headerTitle">
+              <p 
+                className={`text-[24px] md:text-[26px] font-extrabold text-amber-600 tracking-normal uppercase ${!isPublicView && onRenameCategory ? 'cursor-pointer hover:text-amber-500 transition-colors' : ''}`}
+                onClick={() => {
+                  if (!isPublicView && onRenameCategory && categoryKey) {
+                    setEditCategoryTitleDraft(categoryKey);
+                    setShowRenameCategoryModal(true);
+                  }
+                }}
+                title={!isPublicView && onRenameCategory ? `Click to edit title for "${categoryKey}"` : categoryKey}
+              >
+                {categoryKey}
+              </p>
+              {!isPublicView && onRenameCategory && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (categoryKey) {
+                      setEditCategoryTitleDraft(categoryKey);
+                      setShowRenameCategoryModal(true);
+                    }
+                  }}
+                  className="no-print p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-100/80 rounded-lg transition-all cursor-pointer opacity-0 group-hover/headerTitle:opacity-100 shrink-0"
+                  title={`Edit Category Title "${categoryKey}"`}
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+            </div>
             <p className="text-xs text-slate-500 font-bold mt-1">
               {entrantCount} competitors
             </p>
@@ -2427,6 +2457,83 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                 {size === 2 && entrantCount === 2 ? '➕ Add & Expand to 4 Pax' : '➕ Add Player'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Category Title Modal Overlay */}
+      {showRenameCategoryModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 font-sans no-print">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150 text-left">
+            <h3 className="text-base font-extrabold text-slate-900 mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-amber-100 text-amber-800 rounded-lg">
+                  <Pencil className="w-4 h-4" />
+                </span>
+                <span>Edit Category Title</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRenameCategoryModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                ✕
+              </button>
+            </h3>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (onRenameCategory && categoryKey && editCategoryTitleDraft.trim()) {
+                  onRenameCategory(categoryKey, editCategoryTitleDraft);
+                  setShowRenameCategoryModal(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Current Category Name
+                </label>
+                <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 font-mono break-all">
+                  {categoryKey}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  New Category Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editCategoryTitleDraft}
+                  onChange={(e) => setEditCategoryTitleDraft(e.target.value)}
+                  placeholder="Enter new category title..."
+                  className="w-full px-3.5 py-2.5 border border-slate-250 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl text-sm font-semibold text-slate-900 outline-none transition-all"
+                  autoFocus
+                />
+                <p className="text-[11px] text-slate-400 mt-1.5 font-medium">
+                  Renaming updates all athlete profiles, bracket matches, and ring allocations automatically.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRenameCategoryModal(false)}
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editCategoryTitleDraft.trim() || editCategoryTitleDraft.trim() === categoryKey}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Save Category Title
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

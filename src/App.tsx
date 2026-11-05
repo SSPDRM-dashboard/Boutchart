@@ -2411,6 +2411,84 @@ export default function App() {
     });
   };
 
+  const handleRenameCategory = (oldCategoryKey: string, newCategoryKeyRaw: string) => {
+    const newCategoryKey = newCategoryKeyRaw.trim();
+    if (!newCategoryKey || newCategoryKey === oldCategoryKey) return;
+
+    if (categories[newCategoryKey]) {
+      safeAlert(`A category named "${newCategoryKey}" already exists. Please choose a different title.`);
+      return;
+    }
+
+    const cat = categories[oldCategoryKey];
+    if (!cat) return;
+
+    // 1. Update all athletes in roster belonging to this category
+    const nextRoster = roster.map((ath) => {
+      if ((ath.weight || 'Unspecified').trim() === oldCategoryKey) {
+        return { ...ath, weight: newCategoryKey };
+      }
+      return ath;
+    });
+    setRoster(nextRoster);
+
+    // 2. Update categories map preserving ring allocation, order, and entrants
+    const nextCategories: Record<string, WeightCategory> = {};
+    (Object.entries(categories) as [string, WeightCategory][]).forEach(([k, c]) => {
+      if (k === oldCategoryKey) {
+        const updatedEntrants = (c.entrants || []).map((ath) => ({ ...ath, weight: newCategoryKey }));
+        nextCategories[newCategoryKey] = {
+          ...c,
+          name: newCategoryKey,
+          entrants: updatedEntrants,
+        };
+      } else {
+        nextCategories[k] = c;
+      }
+    });
+    setCategories(nextCategories);
+
+    // 3. Update brackets map preserving bracket model & downstream bout allocations
+    setBrackets((prev) => {
+      const nextBrackets: Record<string, BracketModel> = {};
+      (Object.entries(prev) as [string, BracketModel][]).forEach(([k, model]) => {
+        if (k === oldCategoryKey) {
+          const updatedNodes = (model.nodes || []).map((round) =>
+            round.map((node) => {
+              if (node.weight === oldCategoryKey) {
+                return { ...node, weight: newCategoryKey };
+              }
+              return node;
+            })
+          );
+          nextBrackets[newCategoryKey] = {
+            ...model,
+            categoryKey: newCategoryKey,
+            nodes: updatedNodes,
+          };
+        } else {
+          nextBrackets[k] = model;
+        }
+      });
+      assignAllBoutNumbers(nextCategories, nextBrackets, ringSequenceOrders, boutSequenceOrder);
+      return nextBrackets;
+    });
+
+    // 4. Update dismissed duplicates references if any
+    setDismissedDuplicates((prev) =>
+      prev.map((item) =>
+        item.includes(`||${oldCategoryKey}`)
+          ? item.replace(`||${oldCategoryKey}`, `||${newCategoryKey}`)
+          : item
+      )
+    );
+
+    setStatusMessage({
+      text: `Successfully renamed category "${oldCategoryKey}" to "${newCategoryKey}".`,
+      type: 'ok',
+    });
+  };
+
   const handleDeleteCategory = (categoryKey: string) => {
     const cat = categories[categoryKey];
     if (!cat) return;
@@ -5351,6 +5429,7 @@ export default function App() {
                     onDownloadBoutList={handleDownloadBoutList}
                     hasBrackets={bracketKeys.length > 0}
                     onDeleteCategory={handleDeleteCategory}
+                    onRenameCategory={handleRenameCategory}
                     onResetBrackets={handleResetBrackets}
                     onReorderCategory={handleReorderCategory}
                     onReorderCategoryTo={handleReorderCategoryTo}
@@ -6057,6 +6136,7 @@ export default function App() {
                                         onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
                                         onAddPlayerToCategory={(playerName, clubName) => handleAddPlayerToCategory(key, playerName, clubName)}
                                         onExpandChartSize={(newSize) => handleExpandCategoryChart(key, newSize)}
+                                         onRenameCategory={(oldKey, newKey) => handleRenameCategory(oldKey, newKey)}
                                       />
                                     </div>
                                   );
