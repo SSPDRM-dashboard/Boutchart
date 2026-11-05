@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BracketModel, BracketNode, CutoffScore, Athlete } from '../types';
-import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2, UserPlus } from 'lucide-react';
+import { Trophy, Shuffle, ZoomIn, ZoomOut, Trash2, UserPlus, Search, Check } from 'lucide-react';
 import { isRealBout, countRealBouts, getEstimatedBoutTime } from '../utils/bracketUtils';
 import { CertificateModal } from './CertificateModal';
 import { db, auth, doc, getDoc, setDoc } from '../lib/firebase';
@@ -50,6 +50,8 @@ interface BracketCanvasProps {
   minBoutInRing?: number;
   ringStartTimes?: Record<number, string>;
   roster?: Athlete[];
+  onAddPlayerToCategory?: (playerName: string, clubName: string) => void;
+  onExpandChartSize?: (newSize: number) => void;
 }
 
 function getFormattedBout(
@@ -132,6 +134,8 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   showEstimatedTime = true,
   minBoutInRing = 1,
   roster = [],
+  onAddPlayerToCategory,
+  onExpandChartSize,
 }) => {
   const [scale, setScale] = useState(1);
   const [isAutoFit, setIsAutoFit] = useState(true);
@@ -152,6 +156,13 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
   const [nameFontOffset, setNameFontOffset] = useState(0);
   const [clubFontOffset, setClubFontOffset] = useState(0);
   const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const [rosterSearchQuery, setRosterSearchQuery] = useState('');
+  const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [newPlayerClub, setNewPlayerClub] = useState('');
+  const [newPlayerRosterSearch, setNewPlayerRosterSearch] = useState('');
+  const [newPlayerClubFocused, setNewPlayerClubFocused] = useState(false);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverStandingsIndex, setDragOverStandingsIndex] = useState<number | null>(null);
@@ -768,6 +779,46 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
               {!isPublicView && (
                 <>
+                  {onAddPlayerToCategory && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPlayerName('');
+                        setNewPlayerClub('');
+                        setNewPlayerRosterSearch('');
+                        setShowAddPlayerModal(true);
+                      }}
+                      className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
+                      title={size === 2 ? 'Add a player (will automatically expand 2-Pax to 4-Pax chart)' : 'Add player to this category'}
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-slate-950" />
+                      <span>+ Add Player</span>
+                    </button>
+                  )}
+
+                  {onExpandChartSize && size && (
+                    <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/70 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-700 transition-colors">
+                      <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Chart:</span>
+                      <select
+                        value={size}
+                        onChange={(e) => {
+                          const nextSz = parseInt(e.target.value, 10);
+                          if (!isNaN(nextSz) && nextSz !== size) {
+                            onExpandChartSize(nextSz);
+                          }
+                        }}
+                        className="bg-transparent text-slate-900 font-black text-xs cursor-pointer focus:outline-none"
+                        title="Change or expand bracket chart size (e.g. 2 Pax to 4 Pax)"
+                      >
+                        {[2, 4, 8, 16, 32, 64].map((sz) => (
+                          <option key={sz} value={sz} disabled={sz < entrantCount}>
+                            {sz} Pax {sz === size ? '(Active)' : sz < entrantCount ? `(Min ${entrantCount})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <button
                     onClick={onReshuffle}
                     className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 hover:text-slate-950 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
@@ -1823,32 +1874,69 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
 
                 {!editIsBye && (
                   <>
-                    {/* Quick pick from tournament roster */}
-                    {roster && roster.length > 0 && (
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                          Select from Tournament Roster (Optional)
-                        </label>
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            const [athName, athClub] = val.split('|||');
-                            setEditName(athName || '');
-                            setEditClub(athClub || '');
-                          }}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
-                        >
-                          <option value="">-- Pick athlete from roster (or enter below) --</option>
-                          {roster.map((ath, idx) => (
-                            <option key={idx} value={`${ath.name}|||${ath.club || ''}`}>
-                              {ath.name} {ath.club ? `(${ath.club})` : ''} {ath.weight ? `[${ath.weight}]` : ''}
+                    {/* Quick pick from tournament roster with search */}
+                    {roster && roster.length > 0 && (() => {
+                      const rQuery = rosterSearchQuery.trim().toLowerCase();
+                      const filteredRoster = roster.filter((ath) => {
+                        if (!rQuery) return true;
+                        const matchName = (ath.name || '').toLowerCase().includes(rQuery);
+                        const matchClub = (ath.club || '').toLowerCase().includes(rQuery);
+                        const matchWeight = (ath.weight || '').toLowerCase().includes(rQuery);
+                        return matchName || matchClub || matchWeight;
+                      });
+
+                      return (
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                            Select from Tournament Roster (Optional)
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                              <Search className="w-3 h-3" />
+                            </div>
+                            <input
+                              type="text"
+                              value={rosterSearchQuery}
+                              onChange={(e) => setRosterSearchQuery(e.target.value)}
+                              placeholder="Search athlete by name, club, or category..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans placeholder:font-normal placeholder:text-slate-400"
+                            />
+                            {rosterSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setRosterSearchQuery('')}
+                                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                                title="Clear search"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (!val) return;
+                              const [athName, athClub] = val.split('|||');
+                              setEditName(athName || '');
+                              setEditClub(athClub || '');
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                          >
+                            <option value="">
+                              {rosterSearchQuery.trim()
+                                ? `-- ${filteredRoster.length} matching athlete(s) found --`
+                                : `-- Pick athlete from roster (${roster.length} total) --`}
                             </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                            {filteredRoster.map((ath, idx) => (
+                              <option key={idx} value={`${ath.name}|||${ath.club || ''}`}>
+                                {ath.name} {ath.club ? `(${ath.club})` : ''} {ath.weight ? `[${ath.weight}]` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
 
                     <div>
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
@@ -1945,29 +2033,137 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
                   </p>
                 </div>
 
-                {/* Move to another category dropdown */}
-                {!editIsBye && categoriesList && categoriesList.length > 0 && (
-                  <div className="pt-2 border-t border-slate-100">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                      Move to another Category / Division
-                    </label>
-                    <select
-                      value={selectedTargetCategory}
-                      onChange={(e) => setSelectedTargetCategory(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
-                    >
-                      <option value="">-- Choose target category --</option>
-                      {categoriesList.map((catKey) => (
-                        <option key={catKey} value={catKey}>
-                          {catKey}
+                {/* Move to another category dropdown with Search Bar */}
+                {!editIsBye && categoriesList && categoriesList.length > 0 && (() => {
+                  const query = categorySearchQuery.trim().toLowerCase();
+                  const filteredCategories = categoriesList.filter((catKey) => {
+                    if (!query) return true;
+                    return catKey.toLowerCase().includes(query);
+                  });
+
+                  return (
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          Move to another Category / Division
+                        </label>
+                        {selectedTargetCategory && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTargetCategory('');
+                              setCategorySearchQuery('');
+                            }}
+                            className="text-[10px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer"
+                          >
+                            ✕ Clear Target
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Selected Target Category Banner */}
+                      {selectedTargetCategory && (
+                        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider block">
+                              Target Category Selected:
+                            </span>
+                            <span className="font-extrabold text-slate-900 truncate block">
+                              {selectedTargetCategory}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 font-black px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Selected
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Search Bar Input */}
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Search className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          type="text"
+                          value={categorySearchQuery}
+                          onChange={(e) => setCategorySearchQuery(e.target.value)}
+                          placeholder="🔍 Search category by name, weight, age, gender..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans placeholder:font-normal placeholder:text-slate-400"
+                        />
+                        {categorySearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setCategorySearchQuery('')}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                            title="Clear search"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Filtered Native Select */}
+                      <select
+                        value={selectedTargetCategory}
+                        onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                      >
+                        <option value="">
+                          {categorySearchQuery.trim()
+                            ? `-- ${filteredCategories.length} matching category(ies) found --`
+                            : `-- Choose target category (${categoriesList.length} total) --`}
                         </option>
-                      ))}
-                    </select>
-                    <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal font-sans">
-                      💡 Moving category transfers this competitor and updates both brackets automatically.
-                    </p>
-                  </div>
-                )}
+                        {filteredCategories.map((catKey) => (
+                          <option key={catKey} value={catKey}>
+                            {catKey}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Interactive scrollable list when searching */}
+                      {categorySearchQuery.trim() !== '' && (
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-xs max-h-40 overflow-y-auto divide-y divide-slate-100">
+                          {filteredCategories.length === 0 ? (
+                            <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                              No categories match "{categorySearchQuery}"
+                            </div>
+                          ) : (
+                            filteredCategories.map((catKey) => {
+                              const isSelected = selectedTargetCategory === catKey;
+                              return (
+                                <button
+                                  key={catKey}
+                                  type="button"
+                                  onClick={() => setSelectedTargetCategory(catKey)}
+                                  className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-100/80 text-amber-950 font-black'
+                                      : 'text-slate-700 font-bold hover:bg-amber-50 hover:text-amber-800'
+                                  }`}
+                                >
+                                  <span className="truncate pr-2">{catKey}</span>
+                                  {isSelected ? (
+                                    <span className="text-[10px] text-amber-700 font-black shrink-0 flex items-center gap-0.5">
+                                      <Check className="w-3 h-3" /> Selected
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider shrink-0">
+                                      Select
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal font-sans">
+                        💡 Moving category transfers this competitor and updates both brackets automatically.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Modal actions */}
@@ -2035,6 +2231,205 @@ export const BracketCanvas: React.FC<BracketCanvasProps> = ({
           </div>
         );
       })()}
+
+      {/* Add Player to Category Modal */}
+      {showAddPlayerModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 font-sans no-print">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-extrabold text-slate-900 mb-2 flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-500 text-lg">🥋</span>
+                <span>Add Player to {bracket.categoryKey || 'Division'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddPlayerModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-base leading-none p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </h3>
+
+            <div className="space-y-4">
+              {/* Info Banner explaining chart expansion */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                <span className="text-base leading-none">💡</span>
+                <div>
+                  <p className="font-bold">
+                    {size === 2 && entrantCount === 2
+                      ? 'Automatic 2 Pax ➔ 4 Pax Chart Upgrade'
+                      : `Adding Player ${entrantCount + 1}`}
+                  </p>
+                  <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
+                    {size === 2 && entrantCount === 2
+                      ? 'A 2-pax chart currently has 2 players. Adding a 3rd player will automatically upgrade this bracket to a 4-Pax chart with official seeding (Seed 1 bye into final, Semifinal match for Seeds 2 & 3).'
+                      : `Current chart size is ${size} Pax with ${entrantCount} competitor(s). Adding a player will update the roster and bout schedule automatically.`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick pick from roster if available */}
+              {roster && roster.length > 0 && (() => {
+                const q = newPlayerRosterSearch.trim().toLowerCase();
+                const filtered = roster.filter((ath) => {
+                  if (!q) return true;
+                  return (
+                    (ath.name || '').toLowerCase().includes(q) ||
+                    (ath.club || '').toLowerCase().includes(q) ||
+                    (ath.weight || '').toLowerCase().includes(q)
+                  );
+                });
+
+                return (
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      Select from Tournament Roster (Optional)
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                        <Search className="w-3 h-3" />
+                      </div>
+                      <input
+                        type="text"
+                        value={newPlayerRosterSearch}
+                        onChange={(e) => setNewPlayerRosterSearch(e.target.value)}
+                        placeholder="Search athlete by name, club, or division..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans placeholder:font-normal placeholder:text-slate-400"
+                      />
+                      {newPlayerRosterSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setNewPlayerRosterSearch('')}
+                          className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        const [athName, athClub] = val.split('|||');
+                        setNewPlayerName(athName || '');
+                        setNewPlayerClub(athClub || '');
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+                    >
+                      <option value="">
+                        {newPlayerRosterSearch.trim()
+                          ? `-- ${filtered.length} matching athlete(s) found --`
+                          : `-- Pick athlete from roster (${roster.length} total) --`}
+                      </option>
+                      {filtered.map((ath, idx) => (
+                        <option key={idx} value={`${ath.name}|||${ath.club || ''}`}>
+                          {ath.name} {ath.club ? `(${ath.club})` : ''} {ath.weight ? `[${ath.weight}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+
+              {/* Competitor Name */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                  Competitor Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  placeholder="e.g. John Doe"
+                  autoFocus
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
+                />
+              </div>
+
+              {/* Competitor Club */}
+              <div className="relative">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                  Club / Team
+                </label>
+                <input
+                  type="text"
+                  value={newPlayerClub}
+                  onChange={(e) => {
+                    setNewPlayerClub(e.target.value);
+                    setNewPlayerClubFocused(true);
+                  }}
+                  onFocus={() => setNewPlayerClubFocused(true)}
+                  onBlur={() => {
+                    setTimeout(() => setNewPlayerClubFocused(false), 200);
+                  }}
+                  placeholder="e.g. Phoenix Taekwondo Club (or leave blank)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none focus:border-amber-500 transition-all font-sans"
+                />
+                {newPlayerClubFocused && (() => {
+                  const search = newPlayerClub.trim().toLowerCase();
+                  const filtered = dbClubs.filter(name => {
+                    if (!search) return true;
+                    return name.toLowerCase().includes(search) && name.toLowerCase() !== search;
+                  }).slice(0, 8);
+
+                  if (filtered.length === 0) return null;
+
+                  return (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100 no-print">
+                      {filtered.map((clubName, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setNewPlayerClub(clubName);
+                            setNewPlayerClubFocused(false);
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors cursor-pointer flex items-center justify-between"
+                        >
+                          <span>{clubName}</span>
+                          <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Select</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2.5 justify-end mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAddPlayerModal(false)}
+                className="px-4 py-2 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!newPlayerName.trim()}
+                onClick={() => {
+                  if (!newPlayerName.trim()) return;
+                  if (onAddPlayerToCategory) {
+                    onAddPlayerToCategory(newPlayerName.trim(), newPlayerClub.trim());
+                  }
+                  if (newPlayerClub.trim()) {
+                    saveClubToDatabase(newPlayerClub.trim());
+                  }
+                  setShowAddPlayerModal(false);
+                }}
+                className={`px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs shadow-sm transition-all cursor-pointer active:scale-95 ${
+                  !newPlayerName.trim() ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+                }`}
+              >
+                {size === 2 && entrantCount === 2 ? '➕ Add & Expand to 4 Pax' : '➕ Add Player'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Certificate Modal Overlay */}
       {showCertificateModal && certificateAthlete && (

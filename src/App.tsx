@@ -35,9 +35,10 @@ import {
   DEFAULT_EVENT_SEQUENCE,
   downloadBoutListCSV,
   getEstimatedBoutTime,
+  nextPow2,
 } from './utils/bracketUtils';
 import { isQuotaError, setQuotaExceeded, getQuotaExceeded } from './utils/quotaManager';
-import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download, Clock, FileSpreadsheet } from 'lucide-react';
+import { ShieldAlert, Printer, RefreshCw, Trophy, Users, Hash, HelpCircle, Layers, AlertCircle, KeyRound, Trash2, Search, X, RotateCcw, Check, Eye, EyeOff, Lock, ShieldCheck, ChevronDown, ChevronUp, Download, Clock, FileSpreadsheet, UserPlus } from 'lucide-react';
 
 const STORAGE_KEY = 'bracket_builder_state_v1';
 const EVENTS_STORAGE_KEY = 'bracket_builder_events_v1';
@@ -105,6 +106,99 @@ Jane Doe,Tiger Gym,-57kg,NUS,Female,Seed 1 / Inter-Club Champion
 Clara Oswald,Phoenix Club,-57kg,SIT,Female,Varsity Contender`;
 
 export type PublicReportViewStyle = 'photo-matrix' | 'classic-cards' | 'medal-standings' | 'individual-lookup' | 'boutchart';
+
+/**
+ * Creates a lightweight summary of a SavedEvent for indexing in Firestore.
+ * Strips out unbounded arrays/objects (roster, brackets, heavy logos) so the
+ * index document remains tiny (< 20KB for 100+ events) and strictly satisfies
+ * Firestore's 1,048,576 bytes (1 MiB) per-document hard limit.
+ */
+export const toEventSummary = (e: SavedEvent): SavedEvent => ({
+  id: e.id,
+  timestamp: e.timestamp,
+  tournamentName: e.tournamentName || 'Untitled Event',
+  athleteCount: e.athleteCount ?? (Array.isArray(e.roster) ? e.roster.length : 0),
+  categoryCount: e.categoryCount ?? (e.categories ? Object.keys(e.categories).length : 0),
+  bracketCount: e.bracketCount ?? (e.brackets ? Object.keys(e.brackets).length : 0),
+  ringCount: e.ringCount || 1,
+  ringLabelFormat: e.ringLabelFormat || 'letter',
+  boutLabelFormat: e.boutLabelFormat || 'alpha-2',
+  boutSequenceOrder: e.boutSequenceOrder || 'sequential',
+  ringSequenceOrders: e.ringSequenceOrders,
+  eventSequenceOrder: e.eventSequenceOrder,
+  ringEventSequences: e.ringEventSequences,
+  ringGenderSequence: e.ringGenderSequence,
+  shuffleSeed: e.shuffleSeed,
+  dismissedDuplicates: e.dismissedDuplicates || [],
+  activePublicView: e.activePublicView,
+  continuousBouts: e.continuousBouts,
+  showEstimatedTime: e.showEstimatedTime,
+  competitionStartTime: e.competitionStartTime,
+  ringStartTimes: e.ringStartTimes,
+  boutGapMinutes: e.boutGapMinutes,
+  roster: [],
+  categories: {},
+  brackets: {},
+});
+
+/**
+ * Merges incoming index summaries with locally available full events,
+ * preventing local in-memory/cached rosters and brackets from being erased.
+ */
+export const mergeEventsWithLocal = (incoming: any[], existing: SavedEvent[]): SavedEvent[] => {
+  const existingMap = new Map(existing.map(e => [e.id, e]));
+  return incoming.map(inc => {
+    const prev = existingMap.get(inc.id);
+    if (!prev) return inc;
+    return {
+      ...inc,
+      roster: (inc.roster && inc.roster.length > 0) ? inc.roster : prev.roster,
+      categories: (inc.categories && Object.keys(inc.categories).length > 0) ? inc.categories : prev.categories,
+      brackets: (inc.brackets && Object.keys(inc.brackets).length > 0) ? inc.brackets : prev.brackets,
+      leftLogo: inc.leftLogo || prev.leftLogo,
+      leftLogo2: inc.leftLogo2 || prev.leftLogo2,
+      rightLogo: inc.rightLogo || prev.rightLogo,
+      rightLogo2: inc.rightLogo2 || prev.rightLogo2,
+    };
+  });
+};
+
+/**
+ * Safely writes a document to Firestore, verifying the payload byte size
+ * against Firestore's 1MB limit (< 950KB) and catching quota errors gracefully.
+ */
+export const writeFirestoreDocSafe = async (docRef: any, data: Record<string, any>): Promise<boolean> => {
+  try {
+    const rawStr = typeof data.payload === 'string' ? data.payload : JSON.stringify(data);
+    const byteSize = new Blob([rawStr]).size;
+    if (byteSize > 950000) {
+      if (typeof data.payload === 'string' && !data.compressed) {
+        try {
+          const compressed = await compressToGzipBase64(data.payload);
+          const compressedByteSize = new Blob([compressed]).size;
+          if (compressedByteSize < 950000) {
+            await setDoc(docRef, { ...data, payload: compressed, compressed: true });
+            return true;
+          }
+        } catch (compErr) {
+          console.warn('Gzip compression failed:', compErr);
+        }
+      }
+      console.warn(`Firestore document write skipped: payload size (${byteSize} bytes) exceeds 950KB safety limit.`);
+      return false;
+    }
+    await setDoc(docRef, data);
+    return true;
+  } catch (err: any) {
+    if (isQuotaError(err)) {
+      setQuotaExceeded(true);
+      console.warn('Firestore quota reached; operating in local mode.');
+    } else {
+      console.warn('Firestore write warning:', err);
+    }
+    return false;
+  }
+};
 
 export default function App() {
   const [tournamentName, setTournamentName] = useState('');
@@ -381,7 +475,7 @@ export default function App() {
           timestamp: Date.now()
         };
         const updatedStr = JSON.stringify(updatedPayload);
-        await setDoc(publicActiveRef, {
+        await writeFirestoreDocSafe(publicActiveRef, {
           payload: updatedStr,
           id: 'active_state',
           activePublicView: newView,
@@ -966,7 +1060,7 @@ export default function App() {
           try {
             // Always publish to the global active state for public viewers without an ID
             const publicActiveRef = doc(db, 'reports', 'active_state');
-            await setDoc(publicActiveRef, {
+            await writeFirestoreDocSafe(publicActiveRef, {
               payload: currentPayloadStr,
               id: 'active_state',
               tournamentName: tournamentName || 'Tournament',
@@ -1071,16 +1165,22 @@ export default function App() {
             list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
           }
           if (Array.isArray(list) && list.length > 0) {
-            setSavedEvents(list);
-            safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+            setSavedEvents(prev => {
+              const merged = mergeEventsWithLocal(list, prev);
+              safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(merged));
+              return merged;
+            });
           }
         } else {
           const sRes = await fetch('/api/saved-events').catch(() => null);
           if (sRes && sRes.ok) {
             const sEvents = await sRes.json().catch(() => null);
             if (Array.isArray(sEvents) && sEvents.length > 0) {
-              setSavedEvents(sEvents);
-              safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(sEvents));
+              setSavedEvents(prev => {
+                const merged = mergeEventsWithLocal(sEvents, prev);
+                safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(merged));
+                return merged;
+              });
             }
           }
         }
@@ -1106,8 +1206,11 @@ export default function App() {
           list = d.payload ? JSON.parse(d.payload) : (Array.isArray(d.events) ? d.events : []);
         }
         if (Array.isArray(list) && list.length > 0) {
-          setSavedEvents(list);
-          safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+          setSavedEvents(prev => {
+            const merged = mergeEventsWithLocal(list, prev);
+            safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(merged));
+            return merged;
+          });
         }
       }
     }, (err) => {
@@ -1195,18 +1298,30 @@ export default function App() {
         const savedSnap = await getDoc(doc(db, 'reports', 'saved_events_index')).catch(() => null);
         if (savedSnap && savedSnap.exists()) {
           const sData = savedSnap.data();
-          const list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
+          let list: any[] = [];
+          if (sData.compressed) {
+            const decompressed = await decompressFromGzipBase64(sData.payload);
+            list = JSON.parse(decompressed);
+          } else {
+            list = sData.payload ? JSON.parse(sData.payload) : (Array.isArray(sData.events) ? sData.events : []);
+          }
           if (Array.isArray(list) && list.length > 0) {
-            setSavedEvents(list);
-            safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(list));
+            setSavedEvents(prev => {
+              const merged = mergeEventsWithLocal(list, prev);
+              safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(merged));
+              return merged;
+            });
           }
         } else {
           const sRes = await fetch('/api/saved-events').catch(() => null);
           if (sRes && sRes.ok) {
             const sEvents = await sRes.json().catch(() => null);
-            if (Array.isArray(sEvents)) {
-              setSavedEvents(sEvents);
-              safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(sEvents));
+            if (Array.isArray(sEvents) && sEvents.length > 0) {
+              setSavedEvents(prev => {
+                const merged = mergeEventsWithLocal(sEvents, prev);
+                safeLocalStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(merged));
+                return merged;
+              });
             }
           }
         }
@@ -1888,7 +2003,7 @@ export default function App() {
               boutGapMinutes,
               timestamp: Date.now(),
             };
-            setDoc(publicActiveRef, {
+            writeFirestoreDocSafe(publicActiveRef, {
               payload: JSON.stringify(updated),
               id: 'active_state',
               tournamentName: updated.tournamentName || tournamentName || 'Tournament',
@@ -1932,7 +2047,7 @@ export default function App() {
             competitionStartTime: time,
             timestamp: Date.now(),
           };
-          setDoc(publicActiveRef, {
+          writeFirestoreDocSafe(publicActiveRef, {
             payload: JSON.stringify(updated),
             id: 'active_state',
             tournamentName: updated.tournamentName || tournamentName || 'Tournament',
@@ -1968,7 +2083,7 @@ export default function App() {
               ringStartTimes: next,
               timestamp: Date.now(),
             };
-            setDoc(publicActiveRef, {
+            writeFirestoreDocSafe(publicActiveRef, {
               payload: JSON.stringify(updated),
               id: 'active_state',
               tournamentName: updated.tournamentName || tournamentName || 'Tournament',
@@ -2009,7 +2124,7 @@ export default function App() {
             boutGapMinutes: gap,
             timestamp: Date.now(),
           };
-          setDoc(publicActiveRef, {
+          writeFirestoreDocSafe(publicActiveRef, {
             payload: JSON.stringify(updated),
             id: 'active_state',
             tournamentName: updated.tournamentName || tournamentName || 'Tournament',
@@ -2179,6 +2294,120 @@ export default function App() {
       const next = handleUpdateLeafNode(prev, catKey, i, trimmedName, trimmedClub, isBye);
       assignAllBoutNumbers(updatedCategories, next, ringSequenceOrders, boutSequenceOrder);
       return next;
+    });
+  };
+
+  const handleAddPlayerToCategory = (catKey: string, playerName: string, clubName: string) => {
+    const trimmedName = playerName.trim();
+    const trimmedClub = clubName.trim();
+    if (!trimmedName) return;
+
+    const currentModel = brackets[catKey];
+    const currentCat = categories[catKey];
+    const currentEntrants = currentCat?.entrants || [];
+    const currentCount = currentEntrants.length;
+    const currentSize = currentModel?.size || (currentCount <= 2 ? 2 : nextPow2(currentCount));
+
+    // 1. Add new athlete to roster
+    const newAthlete: Athlete = {
+      name: trimmedName,
+      club: trimmedClub,
+      weight: catKey,
+    };
+    const nextRoster = [...roster, newAthlete];
+    setRoster(nextRoster);
+
+    // 2. Determine new size (if expanding, e.g. 2 pax with 2 players -> adding 3rd player requires size 4)
+    const nextCount = currentCount + 1;
+    const requiredSize = nextPow2(nextCount);
+    const nextSize = Math.max(currentSize, requiredSize);
+
+    // 3. Update categories
+    const nextEntrants = [...currentEntrants, newAthlete];
+    const nextCategories: Record<string, WeightCategory> = {
+      ...categories,
+      [catKey]: {
+        ...currentCat,
+        name: catKey,
+        count: nextCount,
+        size: nextSize,
+        status: 'ready',
+        entrants: nextEntrants,
+        ring: currentCat?.ring !== undefined ? currentCat.ring : 1,
+      },
+    };
+    setCategories(nextCategories);
+
+    // 4. Update bracket model
+    setBrackets((prev) => {
+      let next = { ...prev };
+      if (nextSize > currentSize || !currentModel) {
+        // Rebuild bracket with new expanded size
+        next[catKey] = buildBracketModel(nextEntrants, nextSize, catKey);
+        if (currentModel?.systemType) {
+          next[catKey].systemType = currentModel.systemType;
+        }
+      } else {
+        // Find if there is an empty BYE node in round 0
+        const byeIdx = (currentModel.nodes[0] || []).findIndex((n) => n.isBye);
+        if (byeIdx !== -1) {
+          next = handleUpdateLeafNode(prev, catKey, byeIdx, trimmedName, trimmedClub, false);
+        } else {
+          next[catKey] = buildBracketModel(nextEntrants, nextSize, catKey);
+          if (currentModel?.systemType) {
+            next[catKey].systemType = currentModel.systemType;
+          }
+        }
+      }
+
+      assignAllBoutNumbers(nextCategories, next, ringSequenceOrders, boutSequenceOrder);
+      return next;
+    });
+
+    setStatusMessage({
+      text: `Added ${trimmedName} (${trimmedClub || 'Ind.'}) to ${catKey}.${
+        nextSize > currentSize ? ` Bracket expanded to ${nextSize} Pax Chart!` : ''
+      }`,
+      type: 'ok',
+    });
+  };
+
+  const handleExpandCategoryChart = (catKey: string, newSize: number) => {
+    const currentModel = brackets[catKey];
+    const currentCat = categories[catKey];
+    if (!currentModel || !currentCat) return;
+
+    const currentEntrants = currentCat.entrants || [];
+    if (newSize < currentEntrants.length) {
+      setStatusMessage({
+        text: `Cannot shrink chart below the number of registered competitors (${currentEntrants.length}).`,
+        type: 'err',
+      });
+      return;
+    }
+
+    const nextCategories: Record<string, WeightCategory> = {
+      ...categories,
+      [catKey]: {
+        ...currentCat,
+        size: newSize,
+      },
+    };
+    setCategories(nextCategories);
+
+    setBrackets((prev) => {
+      const next = { ...prev };
+      next[catKey] = buildBracketModel(currentEntrants, newSize, catKey);
+      if (currentModel.systemType) {
+        next[catKey].systemType = currentModel.systemType;
+      }
+      assignAllBoutNumbers(nextCategories, next, ringSequenceOrders, boutSequenceOrder);
+      return next;
+    });
+
+    setStatusMessage({
+      text: `Updated ${catKey} chart to ${newSize} Pax with empty BYE slots ready.`,
+      type: 'ok',
     });
   };
 
@@ -2511,6 +2740,9 @@ export default function App() {
     saveEventListToStorage(updatedList);
     setCurrentEventId(newId);
     safeLocalStorage.setItem(CURRENT_ID_STORAGE_KEY, newId);
+    try {
+      safeLocalStorage.setItem(`bracket_event_${newId}`, JSON.stringify(newEvent));
+    } catch (e) {}
     setTournamentName(finalName);
 
     if (!getQuotaExceeded()) {
@@ -2519,25 +2751,24 @@ export default function App() {
 
         // 1. Save specific event report in Firestore
         const eventReportRef = doc(db, 'reports', newId);
-        await setDoc(eventReportRef, {
+        await writeFirestoreDocSafe(eventReportRef, {
           payload: payloadStr,
           id: newId,
           timestamp: newEvent.timestamp,
           tournamentName: finalName
         });
 
-        // 2. Save to global saved events index in Firestore so the website has all saved events
+        // 2. Save lightweight summaries to global index in Firestore (< 20KB)
         const savedIndexRef = doc(db, 'reports', 'saved_events_index');
-        const compressedPayload = await compressToGzipBase64(JSON.stringify(updatedList));
-        await setDoc(savedIndexRef, {
-          payload: compressedPayload,
-          compressed: true,
+        const summaries = updatedList.map(toEventSummary);
+        await writeFirestoreDocSafe(savedIndexRef, {
+          payload: JSON.stringify(summaries),
           timestamp: Date.now()
         });
 
         // 3. Update public active_state report
         const publicRef = doc(db, 'reports', 'active_state');
-        await setDoc(publicRef, {
+        await writeFirestoreDocSafe(publicRef, {
           payload: payloadStr,
           id: 'active_state',
           timestamp: newEvent.timestamp,
@@ -2547,7 +2778,7 @@ export default function App() {
         // 4. Save to user private collection if logged in
         if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
           const eventRef = doc(db, `users/${currentUser}/events/${newId}`);
-          await setDoc(eventRef, {
+          await writeFirestoreDocSafe(eventRef, {
             payload: payloadStr,
             id: newId,
             timestamp: newEvent.timestamp,
@@ -2614,7 +2845,7 @@ export default function App() {
 
       if (!getQuotaExceeded()) {
         const publicActiveRef = doc(db, 'reports', 'active_state');
-        await setDoc(publicActiveRef, {
+        await writeFirestoreDocSafe(publicActiveRef, {
           payload: currentPayloadStr,
           id: 'active_state',
           tournamentName: tournamentName || 'Tournament',
@@ -2624,8 +2855,9 @@ export default function App() {
 
         if (savedEvents.length > 0) {
           const savedIndexRef = doc(db, 'reports', 'saved_events_index');
-          await setDoc(savedIndexRef, {
-            payload: JSON.stringify(savedEvents),
+          const summaries = savedEvents.map(toEventSummary);
+          await writeFirestoreDocSafe(savedIndexRef, {
+            payload: JSON.stringify(summaries),
             timestamp: Date.now()
           });
         }
@@ -2697,6 +2929,9 @@ export default function App() {
 
         const updatedList = savedEvents.map(e => e.id === id ? updatedEvent : e);
         saveEventListToStorage(updatedList.sort((a, b) => b.timestamp - a.timestamp));
+        try {
+          safeLocalStorage.setItem(`bracket_event_${id}`, JSON.stringify(updatedEvent));
+        } catch (e) {}
         
         if (!getQuotaExceeded()) {
           try {
@@ -2704,7 +2939,7 @@ export default function App() {
 
             // 1. Update event report in Firestore
             const eventReportRef = doc(db, 'reports', id);
-            await setDoc(eventReportRef, {
+            await writeFirestoreDocSafe(eventReportRef, {
               payload: payloadStr,
               id: id,
               timestamp: updatedEvent.timestamp,
@@ -2714,16 +2949,17 @@ export default function App() {
               rightLogo: updatedEvent.rightLogo
             });
 
-            // 2. Update global saved events index in Firestore
+            // 2. Update global saved events index in Firestore (lightweight summaries < 20KB)
             const savedIndexRef = doc(db, 'reports', 'saved_events_index');
-            await setDoc(savedIndexRef, {
-              payload: JSON.stringify(updatedList),
+            const summaries = updatedList.map(toEventSummary);
+            await writeFirestoreDocSafe(savedIndexRef, {
+              payload: JSON.stringify(summaries),
               timestamp: Date.now()
             });
 
             // 3. Update public active_state report
             const publicRef = doc(db, 'reports', 'active_state');
-            await setDoc(publicRef, {
+            await writeFirestoreDocSafe(publicRef, {
               payload: payloadStr,
               id: 'active_state',
               timestamp: updatedEvent.timestamp,
@@ -2736,7 +2972,7 @@ export default function App() {
             // 4. Update user private collection if logged in
             if (currentUser && auth.currentUser && auth.currentUser.email === currentUser) {
               const eventRef = doc(db, `users/${currentUser}/events/${id}`);
-              await setDoc(eventRef, {
+              await writeFirestoreDocSafe(eventRef, {
                 payload: payloadStr,
                 id: id,
                 timestamp: updatedEvent.timestamp,
@@ -2779,8 +3015,75 @@ export default function App() {
     });
   };
 
-  const handleLoadSavedEvent = (id: string) => {
-    const target = savedEvents.find(e => e.id === id);
+  const handleLoadSavedEvent = async (id: string) => {
+    let target = savedEvents.find(e => e.id === id);
+    if (!target) {
+      try {
+        const stored = safeLocalStorage.getItem(EVENTS_STORAGE_KEY);
+        if (stored) {
+          const list: SavedEvent[] = JSON.parse(stored);
+          target = list.find(e => e.id === id);
+        }
+      } catch (e) {}
+    }
+
+    // Check if target needs to be hydrated with full data (roster/brackets)
+    const isIncomplete = !target || 
+      (!target.brackets || Object.keys(target.brackets).length === 0) || 
+      (!target.roster || target.roster.length === 0);
+
+    if (isIncomplete) {
+      let hydratedData: any = null;
+
+      // 1. Check local storage dedicated event cache
+      try {
+        const storedFull = safeLocalStorage.getItem(`bracket_event_${id}`);
+        if (storedFull) {
+          hydratedData = JSON.parse(storedFull);
+        }
+      } catch (e) {}
+
+      // 2. Fetch from Firestore doc(db, 'reports', id)
+      if (!hydratedData && !getQuotaExceeded()) {
+        try {
+          const snap = await getDoc(doc(db, 'reports', id)).catch(() => null);
+          if (snap && snap.exists()) {
+            const d = snap.data();
+            if (d.payload) {
+              if (d.compressed) {
+                const decompressed = await decompressFromGzipBase64(d.payload);
+                hydratedData = JSON.parse(decompressed);
+              } else {
+                hydratedData = JSON.parse(d.payload);
+              }
+            } else {
+              hydratedData = d;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fetch full event from Firestore:', e);
+        }
+      }
+
+      // 3. Fallback to server API /api/reports/:id
+      if (!hydratedData) {
+        try {
+          const res = await fetch(`/api/reports/${id}`).catch(() => null);
+          if (res && res.ok) {
+            hydratedData = await res.json().catch(() => null);
+          }
+        } catch (e) {}
+      }
+
+      if (hydratedData) {
+        target = { ...(target || {}), ...hydratedData };
+        setSavedEvents(prev => prev.map(ev => ev.id === id ? { ...ev, ...hydratedData } : ev));
+        try {
+          safeLocalStorage.setItem(`bracket_event_${id}`, JSON.stringify(hydratedData));
+        } catch (e) {}
+      }
+    }
+
     if (!target) return;
 
     const performLoad = () => {
@@ -2838,7 +3141,7 @@ export default function App() {
       if (!getQuotaExceeded()) {
         try {
           const publicRef = doc(db, 'reports', 'active_state');
-          setDoc(publicRef, {
+          writeFirestoreDocSafe(publicRef, {
             payload: JSON.stringify(snapshot),
             id: 'active_state',
             tournamentName: target.tournamentName || 'Tournament',
@@ -2886,12 +3189,16 @@ export default function App() {
       onConfirm: async () => {
         const updatedList = savedEvents.filter(e => e.id !== id);
         saveEventListToStorage(updatedList);
+        try {
+          safeLocalStorage.removeItem(`bracket_event_${id}`);
+        } catch (e) {}
 
         if (!getQuotaExceeded()) {
           try {
             const savedIndexRef = doc(db, 'reports', 'saved_events_index');
-            await setDoc(savedIndexRef, {
-              payload: JSON.stringify(updatedList),
+            const summaries = updatedList.map(toEventSummary);
+            await writeFirestoreDocSafe(savedIndexRef, {
+              payload: JSON.stringify(summaries),
               timestamp: Date.now()
             });
             await deleteDoc(doc(db, 'reports', id)).catch(() => {});
@@ -5682,7 +5989,7 @@ export default function App() {
                                             Ring {rLabel} · Category {keyIdx + 1} of {ringKeys.length}
                                           </span>
                                           <span className="text-[10px] font-mono bg-slate-200/60 text-slate-700 px-2 py-0.5 rounded-md">
-                                            {cat?.count || 0} competitors
+                                            {cat?.count || 0} competitors · {model?.size || 2} Pax Chart
                                           </span>
                                         </div>
                                         <BracketCanvas
@@ -5748,6 +6055,8 @@ export default function App() {
                                         }}
                                         categoriesList={Object.keys(categories).filter((cKey) => cKey !== key)}
                                         onMoveToCategory={(i, targetCatKey) => handleMoveToCategory(key, i, targetCatKey)}
+                                        onAddPlayerToCategory={(playerName, clubName) => handleAddPlayerToCategory(key, playerName, clubName)}
+                                        onExpandChartSize={(newSize) => handleExpandCategoryChart(key, newSize)}
                                       />
                                     </div>
                                   );

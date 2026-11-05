@@ -106,13 +106,18 @@ app.post("/api/reports", async (req, res) => {
     // Generate a unique hash key or use specified report ID
     const id = req.body._reportId || (req.body.id && typeof req.body.id === 'string' && req.body.id.length < 50 ? req.body.id : crypto.randomBytes(6).toString("hex"));
     
-    // 1. Try storing in Firestore first for Vercel persistence
+    // 1. Try storing in Firestore first for Vercel persistence (safe size check)
     if (db) {
       try {
         const payloadStr = JSON.stringify(data);
-        const docRef = doc(collection(db, "reports"), id);
-        await setDoc(docRef, { payload: payloadStr });
-        console.log(`Saved report ${id} to Firestore.`);
+        const byteLength = Buffer.byteLength(payloadStr, "utf-8");
+        if (byteLength < 950000) {
+          const docRef = doc(collection(db, "reports"), id);
+          await setDoc(docRef, { payload: payloadStr });
+          console.log(`Saved report ${id} to Firestore.`);
+        } else {
+          console.warn(`Report ${id} payload exceeds 950KB (${byteLength} bytes); saved to disk instead of Firestore.`);
+        }
       } catch (fbErr: any) {
         console.error("Failed to save report to Firestore, falling back to disk", fbErr);
       }
@@ -172,8 +177,13 @@ app.post("/api/reports/active_state", async (req, res) => {
 
     if (db) {
       try {
-        const docRef = doc(db, "reports", "active_state");
-        await setDoc(docRef, { payload: payloadStr, timestamp: Date.now() });
+        const byteLength = Buffer.byteLength(payloadStr, "utf-8");
+        if (byteLength < 950000) {
+          const docRef = doc(db, "reports", "active_state");
+          await setDoc(docRef, { payload: payloadStr, timestamp: Date.now() });
+        } else {
+          console.warn(`[Firestore] active_state exceeds 950KB limit (${byteLength} bytes); saved to disk instead.`);
+        }
       } catch (fbErr) {
         console.error("Failed to save active_state to Firestore", fbErr);
       }
@@ -197,6 +207,15 @@ app.post("/api/reports/active_state", async (req, res) => {
 // Get saved events list for Google Studio & web sync
 app.get("/api/saved-events", async (req, res) => {
   try {
+    const filePath = path.join(DATA_DIR, "saved_events_index.json");
+    if (fs.existsSync(filePath)) {
+      try {
+        const fileData = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+        if (Array.isArray(fileData) && fileData.length > 0) {
+          return res.json(fileData);
+        }
+      } catch (e) {}
+    }
     if (db) {
       try {
         const docRef = doc(db, "reports", "saved_events_index");
@@ -212,10 +231,6 @@ app.get("/api/saved-events", async (req, res) => {
         console.error("Failed to load saved_events_index from Firestore", fbErr);
       }
     }
-    const filePath = path.join(DATA_DIR, "saved_events_index.json");
-    if (fs.existsSync(filePath)) {
-      return res.json(JSON.parse(fs.readFileSync(filePath, "utf-8")));
-    }
     return res.json([]);
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to get saved events" });
@@ -228,22 +243,56 @@ app.post("/api/saved-events", async (req, res) => {
     const events = req.body;
     if (!Array.isArray(events)) return res.status(400).json({ error: "Expected array of events" });
 
-    if (db) {
-      try {
-        const docRef = doc(db, "reports", "saved_events_index");
-        await setDoc(docRef, { payload: JSON.stringify(events), timestamp: Date.now() });
-      } catch (fbErr) {
-        console.error("Failed to save saved_events_index to Firestore", fbErr);
-      }
-    }
-
+    // 1. Write full events to disk backup and write each individual event if it has roster/brackets
     try {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
       fs.writeFileSync(path.join(DATA_DIR, "saved_events_index.json"), JSON.stringify(events, null, 2), "utf-8");
+
+      for (const ev of events) {
+        if (ev && ev.id && (ev.roster?.length > 0 || Object.keys(ev.brackets || {}).length > 0)) {
+          const evPath = path.join(DATA_DIR, `${ev.id}.json`);
+          if (!fs.existsSync(evPath)) {
+            fs.writeFileSync(evPath, JSON.stringify(ev, null, 2), "utf-8");
+          }
+        }
+      }
     } catch (diskErr) {
       console.warn("Could not write saved_events_index to disk", diskErr);
+    }
+
+    // 2. Write lightweight index summaries to Firestore so it NEVER exceeds the 1MB limit
+    if (db) {
+      try {
+        const summaries = events.map((ev: any) => ({
+          id: ev.id,
+          timestamp: ev.timestamp || Date.now(),
+          tournamentName: ev.tournamentName || "Untitled Event",
+          athleteCount: ev.athleteCount ?? (Array.isArray(ev.roster) ? ev.roster.length : 0),
+          categoryCount: ev.categoryCount ?? (ev.categories ? Object.keys(ev.categories).length : 0),
+          bracketCount: ev.bracketCount ?? (ev.brackets ? Object.keys(ev.brackets).length : 0),
+          ringCount: ev.ringCount,
+          ringLabelFormat: ev.ringLabelFormat,
+          boutLabelFormat: ev.boutLabelFormat,
+          boutSequenceOrder: ev.boutSequenceOrder,
+          activePublicView: ev.activePublicView,
+          showEstimatedTime: ev.showEstimatedTime,
+          competitionStartTime: ev.competitionStartTime,
+          ringStartTimes: ev.ringStartTimes,
+          boutGapMinutes: ev.boutGapMinutes,
+        }));
+        const summariesStr = JSON.stringify(summaries);
+        const byteLength = Buffer.byteLength(summariesStr, "utf-8");
+        if (byteLength < 950000) {
+          const docRef = doc(db, "reports", "saved_events_index");
+          await setDoc(docRef, { payload: summariesStr, timestamp: Date.now() });
+        } else {
+          console.warn(`[Firestore] saved_events_index summaries (${byteLength} bytes) exceeds 950KB; skipped Firestore write.`);
+        }
+      } catch (fbErr) {
+        console.error("Failed to save saved_events_index to Firestore", fbErr);
+      }
     }
 
     res.json({ status: "ok", count: events.length });

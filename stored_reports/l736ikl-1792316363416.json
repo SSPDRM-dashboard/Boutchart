@@ -1,0 +1,3462 @@
+{
+  "id": "l736ikl-1792316363416",
+  "timestamp": 1792318074424,
+  "tournamentName": "ST TERESA CUP 2026-Virtual",
+  "leftLogo": "",
+  "leftLogo2": "",
+  "rightLogo": "",
+  "rightLogo2": "",
+  "athleteCount": 81,
+  "categoryCount": 27,
+  "bracketCount": 27,
+  "roster": [
+    {
+      "name": "PLY-0BQCB KOH JIA HAO ETHAN",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "NOMICS",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-MM26V Arthur Francis Lim Jun Jie",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-8C69N PANG GUAN QI REYES",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-46OKM Jacob Teo",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-GDSLW SUDHARSHAN BALAMURALI",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-QY0UJ CADEN LIN ZIXU",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+      "school": "NOMICS",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-QHZCN GUO ZHENG YU",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-0Z0BR Khoo Wen Le Jeston",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-9KLTH Jacob Teo",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-IM9NE PANG CHENG FENG LUCAS",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-XIGE5 JAY ANDRE A. ODAN",
+      "club": "Odan Taekwondo Team",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Odan Taekwondo Team",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-4Y1RM Lincoln Heng",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-S96MB Khoo Tian Le Ledley",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-W5OGY CEDRIC NATHAN OYANG",
+      "club": "VERITAS TAEKWONDO INTERNATIONAL",
+      "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "school": "EAGLE RIAU",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-7KKIG GETHMIKA VETHUM NANAYAKKARA",
+      "club": "ELITE TAEKWONDO SRI LANKA",
+      "weight": "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1",
+      "school": "0",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-L8N17 Wong Yu Ze Shane",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-WZX5K See Yin En Caleb",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-HQGRL Jacob Teo",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-WVPTB GUO ZHENG YU",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-72LAD YEO ZHI JIE",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-NHJZG CHONG KAIJIE KEITH",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-89NGJ BAI XINGYUN SHAWN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-EKLPL LIM ZHEN KAI RYAN",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-XIQGA ARRIYAN VIJAY",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-JDFE8 Lincoln Heng",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-GA1VA Leong Shaoran Aldric",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+      "school": "Nomics",
+      "gender": "Male",
+      "description": "Group 3",
+      "notes": "Group 3"
+    },
+    {
+      "name": "PLY-FV78Z PANG CHENG FENG LUCAS",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 3",
+      "notes": "Group 3"
+    },
+    {
+      "name": "PLY-37WUW Hirusha Jordan Hewage",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Male",
+      "description": "Group 3",
+      "notes": "Group 3"
+    },
+    {
+      "name": "PLY-I5OON PANG CHENG FENG LUCAS",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-354NJ BAI XINGYUN SHAWN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-DOSS0 OATCHARIYA  KHAENMUET",
+      "club": "All star Taekwondo-Thailand",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "-",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-2SST8 MATTHIAS ANG JUN QUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-3R45J CAIUS TAN YI CHUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-2VT7E MATTHIAS ANG JUN QUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-93206 CAIUS TAN YI CHUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-63KUK KOH WEI SONG SHINO",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-3WNWZ BAI XINGYUN SHAWN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-PH9YN MATTHIAS ANG JUN QUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-EKXNG CAIUS TAN YI CHUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-TCCT8 KOH WEI SONG SHINO",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-26XRB KOH WEI SONG SHINO",
+      "club": "Zen Academy",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-C2LO0 Vernice Ong Ze Min",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-TWN7G Khoo En Le Meagan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-XQEQ0 Viki Ong Zhi Xuan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-2DFRB Lee Min Wei Sophia",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-Q7FDH Viki Ong Zhi Xuan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-9CKX4 AMIRA GRACE A. JUANITAS",
+      "club": "ALC-TKD",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "ALC - TKD",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-AHRMR SIM WAN QI GISELLE",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-NPWBP Cherise Wong Zhi Xuan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-0DQ0Y JAZELLE SOFIA V. TAN",
+      "club": "ALC-TKD",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "school": "ALC - TKD",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-5WMG7 WENG KAI TONG",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-0NUUI Samily Tay",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-309N0 Cherise Wong Zhi Xuan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-ZBJ1B NICOLE ROSE E. DIMAGIBA",
+      "club": "Odan Taekwondo Team",
+      "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+      "school": "Odan Taekwondo Team",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-WK2VP Viki Ong Zhi Xuan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-857ZB CHLOE ANG KAI YI",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-F7N72 NG SHI NUO LEIA",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-VBY3W TAN YEN ANN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-R0PD6 LEE QIN XUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-8DUKZ Lee Min Wei Sophia",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-92L4F Cherise Wong Zhi Xuan",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-K253I CHLOE ANG KAI YI",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-SK7AP WENG KAI TONG",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-JFN1U Jeslyn Wu Jing Yi",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-WVLHE Adette Lee You En",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-8KCQ7 NG SHI NUO LEIA",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-98YO1 NITHIYA JASIA",
+      "club": "Taekwondonomics Pte Ltd",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "school": "Nomics",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-I2USQ CHLOE ANG KAI YI",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-4Q9H7 SOPHIE LEUNG YONGQI",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-I4VWB Chloe Wu Jia Yi",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-U9CV8 JARAVEE  CHUMA",
+      "club": "All star Taekwondo-Thailand",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "-",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-AOG0A NG SHI NUO LEIA",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-R3VQU TAN YEN ANN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-NB3MF Adelle Lee Rong En",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 2",
+      "notes": "Group 2"
+    },
+    {
+      "name": "PLY-8GX1T URASSAYA  PATTAPHONG",
+      "club": "All star Taekwondo-Thailand",
+      "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "school": "-",
+      "gender": "Male",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-HJFP4 TAN YEN ANN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-VMJS5 LEE QIN XUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-OR24I LEE QIN XUAN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-07X6D CKRYSTAL CHIN",
+      "club": "Zen Academy",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "school": "ZEN ACADEMY",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-AP1VG Lee Jing Wen Michelle",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    },
+    {
+      "name": "PLY-SFUHH Ong Hui Ping",
+      "club": "Raiders Martial Arts Fitness LLP",
+      "weight": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+      "school": "Raiders Martial Arts Fitness",
+      "gender": "Female",
+      "description": "Group 1",
+      "notes": "Group 1"
+    }
+  ],
+  "categories": {
+    "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1": {
+      "name": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-0BQCB KOH JIA HAO ETHAN",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "NOMICS",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-MM26V Arthur Francis Lim Jun Jie",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-8C69N PANG GUAN QI REYES",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-46OKM Jacob Teo",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 1,
+      "systemType": "kyorugi-pk",
+      "order": 1
+    },
+    "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2": {
+      "name": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-GDSLW SUDHARSHAN BALAMURALI",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-QY0UJ CADEN LIN ZIXU",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+          "school": "NOMICS",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-QHZCN GUO ZHENG YU",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 1,
+      "systemType": "kyorugi-pk",
+      "order": 2
+    },
+    "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1": {
+      "name": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-0Z0BR Khoo Wen Le Jeston",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-9KLTH Jacob Teo",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-IM9NE PANG CHENG FENG LUCAS",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-XIGE5 JAY ANDRE A. ODAN",
+          "club": "Odan Taekwondo Team",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Odan Taekwondo Team",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 1,
+      "systemType": "kyorugi-pk",
+      "order": 4
+    },
+    "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2": {
+      "name": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-4Y1RM Lincoln Heng",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-S96MB Khoo Tian Le Ledley",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-W5OGY CEDRIC NATHAN OYANG",
+          "club": "VERITAS TAEKWONDO INTERNATIONAL",
+          "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+          "school": "EAGLE RIAU",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 1,
+      "systemType": "kyorugi-pk",
+      "order": 5
+    },
+    "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1": {
+      "name": "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-7KKIG GETHMIKA VETHUM NANAYAKKARA",
+          "club": "ELITE TAEKWONDO SRI LANKA",
+          "weight": "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1",
+          "school": "0",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 1,
+      "ring": 1,
+      "systemType": "kyorugi-pk",
+      "order": 11
+    },
+    "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-L8N17 Wong Yu Ze Shane",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-WZX5K See Yin En Caleb",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-HQGRL Jacob Teo",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-WVPTB GUO ZHENG YU",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 1,
+      "order": 3
+    },
+    "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-72LAD YEO ZHI JIE",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-NHJZG CHONG KAIJIE KEITH",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-89NGJ BAI XINGYUN SHAWN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 1,
+      "order": 6
+    },
+    "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-EKLPL LIM ZHEN KAI RYAN",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-XIQGA ARRIYAN VIJAY",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-JDFE8 Lincoln Heng",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 1,
+      "order": 7
+    },
+    "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+      "entrants": [
+        {
+          "name": "PLY-GA1VA Leong Shaoran Aldric",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+          "school": "Nomics",
+          "gender": "Male",
+          "description": "Group 3",
+          "notes": "Group 3"
+        },
+        {
+          "name": "PLY-FV78Z PANG CHENG FENG LUCAS",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 3",
+          "notes": "Group 3"
+        },
+        {
+          "name": "PLY-37WUW Hirusha Jordan Hewage",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Male",
+          "description": "Group 3",
+          "notes": "Group 3"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 1,
+      "order": 8
+    },
+    "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-I5OON PANG CHENG FENG LUCAS",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-354NJ BAI XINGYUN SHAWN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-DOSS0 OATCHARIYA  KHAENMUET",
+          "club": "All star Taekwondo-Thailand",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "-",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-8GX1T URASSAYA  PATTAPHONG",
+          "club": "All star Taekwondo-Thailand",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "-",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 1,
+      "order": 9
+    },
+    "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-2SST8 MATTHIAS ANG JUN QUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-3R45J CAIUS TAN YI CHUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 2,
+      "ring": 1,
+      "order": 10
+    },
+    "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-2VT7E MATTHIAS ANG JUN QUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-93206 CAIUS TAN YI CHUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-63KUK KOH WEI SONG SHINO",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 1,
+      "order": 13
+    },
+    "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-3WNWZ BAI XINGYUN SHAWN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-PH9YN MATTHIAS ANG JUN QUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-EKXNG CAIUS TAN YI CHUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-TCCT8 KOH WEI SONG SHINO",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 1,
+      "order": 12
+    },
+    "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1": {
+      "name": "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-26XRB KOH WEI SONG SHINO",
+          "club": "Zen Academy",
+          "weight": "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Male",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 1,
+      "ring": 1,
+      "order": 14
+    },
+    "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1": {
+      "name": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-C2LO0 Vernice Ong Ze Min",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-TWN7G Khoo En Le Meagan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-XQEQ0 Viki Ong Zhi Xuan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 2,
+      "systemType": "kyorugi-pk",
+      "order": 1
+    },
+    "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1": {
+      "name": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-2DFRB Lee Min Wei Sophia",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-Q7FDH Viki Ong Zhi Xuan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-9CKX4 AMIRA GRACE A. JUANITAS",
+          "club": "ALC-TKD",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "ALC - TKD",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-AHRMR SIM WAN QI GISELLE",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 2,
+      "systemType": "kyorugi-pk",
+      "order": 3
+    },
+    "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2": {
+      "name": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-NPWBP Cherise Wong Zhi Xuan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-0DQ0Y JAZELLE SOFIA V. TAN",
+          "club": "ALC-TKD",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+          "school": "ALC - TKD",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-5WMG7 WENG KAI TONG",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 2,
+      "systemType": "kyorugi-pk",
+      "order": 4
+    },
+    "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1": {
+      "name": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-0NUUI Samily Tay",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-309N0 Cherise Wong Zhi Xuan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-ZBJ1B NICOLE ROSE E. DIMAGIBA",
+          "club": "Odan Taekwondo Team",
+          "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+          "school": "Odan Taekwondo Team",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 2,
+      "systemType": "kyorugi-pk",
+      "order": 7
+    },
+    "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-WK2VP Viki Ong Zhi Xuan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 1,
+      "ring": 2,
+      "order": 2
+    },
+    "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-857ZB CHLOE ANG KAI YI",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-F7N72 NG SHI NUO LEIA",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-VBY3W TAN YEN ANN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-R0PD6 LEE QIN XUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 2,
+      "order": 10
+    },
+    "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-8DUKZ Lee Min Wei Sophia",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-92L4F Cherise Wong Zhi Xuan",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-K253I CHLOE ANG KAI YI",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-SK7AP WENG KAI TONG",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 2,
+      "order": 5
+    },
+    "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-JFN1U Jeslyn Wu Jing Yi",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-WVLHE Adette Lee You En",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-8KCQ7 NG SHI NUO LEIA",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-98YO1 NITHIYA JASIA",
+          "club": "Taekwondonomics Pte Ltd",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+          "school": "Nomics",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 2,
+      "order": 6
+    },
+    "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-I2USQ CHLOE ANG KAI YI",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-4Q9H7 SOPHIE LEUNG YONGQI",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-I4VWB Chloe Wu Jia Yi",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-U9CV8 JARAVEE  CHUMA",
+          "club": "All star Taekwondo-Thailand",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+          "school": "-",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 4,
+      "ring": 2,
+      "order": 8
+    },
+    "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "entrants": [
+        {
+          "name": "PLY-AOG0A NG SHI NUO LEIA",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-R3VQU TAN YEN ANN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        },
+        {
+          "name": "PLY-NB3MF Adelle Lee Rong En",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 2",
+          "notes": "Group 2"
+        }
+      ],
+      "size": 4,
+      "status": "ready",
+      "count": 3,
+      "ring": 2,
+      "order": 9
+    },
+    "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-HJFP4 TAN YEN ANN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-VMJS5 LEE QIN XUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 2,
+      "ring": 2,
+      "order": 11
+    },
+    "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-OR24I LEE QIN XUAN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-07X6D CKRYSTAL CHIN",
+          "club": "Zen Academy",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+          "school": "ZEN ACADEMY",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 2,
+      "ring": 2,
+      "order": 12
+    },
+    "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1": {
+      "name": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+      "entrants": [
+        {
+          "name": "PLY-AP1VG Lee Jing Wen Michelle",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        },
+        {
+          "name": "PLY-SFUHH Ong Hui Ping",
+          "club": "Raiders Martial Arts Fitness LLP",
+          "weight": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+          "school": "Raiders Martial Arts Fitness",
+          "gender": "Female",
+          "description": "Group 1",
+          "notes": "Group 1"
+        }
+      ],
+      "size": 2,
+      "status": "ready",
+      "count": 2,
+      "ring": 2,
+      "order": 13
+    }
+  },
+  "brackets": {
+    "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1": {
+      "categoryKey": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-8C69N PANG GUAN QI REYES",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-0BQCB KOH JIA HAO ETHAN",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-46OKM Jacob Teo",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-MM26V Arthur Francis Lim Jun Jie",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 1,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 2,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 3,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2": {
+      "categoryKey": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-QHZCN GUO ZHENG YU",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-GDSLW SUDHARSHAN BALAMURALI",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-QY0UJ CADEN LIN ZIXU",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-QHZCN GUO ZHENG YU",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 2",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 4,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 5,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-HQGRL Jacob Teo",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-L8N17 Wong Yu Ze Shane",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-WZX5K See Yin En Caleb",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-WVPTB GUO ZHENG YU",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 6,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 7,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 8,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1": {
+      "categoryKey": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-9KLTH Jacob Teo",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-0Z0BR Khoo Wen Le Jeston",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-XIGE5 JAY ANDRE A. ODAN",
+            "club": "Odan Taekwondo Team",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-IM9NE PANG CHENG FENG LUCAS",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 9,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 10,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 11,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2": {
+      "categoryKey": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-S96MB Khoo Tian Le Ledley",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-W5OGY CEDRIC NATHAN OYANG",
+            "club": "VERITAS TAEKWONDO INTERNATIONAL",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-4Y1RM Lincoln Heng",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-S96MB Khoo Tian Le Ledley",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 12,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 13,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-89NGJ BAI XINGYUN SHAWN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-NHJZG CHONG KAIJIE KEITH",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-72LAD YEO ZHI JIE",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-89NGJ BAI XINGYUN SHAWN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 14,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 15,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-EKLPL LIM ZHEN KAI RYAN",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-XIQGA ARRIYAN VIJAY",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-JDFE8 Lincoln Heng",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-EKLPL LIM ZHEN KAI RYAN",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 16,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 17,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-FV78Z PANG CHENG FENG LUCAS",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-GA1VA Leong Shaoran Aldric",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-37WUW Hirusha Jordan Hewage",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-FV78Z PANG CHENG FENG LUCAS",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 3",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 18,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 19,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-354NJ BAI XINGYUN SHAWN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-8GX1T URASSAYA  PATTAPHONG",
+            "club": "All star Taekwondo-Thailand",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-DOSS0 OATCHARIYA  KHAENMUET",
+            "club": "All star Taekwondo-Thailand",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-I5OON PANG CHENG FENG LUCAS",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 20,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 21,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 22,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-3R45J CAIUS TAN YI CHUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-2SST8 MATTHIAS ANG JUN QUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 23,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1": {
+      "categoryKey": "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-7KKIG GETHMIKA VETHUM NANAYAKKARA",
+            "club": "ELITE TAEKWONDO SRI LANKA",
+            "weight": "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "PLY-7KKIG GETHMIKA VETHUM NANAYAKKARA",
+            "club": "ELITE TAEKWONDO SRI LANKA",
+            "weight": "Virtual Male Amateur Yellow to Red black U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-PH9YN MATTHIAS ANG JUN QUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-EKXNG CAIUS TAN YI CHUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-3WNWZ BAI XINGYUN SHAWN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-TCCT8 KOH WEI SONG SHINO",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 24,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 25,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 26,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-2VT7E MATTHIAS ANG JUN QUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-93206 CAIUS TAN YI CHUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-63KUK KOH WEI SONG SHINO",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-2VT7E MATTHIAS ANG JUN QUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 27,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 28,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1": {
+      "categoryKey": "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-26XRB KOH WEI SONG SHINO",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "PLY-26XRB KOH WEI SONG SHINO",
+            "club": "Zen Academy",
+            "weight": "Virtual Male Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+            "isBye": false,
+            "checked": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1": {
+      "categoryKey": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-C2LO0 Vernice Ong Ze Min",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-TWN7G Khoo En Le Meagan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-XQEQ0 Viki Ong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-C2LO0 Vernice Ong Ze Min",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 1,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 2,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-WK2VP Viki Ong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "PLY-WK2VP Viki Ong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U8 7-8 years (2018 - 2019) Group 1",
+            "isBye": false,
+            "checked": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1": {
+      "categoryKey": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-Q7FDH Viki Ong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-9CKX4 AMIRA GRACE A. JUANITAS",
+            "club": "ALC-TKD",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-2DFRB Lee Min Wei Sophia",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-AHRMR SIM WAN QI GISELLE",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 3,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 4,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 5,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2": {
+      "categoryKey": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-0DQ0Y JAZELLE SOFIA V. TAN",
+            "club": "ALC-TKD",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-NPWBP Cherise Wong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-5WMG7 WENG KAI TONG",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-0DQ0Y JAZELLE SOFIA V. TAN",
+            "club": "ALC-TKD",
+            "weight": "Virtual Female Amateur Yellow to Red black U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 6,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 7,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-8DUKZ Lee Min Wei Sophia",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-K253I CHLOE ANG KAI YI",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-92L4F Cherise Wong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-SK7AP WENG KAI TONG",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 8,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 9,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 10,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-98YO1 NITHIYA JASIA",
+            "club": "Taekwondonomics Pte Ltd",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-JFN1U Jeslyn Wu Jing Yi",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-8KCQ7 NG SHI NUO LEIA",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-WVLHE Adette Lee You En",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U11 9-11 years (2015 - 2017) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 11,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 12,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 13,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1": {
+      "categoryKey": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-309N0 Cherise Wong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-ZBJ1B NICOLE ROSE E. DIMAGIBA",
+            "club": "Odan Taekwondo Team",
+            "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-0NUUI Samily Tay",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-309N0 Cherise Wong Zhi Xuan",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Amateur Yellow to Red black U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 14,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 15,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-I4VWB Chloe Wu Jia Yi",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-4Q9H7 SOPHIE LEUNG YONGQI",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-I2USQ CHLOE ANG KAI YI",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-U9CV8 JARAVEE  CHUMA",
+            "club": "All star Taekwondo-Thailand",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 16,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 17,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 18,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-NB3MF Adelle Lee Rong En",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+            "isBye": false,
+            "checked": true,
+            "seed": 1
+          },
+          {
+            "name": "BYE",
+            "club": "",
+            "weight": "",
+            "isBye": true,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-R3VQU TAN YEN ANN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-AOG0A NG SHI NUO LEIA",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "PLY-NB3MF Adelle Lee Rong En",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U14 12-14 years (2012 - 2014) Group 2",
+            "isBye": false,
+            "checked": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 19,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 20,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+      "size": 4,
+      "numRounds": 2,
+      "nodes": [
+        [
+          {
+            "name": "PLY-R0PD6 LEE QIN XUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-F7N72 NG SHI NUO LEIA",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 4
+          },
+          {
+            "name": "PLY-VBY3W TAN YEN ANN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          },
+          {
+            "name": "PLY-857ZB CHLOE ANG KAI YI",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U17 15-17 years (2009 - 2011) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 3
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 21,
+            "isPoomsae": false
+          },
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 22,
+            "isPoomsae": false
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 23,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-HJFP4 TAN YEN ANN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-VMJS5 LEE QIN XUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U21 18-21 years (2005 - 2008) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 24,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-07X6D CKRYSTAL CHIN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-OR24I LEE QIN XUAN",
+            "club": "Zen Academy",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U30 22-30 years (1996 - 2004) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 25,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    },
+    "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1": {
+      "categoryKey": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+      "size": 2,
+      "numRounds": 1,
+      "nodes": [
+        [
+          {
+            "name": "PLY-AP1VG Lee Jing Wen Michelle",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 1
+          },
+          {
+            "name": "PLY-SFUHH Ong Hui Ping",
+            "club": "Raiders Martial Arts Fitness LLP",
+            "weight": "Virtual Female Professional Blue to Poom/Dan U40 31-40 years (1986 – 1995) Group 1",
+            "isBye": false,
+            "checked": false,
+            "seed": 2
+          }
+        ],
+        [
+          {
+            "name": "",
+            "club": "",
+            "weight": "",
+            "isBye": false,
+            "checked": false,
+            "bout": 26,
+            "isPoomsae": false
+          }
+        ]
+      ],
+      "systemType": "kyorugi-pk"
+    }
+  },
+  "ringCount": 4,
+  "ringLabelFormat": "letter",
+  "boutLabelFormat": "alpha-2",
+  "boutSequenceOrder": "sequential",
+  "ringSequenceOrders": {},
+  "eventSequenceOrder": [
+    "poomsae-cutoff",
+    "poomsae-pk",
+    "kyorugi-pk"
+  ],
+  "ringEventSequences": {},
+  "shuffleSeed": true,
+  "dismissedDuplicates": [],
+  "activePublicView": "boutchart"
+}
